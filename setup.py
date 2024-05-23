@@ -10,7 +10,6 @@ setup(
         'sqlalchemy',
         'cryptography',
         'xrpl-py',
-        'wxPython',
         'requests',
         'toml',
         'nest_asyncio',
