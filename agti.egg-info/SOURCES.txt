@@ -6,8 +6,9 @@ agti.egg-info/SOURCES.txt
 agti.egg-info/dependency_links.txt
 agti.egg-info/requires.txt
 agti.egg-info/top_level.txt
-postfiatsecurity/__init__.py
-postfiatsecurity/hash_tools.py
+agtisecurity/__init__.py
+agtisecurity/hash_tools.py
 utilities/__init__.py
+utilities/db_manager.py
 utilities/generic_pft_utilities.py
 utilities/settings.py

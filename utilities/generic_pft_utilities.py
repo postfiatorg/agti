@@ -15,6 +15,8 @@ import binascii
 import re
 import string
 nest_asyncio.apply()
+import requests
+
 
 class GenericPFTUtilities:
     def __init__(self,pw_map):
@@ -49,6 +51,16 @@ class GenericPFTUtilities:
         ascii_string = bytes_object.decode("utf-8")
         return ascii_string
     
+
+    def shorten_url(self,url):
+        api_url = "http://tinyurl.com/api-create.php"
+        params = {'url': url}
+        response = requests.get(api_url, params=params)
+        if response.status_code == 200:
+            return response.text
+        else:
+            return None
+    
     def check_if_tx_pft(self,tx):
         ret= False
         try:
@@ -81,6 +93,29 @@ class GenericPFTUtilities:
             'MemoType': MemoType,
             'MemoData': MemoData
         }
+    
+    def classify_task_string(self,string):
+        """ These are the canonical classifications for task strings 
+        on a Post Fiat Node
+        """ 
+        categories = {
+                'ACCEPTANCE': ['ACCEPTANCE REASON ___'],
+                'PROPOSAL': [' .. ','PROPOSED PF ___'],
+                'REFUSAL': ['REFUSAL REASON ___'],
+                'VERIFICATION_PROMPT': ['VERIFICATION PROMPT ___'],
+                'VERIFICATION_RESPONSE': ['VERIFICATION RESPONSE ___'],
+                'REWARD': ['REWARD RESPONSE __'],
+                'TASK_OUTPUT': ['COMPLETION JUSTIFICATION ___'],
+                'USER_GENESIS': ['USER GENESIS __'],
+                'REQUEST_POST_FIAT':['REQUEST_POST_FIAT ___'],
+                'NODE_REQUEST': ['NODE REQUEST ___'],
+            }
+    
+        for category, keywords in categories.items():
+            if any(keyword in string for keyword in keywords):
+                return category
+    
+        return 'UNKNOWN'
     
     def generate_custom_id(self):
         """ These are the custom IDs generated for each task that is generated
@@ -218,5 +253,5 @@ class GenericPFTUtilities:
                                                          str(x).replace(account_address,''))
         live_memo_tx['datetime']= live_memo_tx['tx'].apply(lambda x: self.convert_ripple_timestamp_to_datetime(x['date']))
         if pft_only == True:
-            live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].coy()
+            live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].copy()
         return live_memo_tx
