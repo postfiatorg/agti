@@ -4,7 +4,7 @@ import datetime
 import glob
 from platform import system
 from pathlib import Path
-from postfiatsecurity import hash_tools as pwl
+from agtisecurity import hash_tools as pwl
 
 def datetime_current_EST():
     '''EST should be used for all timestamps'''
@@ -19,14 +19,14 @@ def get_home_directory():
 def get_credentials_directory():
     '''Returns the path to the postfiatcreds directory, creating it if it does not exist'''
     home_dir = get_home_directory()
-    creds_dir = home_dir / "postfiatcreds"
+    creds_dir = home_dir / "agticreds"
     creds_dir.mkdir(exist_ok=True)
     return creds_dir
 
 def get_credential_file_path():
     '''Returns the path to the credential file, creating it if it does not exist'''
     creds_dir = get_credentials_directory()
-    cred_file_path = creds_dir / "manyasone_cred_list.txt"
+    cred_file_path = creds_dir / "agti_cred_list.txt"
     
     if not cred_file_path.exists():
         cred_file_path.touch()
