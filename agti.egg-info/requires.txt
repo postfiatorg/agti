@@ -1,0 +1,8 @@
+numpy
+pandas
+sqlalchemy
+cryptography
+xrpl-py
+requests
+toml
+nest_asyncio

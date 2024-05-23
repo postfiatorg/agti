@@ -1,0 +1,11 @@
+LICENSE
+README.md
+setup.py
+agti.egg-info/PKG-INFO
+agti.egg-info/SOURCES.txt
+agti.egg-info/dependency_links.txt
+agti.egg-info/requires.txt
+agti.egg-info/top_level.txt
+basic_utilities/__init__.py
+basic_utilities/generic_pft_utilities.py
+basic_utilities/settings.py
