@@ -16,6 +16,8 @@ import re
 import string
 nest_asyncio.apply()
 import requests
+import zlib
+import base64
 
 
 class GenericPFTUtilities:
@@ -255,3 +257,4 @@ class GenericPFTUtilities:
         if pft_only == True:
             live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].copy()
         return live_memo_tx
+    
