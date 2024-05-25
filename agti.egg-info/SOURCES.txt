@@ -8,7 +8,15 @@ agti.egg-info/requires.txt
 agti.egg-info/top_level.txt
 agtisecurity/__init__.py
 agtisecurity/hash_tools.py
+ai/__init__.py
+ai/openai.py
+ai/together.py
 utilities/__init__.py
 utilities/db_manager.py
 utilities/generic_pft_utilities.py
 utilities/settings.py
+utilities/node_tools/__init__.py
+utilities/node_tools/basic_summary.py
+utilities/user_tools/__init__.py
+utilities/user_tools/user_cron_job.py
+utilities/user_tools/user_node_request.py

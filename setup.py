@@ -12,7 +12,7 @@ setup(
         'xrpl-py',
         'requests',
         'toml',
-        'nest_asyncio',
+        'nest_asyncio','brotli'
     ],
     author='Alex Good',
     author_email='alex@agti.net',

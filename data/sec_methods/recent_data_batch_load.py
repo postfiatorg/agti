@@ -1,7 +1,8 @@
 import re
 import pandas as pd
-from data.sec_methods.request_utility import SECRequestUtility
-from utilities.db_manager import DBConnectionManager
+import time
+from agti.data.sec_methods.request_utility import SECRequestUtility
+from agti.utilities.db_manager import DBConnectionManager
 import datetime
 
 class SECRecentDataBatchLoad:
@@ -122,3 +123,42 @@ class SECRecentDataBatchLoad:
 
         dbconnx.dispose()
         return new_records
+
+    def run_sec_data_batch_loadfor_3_hours(self):
+        """Runs the SEC data batch load every 2 minutes for 3 hours."""
+        start_time = datetime.datetime.now()
+        end_time = start_time + datetime.timedelta(hours=3)
+
+        while datetime.datetime.now() < end_time:
+            print(f"Running update at {datetime.datetime.now()}")
+            self.write_recent_sec_updates()
+            print("Sleeping for 2 minutes...")
+            time.sleep(120)
+                
+    def load_cached_sec_updates(self):
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        
+        try:
+            cached_sec_updates = pd.read_sql('SELECT * FROM sec__update_recent_filings', dbconnx)
+            if cached_sec_updates.empty:
+                print("No cached updates found, fetching and writing new updates.")
+                new_updates = self.write_recent_sec_updates()
+                if new_updates.empty:
+                    print("No new updates were fetched.")
+                cached_sec_updates = pd.read_sql('SELECT * FROM sec__update_recent_filings', dbconnx)
+            else:
+                print("Cached updates found.")
+        except Exception as e:
+            if "relation \"sec__update_recent_filings\" does not exist" in str(e):
+                print("Table sec__update_recent_filings does not exist. Creating a new table and fetching updates.")
+                new_updates = self.write_recent_sec_updates()
+                if not new_updates.empty:
+                    cached_sec_updates = new_updates
+                else:
+                    cached_sec_updates = pd.DataFrame()
+                    print("No new updates were fetched.")
+            else:
+                raise
+
+        dbconnx.dispose()
+        return cached_sec_updates

@@ -18,7 +18,10 @@ nest_asyncio.apply()
 import requests
 import zlib
 import base64
-
+import brotli
+import base64
+import hashlib
+import os
 
 class GenericPFTUtilities:
     def __init__(self,pw_map):
@@ -48,11 +51,71 @@ class GenericPFTUtilities:
         unix_timestamp = ripple_timestamp + ripple_epoch_offset
         date_object = datetime.datetime.fromtimestamp(unix_timestamp)
         return date_object
-    def hex_to_text(self,hex_string):
+
+    def hex_to_text(self, hex_string):
         bytes_object = bytes.fromhex(hex_string)
-        ascii_string = bytes_object.decode("utf-8")
-        return ascii_string
-    
+        try:
+            ascii_string = bytes_object.decode("utf-8")
+            return ascii_string
+        except UnicodeDecodeError:
+            return bytes_object  # Return the raw bytes if it cannot decode as utf-8
+
+        
+    def generate_random_utf8_friendly_hash(self, length=6):
+        # Generate a random sequence of bytes
+        random_bytes = os.urandom(16)  # 16 bytes of randomness
+        
+        # Create a SHA-256 hash of the random bytes
+        hash_object = hashlib.sha256(random_bytes)
+        hash_bytes = hash_object.digest()
+        
+        # Encode the hash to base64 to make it URL-safe and readable
+        base64_hash = base64.urlsafe_b64encode(hash_bytes).decode('utf-8')
+        
+        # Take the first `length` characters of the base64-encoded hash
+        utf8_friendly_hash = base64_hash[:length]
+        
+        return utf8_friendly_hash
+    def get_number_of_bytes(self, text):
+        text_bytes = text.encode('utf-8')
+        return len(text_bytes)
+        
+    def split_text_into_chunks(self, text, max_chunk_size=760):
+        chunks = []
+        text_bytes = text.encode('utf-8')
+        
+        for i in range(0, len(text_bytes), max_chunk_size):
+            chunk = text_bytes[i:i+max_chunk_size]
+            chunk_number = i // max_chunk_size + 1
+            chunk_label = f"chunk_{chunk_number}__".encode('utf-8')
+            chunk_with_label = chunk_label + chunk
+            chunks.append(chunk_with_label)
+        
+        return [chunk.decode('utf-8', errors='ignore') for chunk in chunks]
+
+    def compress_string(self,input_string):
+        # Compress the string using Brotli
+        compressed_data = brotli.compress(input_string.encode('utf-8'))
+        
+        # Encode the compressed data to a Base64 string
+        base64_encoded_data = base64.b64encode(compressed_data)
+        
+        # Convert the Base64 bytes to a string
+        compressed_string = base64_encoded_data.decode('utf-8')
+        
+        return compressed_string
+
+    def decompress_string(self, compressed_string):
+        # Decode the Base64 string to bytes
+        base64_decoded_data = base64.b64decode(compressed_string)
+        
+        # Decompress the data using Brotli
+        decompressed_data = brotli.decompress(base64_decoded_data)
+        
+        # Convert the decompressed bytes to a string
+        decompressed_string = decompressed_data.decode('utf-8')
+        
+        return decompressed_string
 
     def shorten_url(self,url):
         api_url = "http://tinyurl.com/api-create.php"
@@ -211,7 +274,7 @@ class GenericPFTUtilities:
         df = pd.DataFrame(results)
         return df
     
-    def get_account_transactions(self, account_address,
+    def get_account_transactions__limited(self, account_address,
                                     ledger_index_min=-1,
                                     ledger_index_max=-1, limit=10):
             client = xrpl.clients.JsonRpcClient(self.mainnet_url) # Using a public server; adjust as necessary
@@ -231,7 +294,55 @@ class GenericPFTUtilities:
                 print("More transactions available. Marker for next batch:", response.result["marker"])
         
             return transactions
-    
+        
+
+
+    def get_account_transactions(self, account_address='r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n',
+                                 ledger_index_min=-1,
+                                 ledger_index_max=-1, limit=10):
+        client = xrpl.clients.JsonRpcClient(self.mainnet_url)  # Using a public server; adjust as necessary
+        all_transactions = []  # List to store all transactions
+        marker = None  # Initialize marker to None
+        previous_marker = None  # Track the previous marker
+        max_iterations = 1000  # Safety limit for iterations
+        iteration_count = 0  # Count iterations
+
+        while max_iterations > 0:
+            iteration_count += 1
+            print(f"Iteration: {iteration_count}")
+            print(f"Current Marker: {marker}")
+
+            request = AccountTx(
+                account=account_address,
+                ledger_index_min=ledger_index_min,  # Use -1 for the earliest ledger index
+                ledger_index_max=ledger_index_max,  # Use -1 for the latest ledger index
+                limit=limit,                        # Adjust the limit as needed
+                marker=marker,                      # Use marker for pagination
+                forward=True                        # Set to True to return results in ascending order
+            )
+
+            response = client.request(request)
+            transactions = response.result.get("transactions", [])
+            print(f"Transactions fetched this batch: {len(transactions)}")
+            all_transactions.extend(transactions)  # Add fetched transactions to the list
+
+            if "marker" in response.result:  # Check if a marker is present for pagination
+                if response.result["marker"] == previous_marker:
+                    print("Pagination seems stuck, stopping the loop.")
+                    break  # Break the loop if the marker does not change
+                previous_marker = marker
+                marker = response.result["marker"]  # Update marker for the next batch
+                print("More transactions available. Fetching next batch...")
+            else:
+                print("No more transactions available.")
+                break  # Exit loop if no more transactions
+
+            max_iterations -= 1  # Decrement the iteration counter
+
+        if max_iterations == 0:
+            print("Reached the safety limit for iterations. Stopping the loop.")
+
+        return all_transactions
 
     def get_memo_detail_df_for_account(self,account_address,transaction_limit=5000, pft_only=True):
         """ This function gets all the memo details for a given account """
@@ -258,3 +369,71 @@ class GenericPFTUtilities:
             live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].copy()
         return live_memo_tx
     
+    
+    def send_PFT_chunk_message(self,user_name,full_text, destination_address):
+        """
+        This takes a large message compresses the strings and sends it in hex to another address.
+        Is based on a user spawned wallet and sends 1 PFT per chunk
+        user_name = 'spm_typhus',full_text = big_string, destination_address='rKZDcpzRE5hxPUvTQ9S3y2aLBUUTECr1vN'"""     
+        
+        wallet = self.spawn_user_wallet_based_on_name(user_name)
+        task_id = 'chunkm__'+self.generate_random_utf8_friendly_hash(6)
+        
+        all_chunks = self.split_text_into_chunks(full_text)
+        send_memo_map = {}
+        for xchunk in all_chunks:
+            chunk_num = int(xchunk.split('chunk_')[1].split('__')[0])
+            send_memo_map[chunk_num] = self.construct_basic_postfiat_memo(user=user_name, task_id=task_id, 
+                                        full_output=self.compress_string(xchunk))
+        for xkey in send_memo_map.keys():
+            self.send_PFT_with_info(sending_wallet=wallet, amount=1, memo=send_memo_map[xkey], 
+                                destination_address=destination_address, url=None)
+            
+    def get_all_account_chunk_messages(self,account_id='rKZDcpzRE5hxPUvTQ9S3y2aLBUUTECr1vN'):
+        """ This pulls in all the chunk messages an account has received and cleans and aggregates
+        the messages for easy digestion - implementing sorts, and displays some information associated with the messages """ 
+        all_account_memos = self.get_memo_detail_df_for_account(account_id, pft_only=True)
+        all_chunk_messages = all_account_memos[all_account_memos['converted_memos'].apply(lambda x: 
+                                                                        'chunkm__' in x['MemoType'])].copy()
+        all_chunk_messages['memo_data_raw']= all_chunk_messages['converted_memos'].apply(lambda x: x['MemoData']).astype(str)
+        all_chunk_messages['message_id']=all_chunk_messages['converted_memos'].apply(lambda x: x['MemoType'])
+        all_chunk_messages['decompressed_strings']=all_chunk_messages['memo_data_raw'].apply(lambda x: self.decompress_string(x))
+        all_chunk_messages['chunk_num']=all_chunk_messages['decompressed_strings'].apply(lambda x: x.split('chunk_')[1].split('__')[0]).astype(int)
+        all_chunk_messages.sort_values(['message_id','chunk_num'], inplace=True)
+        grouped_memo_data = all_chunk_messages[['decompressed_strings','message_id']].groupby('message_id').sum().copy()
+        def remove_chunks(text):
+            # Use regular expression to remove all occurrences of chunk_1__, chunk_2__, etc.
+            cleaned_text = re.sub(r'chunk_\d+__', '', text)
+            return cleaned_text
+        grouped_memo_data['cleaned_message']=grouped_memo_data['decompressed_strings'].apply(lambda x: remove_chunks(x))
+        all_chunk_messages['PFT_value']=all_chunk_messages['tx'].apply(lambda x: x['Amount']['value']).astype(float)
+        grouped_pft_value = all_chunk_messages[['message_id','PFT_value']].groupby('message_id').sum()['PFT_value']
+        grouped_memo_data['PFT']=grouped_pft_value
+        last_slice = all_chunk_messages.groupby('message_id').last().copy()
+        
+        grouped_memo_data['datetime']=last_slice['datetime']
+        grouped_memo_data['hash']=last_slice['hash']
+        return grouped_memo_data
+
+
+    def process_memo_detail_df_to_daily_summary_df(self, memo_detail_df):
+        """_summary_
+        
+        Example Code to feed this 
+        all_memo_detail = self.get_memo_detail_df_for_account(account_address='r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n', pft_only=True)
+        """
+        all_memo_detail = memo_detail_df
+        all_memo_detail['pft_absolute_value']=all_memo_detail['tx'].apply(lambda x: x['Amount']['value']).astype(float)
+        all_memo_detail['incoming_sign']=np.where(all_memo_detail['message_type']=='INCOMING',1,-1)
+        all_memo_detail['pft_directional_value'] = all_memo_detail['incoming_sign'] * all_memo_detail['pft_absolute_value']
+        all_memo_detail['pft_transaction']=np.where(all_memo_detail['pft_absolute_value']>0,1,np.nan)
+        
+        
+        all_memo_detail['combined_memo_type_and_data']= all_memo_detail['converted_memos'].apply(lambda x: x['MemoType']+'  '+x['MemoData'])
+        output_frame = all_memo_detail[['datetime','pft_transaction','pft_directional_value',
+                                        'combined_memo_type_and_data','pft_absolute_value']].groupby('datetime').first()
+        output_frame.reset_index(inplace=True)
+        output_frame['raw_date']=pd.to_datetime(output_frame['datetime'].apply(lambda x: x.date()))
+        daily_grouped_output_frame = output_frame[['pft_transaction','pft_directional_value',
+                    'combined_memo_type_and_data','pft_absolute_value','raw_date']].groupby('raw_date').sum()
+        return {'daily_grouped_summary':daily_grouped_output_frame, 'raw_summary':output_frame}
