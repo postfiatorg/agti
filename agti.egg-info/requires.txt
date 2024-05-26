@@ -6,3 +6,4 @@ xrpl-py
 requests
 toml
 nest_asyncio
+brotli

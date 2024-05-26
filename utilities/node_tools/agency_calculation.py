@@ -78,7 +78,7 @@ class AgencyScoreCalculation:
             | HONESTY SCORE | <integer score from 1-100>  |
             ''' 
             api_args = {
-                        "model": 'gpt-4o',
+                        "model": self.default_gpt_model,
                       "temperature": 0,
                         "messages": [
                             {"role": "system", "content": system_agency_prompt},

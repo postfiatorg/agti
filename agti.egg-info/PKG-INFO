@@ -19,6 +19,7 @@ Requires-Dist: xrpl-py
 Requires-Dist: requests
 Requires-Dist: toml
 Requires-Dist: nest_asyncio
+Requires-Dist: brotli
 
 # agti_inc
 
