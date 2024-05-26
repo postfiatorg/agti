@@ -1,6 +1,6 @@
-from agti.utilities.settings import PasswordMapLoader
-from agti.ai.openai import OpenAIRequestTool
-from agti.utilities.generic_pft_utilities import GenericPFTUtilities
+from utilities.settings import PasswordMapLoader
+from ai.openai import OpenAIRequestTool
+from utilities.generic_pft_utilities import GenericPFTUtilities
 import pytz
 import time
 import datetime

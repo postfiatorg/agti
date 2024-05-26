@@ -11,6 +11,12 @@ agtisecurity/hash_tools.py
 ai/__init__.py
 ai/openai.py
 ai/together.py
+data/__init__.py
+data/ishares_methods/__init__.py
+data/sec_methods/__init__.py
+data/sec_methods/recent_data_batch_load.py
+data/sec_methods/request_utility.py
+data/sec_methods/update_cik.py
 spms/__init__.py
 spms/kaleb/__init__.py
 spms/typhus/__init__.py

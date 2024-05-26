@@ -1,10 +1,10 @@
 import threading
-from agti.utilities.user_tools.user_cron_job import CronUpdateWrapper
+from utilities.user_tools.user_cron_job import CronUpdateWrapper
 import schedule
 import time
-from agti.data.sec_methods.update_cik import RunCIKUpdate
-from agti.data.sec_methods.recent_data_batch_load import SECRecentDataBatchLoad
-from agti.utilities.settings import PasswordMapLoader
+from data.sec_methods.update_cik import RunCIKUpdate
+from data.sec_methods.recent_data_batch_load import SECRecentDataBatchLoad
+from utilities.settings import PasswordMapLoader
 
 class TyphusUpdate:
     def __init__(self, pw_map):

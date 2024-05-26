@@ -1,5 +1,5 @@
-from agti.data.sec_methods.request_utility import SECRequestUtility
-from agti.utilities.db_manager import DBConnectionManager
+from data.sec_methods.request_utility import SECRequestUtility
+from utilities.db_manager import DBConnectionManager
 import datetime
 from io import StringIO
 import pandas as pd
