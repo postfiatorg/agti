@@ -3,7 +3,7 @@ import binascii
 import datetime 
 import random
 from xrpl.models.transactions import Payment, Memo
-from utilities.generic_pft_utilities import GenericPFTUtilities
+from agti.utilities.generic_pft_utilities import GenericPFTUtilities
 
 ### This is a tool for a User wallet to initiate a task request to a node wallet
 class UserNodeTaskRequest:

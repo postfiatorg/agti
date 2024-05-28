@@ -1,5 +1,5 @@
-from agti.utilities.settings import CredentialManager
-from agti.utilities.db_manager import DBConnectionManager
+from utilities.settings import CredentialManager
+from utilities.db_manager import DBConnectionManager
 import quandl
 import sys
 import json

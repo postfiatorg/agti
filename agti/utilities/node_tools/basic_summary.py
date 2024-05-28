@@ -1,6 +1,6 @@
 import re
 import pandas as pd
-from utilities.generic_pft_utilities import GenericPFTUtilities
+from agti.utilities.generic_pft_utilities import GenericPFTUtilities
 class NodeTaskEvaluation:
     def __init__(self,pw_map):
         self.pw_map= pw_map

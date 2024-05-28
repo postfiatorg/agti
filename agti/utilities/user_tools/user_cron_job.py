@@ -1,5 +1,5 @@
 import threading
-from utilities.generic_pft_utilities import GenericPFTUtilities
+from agti.utilities.generic_pft_utilities import GenericPFTUtilities
 import zlib
 import base64
 import pandas as pd

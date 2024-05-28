@@ -1,7 +1,7 @@
 import pandas as pd
 from ai.openai import OpenAIRequestTool
 import re
-from utilities.generic_pft_utilities import GenericPFTUtilities
+from agti.utilities.generic_pft_utilities import GenericPFTUtilities
 import numpy as np
 class AgencyScoreCalculation:
     def __init__(self,pw_map):
