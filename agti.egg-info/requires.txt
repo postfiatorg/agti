@@ -7,3 +7,4 @@ requests
 toml
 nest_asyncio
 brotli
+sec-cik-mapper

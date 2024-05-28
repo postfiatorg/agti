@@ -22,3 +22,15 @@ class DBConnectionManager:
         engine = self.spawn_sqlalchemy_db_connection_for_user(user_name)
         table_names = sqlalchemy.inspect(engine).get_table_names()
         return table_names
+    
+    def spawn_psycopg2_db_connection(self,user_name):
+        
+        db_connstring = self.pw_map[f'{user_name}__postgresconnstring']
+
+        db_user = db_connstring.split('://')[1].split(':')[0]
+        db_password = db_connstring.split('://')[1].split(':')[1].split('@')[0]
+        db_host = db_connstring.split('://')[1].split(':')[1].split('@')[1].split('/')[0]
+        db_name = db_connstring.split('/')[-1:][0]
+        psycop_conn = psycopg2.connect(user=db_user, password=db_password, 
+                                            host=db_host, database=db_name)
+        return psycop_conn

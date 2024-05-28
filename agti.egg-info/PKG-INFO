@@ -20,6 +20,7 @@ Requires-Dist: requests
 Requires-Dist: toml
 Requires-Dist: nest_asyncio
 Requires-Dist: brotli
+Requires-Dist: sec-cik-mapper
 
 # agti_inc
 

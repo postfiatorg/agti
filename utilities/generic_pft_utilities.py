@@ -21,6 +21,7 @@ import base64
 import brotli
 import base64
 import hashlib
+import time
 import os
 
 class GenericPFTUtilities:
@@ -343,12 +344,96 @@ class GenericPFTUtilities:
             print("Reached the safety limit for iterations. Stopping the loop.")
 
         return all_transactions
+    
+    def get_account_transactions__exhaustive(self,account_address='r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n',
+                                ledger_index_min=-1,
+                                ledger_index_max=-1,
+                                max_attempts=3,
+                                retry_delay=.2):
 
-    def get_memo_detail_df_for_account(self,account_address,transaction_limit=5000, pft_only=True):
-        """ This function gets all the memo details for a given account """
+        client = xrpl.clients.JsonRpcClient(self.mainnet_url)  # Using a public server; adjust as necessary
+        all_transactions = []  # List to store all transactions
+
+        # Fetch transactions using marker pagination
+        marker = None
+        attempt = 0
+        while attempt < max_attempts:
+            try:
+                request = xrpl.models.requests.account_tx.AccountTx(
+                    account=account_address,
+                    ledger_index_min=ledger_index_min,
+                    ledger_index_max=ledger_index_max,
+                    limit=1000,
+                    marker=marker,
+                    forward=True
+                )
+                response = client.request(request)
+                transactions = response.result["transactions"]
+                all_transactions.extend(transactions)
+
+                if "marker" not in response.result:
+                    break
+                marker = response.result["marker"]
+
+            except Exception as e:
+                print(f"Error occurred while fetching transactions (attempt {attempt + 1}): {str(e)}")
+                attempt += 1
+                if attempt < max_attempts:
+                    print(f"Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    print("Max attempts reached. Transactions may be incomplete.")
+                    break
+
+        return all_transactions
+
+    
+
+    def get_account_transactions__retry_version(self, account_address='r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n',
+                                ledger_index_min=-1,
+                                ledger_index_max=-1,
+                                max_attempts=3,
+                                retry_delay=.2,
+                                num_runs=5):
         
-        full_transaction_history = self.get_account_transactions(account_address=account_address, 
-                                                                 limit=transaction_limit)
+        longest_transactions = []
+        
+        for i in range(num_runs):
+            print(f"Run {i+1}/{num_runs}")
+            
+            transactions = self.get_account_transactions__exhaustive(
+                account_address=account_address,
+                ledger_index_min=ledger_index_min,
+                ledger_index_max=ledger_index_max,
+                max_attempts=max_attempts,
+                retry_delay=retry_delay
+            )
+            
+            num_transactions = len(transactions)
+            print(f"Number of transactions: {num_transactions}")
+            
+            if num_transactions > len(longest_transactions):
+                longest_transactions = transactions
+            
+            if i < num_runs - 1:
+                print(f"Waiting for {retry_delay} seconds before the next run...")
+                time.sleep(retry_delay)
+        
+        print(f"Longest list of transactions: {len(longest_transactions)} transactions")
+        return longest_transactions
+
+    def get_memo_detail_df_for_account(self,account_address,transaction_limit=5000, pft_only=True, exhaustive=False):
+        """ This function gets all the memo details for a given account """
+        if exhaustive ==False:
+            full_transaction_history = self.get_account_transactions(account_address=account_address, 
+                                                                    limit=transaction_limit)
+        if exhaustive == True:
+            full_transaction_history = self.get_account_transactions__retry_version(account_address=account_address, 
+                                                                                    ledger_index_min=-1,
+                                                                                    ledger_index_max=-1,
+                                                                                    max_attempts=3,
+                                                                                    retry_delay=.2,
+                                                                                    num_runs=5)
 
 
         validated_tx = pd.DataFrame(full_transaction_history)
@@ -367,8 +452,25 @@ class GenericPFTUtilities:
         live_memo_tx['datetime']= live_memo_tx['tx'].apply(lambda x: self.convert_ripple_timestamp_to_datetime(x['date']))
         if pft_only == True:
             live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].copy()
+        live_memo_tx['reference_account']=account_address
         return live_memo_tx
     
+    def convert_memo_detail_df_into_essential_caching_details(self, memo_details_df):
+        """ 
+        Takes a memo detail df and converts it into a raw detail df to be cached to a local db
+        """
+        full_memo_detail = memo_details_df
+        full_memo_detail['pft_absolute_amount']=full_memo_detail['tx'].apply(lambda x: x['Amount']['value']).astype(float)
+        full_memo_detail['memo_format']=full_memo_detail['converted_memos'].apply(lambda x: x['MemoFormat'])
+        full_memo_detail['memo_type']= full_memo_detail['converted_memos'].apply(lambda x: x['MemoType'])
+        full_memo_detail['memo_data']=full_memo_detail['converted_memos'].apply(lambda x: x['MemoData'])
+        full_memo_detail['pft_sign']= np.where(full_memo_detail['message_type'] =='INCOMING',1,-1)
+        full_memo_detail['directional_pft'] = full_memo_detail['pft_sign']*full_memo_detail['pft_absolute_amount']
+        raw_detail_df = full_memo_detail[['hash','account','destination','message_type',
+                        'user_account','datetime','pft_absolute_amount','memo_format',
+                        'memo_type','memo_data','pft_sign','directional_pft','reference_account']].copy()
+        raw_detail_df['unique_key']=raw_detail_df['reference_account']+'__'+raw_detail_df['hash']
+        return raw_detail_df
     
     def send_PFT_chunk_message(self,user_name,full_text, destination_address):
         """
@@ -385,9 +487,13 @@ class GenericPFTUtilities:
             chunk_num = int(xchunk.split('chunk_')[1].split('__')[0])
             send_memo_map[chunk_num] = self.construct_basic_postfiat_memo(user=user_name, task_id=task_id, 
                                         full_output=self.compress_string(xchunk))
+        yarr=[]
         for xkey in send_memo_map.keys():
-            self.send_PFT_with_info(sending_wallet=wallet, amount=1, memo=send_memo_map[xkey], 
+            xresp = self.send_PFT_with_info(sending_wallet=wallet, amount=1, memo=send_memo_map[xkey], 
                                 destination_address=destination_address, url=None)
+            yarr.append(xresp)
+        final_response = yarr[-1] if yarr else None
+        return final_response
             
     def get_all_account_chunk_messages(self,account_id='rKZDcpzRE5hxPUvTQ9S3y2aLBUUTECr1vN'):
         """ This pulls in all the chunk messages an account has received and cleans and aggregates
@@ -413,6 +519,9 @@ class GenericPFTUtilities:
         
         grouped_memo_data['datetime']=last_slice['datetime']
         grouped_memo_data['hash']=last_slice['hash']
+        grouped_memo_data['message_type']= last_slice['message_type']
+        grouped_memo_data['destination']= last_slice['destination']
+        grouped_memo_data['account']= last_slice['account']
         return grouped_memo_data
 
 
@@ -532,3 +641,18 @@ class GenericPFTUtilities:
         (task_type_map['task_type']=='PROPOSAL')].index)
         op= raw_proposals_and_acceptances[raw_proposals_and_acceptances.index.get_level_values(0).isin(proposed_or_accepted_only)]
         return op
+    
+    def convert_memo_detail_df_into_essential_caching_details(self, memo_details_df):
+        full_memo_detail = memo_details_df
+        full_memo_detail['pft_absolute_amount']=full_memo_detail['tx'].apply(lambda x: x['Amount']['value']).astype(float)
+        full_memo_detail['memo_format']=full_memo_detail['converted_memos'].apply(lambda x: x['MemoFormat'])
+        full_memo_detail['memo_type']= full_memo_detail['converted_memos'].apply(lambda x: x['MemoType'])
+        full_memo_detail['memo_data']=full_memo_detail['converted_memos'].apply(lambda x: x['MemoData'])
+        full_memo_detail['pft_sign']= np.where(full_memo_detail['message_type'] =='INCOMING',1,-1)
+        full_memo_detail['directional_pft'] = full_memo_detail['pft_sign']*full_memo_detail['pft_absolute_amount']
+        # full_memo_detail['reference_account']=account_address
+        raw_detail_df = full_memo_detail[['hash','account','destination','message_type',
+                        'user_account','datetime','pft_absolute_amount','memo_format',
+                        'memo_type','memo_data','pft_sign','directional_pft','reference_account']].copy()
+        raw_detail_df['unique_key']=raw_detail_df['reference_account']+'__'+raw_detail_df['hash']
+        return raw_detail_df
