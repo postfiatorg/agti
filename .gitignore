@@ -52,6 +52,11 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Compiled Python bytecode
+__pycache__/
+*.pyc
+
+
 # Translations
 *.mo
 *.pot
