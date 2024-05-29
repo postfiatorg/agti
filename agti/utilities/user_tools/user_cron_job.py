@@ -84,18 +84,30 @@ class CronUpdateWrapper:
             non_byte_string = self.convert_compressed_string_to_non_byte_string(compressed_string)
             self.send_standardized_cron_df_update(user_name, task_id, evidence_url, non_byte_string, node_address)
             print(f"Time-triggered job executed and update sent at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-
-        for day in days:
-            for time_str in times:
-                time_obj = datetime.strptime(time_str, '%I:%M %p')
-                time_str_24h = time_obj.strftime('%H:%M')
-                getattr(schedule.every(), day.lower()).at(time_str_24h).do(job)
-                print(f"Scheduled job for {day} at {time_str} EST")
-
+    
+        day_map = {
+            'monday': schedule.every().monday,
+            'tuesday': schedule.every().tuesday,
+            'wednesday': schedule.every().wednesday,
+            'thursday': schedule.every().thursday,
+            'friday': schedule.every().friday,
+            'saturday': schedule.every().saturday,
+            'sunday': schedule.every().sunday,
+        }
+    
+        for day_str in days:
+            day_func = day_map.get(day_str.lower())
+            if day_func:
+                for time_str in times:
+                    time_obj = datetime.strptime(time_str, '%I:%M %p')
+                    time_str_24h = time_obj.strftime('%H:%M')
+                    day_func.at(time_str_24h).do(job)
+                    print(f"Scheduled job for {day_str} at {time_str} EST")
+    
         while not self.stop_event.is_set():
             schedule.run_pending()
             time.sleep(1)
-
+    
         print("Cron job stopped.")
 
     def stop_cron_job(self):

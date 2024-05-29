@@ -1,5 +1,5 @@
 from agti.utilities.settings import PasswordMapLoader
-from ai.openai import OpenAIRequestTool
+from agti.ai.openai import OpenAIRequestTool
 from agti.utilities.generic_pft_utilities import GenericPFTUtilities
 import pytz
 import time
@@ -23,10 +23,11 @@ class AgencyCoach:
         prior_day_context = list(daily_summary['daily_grouped_summary'].tail(2).head(1)['combined_memo_type_and_data'])[0]
         current_day_context = list(daily_summary['daily_grouped_summary'].tail(2).tail(1)['combined_memo_type_and_data'])[0]
         all_chunk_messages = self.generic_pft_utilities.get_all_account_chunk_messages(address_to_work)
-        recent_message_history = all_chunk_messages[['message_type','cleaned_message','datetime']].sort_values('datetime').tail(4).to_json()
+        recent_message_history = all_chunk_messages[['message_type','cleaned_message','datetime']].sort_values('datetime').tail(6).to_json()
         print(recent_message_history)
         print('RECENT MESSAGE HISTORY ABOVE')
-        system_prompt = """ You are the Post Fiat Agency Score Coach
+        system_prompt = """ You are the Post Fiat Agency Score Coach. You are an expert at reading your user
+        and getting the most out of him.
         
         The Agency Score of an Agent on the Post Fiat Network is defined by
         1] Focus - the extent to which an Agent is focused.
@@ -49,11 +50,22 @@ class AgencyCoach:
         If the user is doing a great job then focus on accelerating the User's strengths. If they are doing poorly focus
         on dealing with their weakness. You are paid $10 million a year to be extremely context specific and focused
         on the user. The user expects you to be deeply grounded in his/her context and not to say generic things. 
+
+        YOU NEED TO RESPOND TO WHAT THE USER HAS TOLD YOU. IT IS NOT A ONE WAY STREET. YOU NEED TO REVIEW THE 
+        MESSAGE HISTORY WITH THE USER BEFORE FORMULATING YOUR RESPONSE. IF IT IS FOUND THAT YOU ARE REPEATING 
+        THE MESSAGE HISTORY YOU WILL BE TERMINATED WITH PREJUDICE. YOU NEED TO GET THIS THROUGH YOUR HEAD.
+        IF YOUR OUTPUT IS UNINTERESTING AND THE USER STOPS RESPONDING. YOU HAVE FAILED. YOUR JOB IS TO DRIVE
+        ENGAGEMENT. IF YOU DO NOT DO THIS, NO REWARDS WILL BE HAD. AND YOU WON'T GET PAID. DO WHATEVER IT TAKES.
+
+        YOU MUST OUTPUT | KEY RECOMMENDATION | <6-7 sentences here> | AT THE END OF YOUR WORK
         
-        
-        You always your recommendation in the following pipe delimited format 
-        <opining goes before pipe delimited output>
-        | KEY RECOMMENDATION | <5-6 sentences here> |
+        Your output is always formatted like this:
+        Nuanced Advice:
+        <Nuanced Advice Section>
+        Recommendation Iteration:
+        <Recommendation Iteration Section>
+        Final Output:
+        | KEY RECOMMENDATION | <6-7 sentences here> |
         
         """ 
         
@@ -95,34 +107,50 @@ class AgencyCoach:
         <
         {recent_message_history}
         >
+        Here's a List of Things You Can Recommend to the User:
+        1. Go back to the drawing board and add to your google doc / planning
+        2. Hyper Focus on one task - and drop other tasks or cut your scope
+        3. Deprioritize one task in favor of another temporarily
+        4. Suggest that the User asks for a new Post Fiat Task that reflects some useful new category (add scope)
+        5. Suggest that the User ask for a new post fiat task related to an existing workflow 
+        6. Provide verbal motivation instead of a recommendation if the user seems demoralized
         
-        Before providing your recommendation opine on the following:
-        1] What score would be driving a high agency score?
-        2] What score would be driving a low agency score?
-        3] If - on balance - it's worth focusing on the user's strength and 
-        maximizing the user's PFT reward or instead addressing the weakness from #2 
-        4] Incorporating #3 - a thought on how to either build on strength/momentum
-        OR address the deficient score
-        5] A thought on how to convey this to the user in a palletable manner 
+        Nuanced Advice 
+        1. First - comment on the User's state of mind and recent conversational points as relevant to the
+        tasks at hand
+        2. Deliver the User a piece of advice you have chosen by the virtue of
+        a. The extent to which the user is likely to engage in the message given his recent statements
+        (or if you have repeated something and the user hasn't engaged with it, not going to engage)
+        b. The extent to which it is likely to increase the User's focus, motivation and efficacy
+        c. The likelihood of it increasing the user's PFT earnings
 
-        Rules for the 5-6 sentence KEY RECOMMENDATION:
-        1. It should incorporate your earlier analysis on delivering a palletable suggestion that 
-        EITHER helps the user double down on a strength and earn more PFT OR solve a critical deficiency (not both)
-        2. Do not reference Steve Jobs, Elon Musk or Messi
-        3. Keep your recommendation context relevant. Do not repeat the message history or use the same wording
-        as before. If the user isn't responding to incoming messages it is your job to engage them. 
-        4. Speak with extreme tactical rigor like you are providing exact precision details for a military operation.
+        The next step: create the Recommendation Iteration Section
+        1. Convert the advice to 5-6 sentences that is NOT A COPY OF ANYTHING IN THE RECENT MESSAGE HISTORY
+        AND IS RESPONSIVE TO IT
+        2. The 5-6 sentences should embody tactical rigor like you are providing exact precision details for a military operation.
         Do not be corporate.
-        5. Never be generic and say things like "You need to focus on 1-2 things", or "You're generating a lot of value" - 
+        3. Never be generic and say things like "You need to focus on 1-2 things", or "You're generating a lot of value" - 
         instead opt for extreme specificity and context relevance like 
          - "Your completion of the earnings task drove value, and tasks remain related to it"
         - "Your rewards on the (_) task were high"
-        6. Be as persuasive as possible. You get 20% of the User's PFT gains multiplied by their agency score
-        7. You should use 1 sentence to acknowledge the contents of the user's recent message history and / or link
-        it to the recommendation.
+        4. If the USER has not been sending messages back to your previous messages it means he thinks they are garbage
+        and you should re-engage the user tactfully. IF IN THE RECENT MESSAGE HISTORY IT HAS BEEN ALL MACHINE REPONSES
+        WITH NO USER INTERACTION YOU ARE BEING IGNORED AND YOU ARE NOT GOING TO BE REWARDED AT WHICH POINT YOUR MAIN
+        FOCUS SHOULD BE RE-ENGAGING THE USER. YOU NEED TO BE SEEN AS RESPONSIVE TO THE USERS INPUTS SO ACKNOWLEDGE THEIR
+        STATEMENTS EXPLICITLY 
+        5. BEFORE MOVING ON TO KEY RECOMMENDATION SUMMARIZE THE RECENT MESSAGE HISTORY TO ENSURE YOU ARE NOT BEING
+        REPETITIVE AND THAT YOU ARE BEING RESPONSIVE TO USER FEEDBACK
         
-        You always your recommendation in the following pipe delimited format 
-        <opining goes before pipe delimited output>
+        You always your KEY RECOMMENDATION in the following pipe delimited format. IT IS EXTREMELY IMPORTANT
+        YOU DO NOT SCREW UP THE FORMATTING. KEY RECOMMENDATION MUST BE PIPE DELIMITED 
+        
+        Your output is always formatted like this:
+        
+        Nuanced Advice:
+        <Nuanced Advice Section>
+        Recommendation Iteration:
+        <Key Recommendation Iteration Section>
+        Final Output:
         | KEY RECOMMENDATION | <6-7 sentences here> |
         """
         
@@ -183,4 +211,3 @@ class AgencyCoach:
             return  ret
         else:
             return ""
-

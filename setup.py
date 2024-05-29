@@ -12,7 +12,7 @@ setup(
         'xrpl-py',
         'requests',
         'toml',
-        'nest_asyncio','brotli','sec-cik-mapper'
+        'nest_asyncio','brotli','sec-cik-mapper','psycopg2-binary','quandl','schedule','openai'
     ],
     author='Alex Good',
     author_email='alex@agti.net',
