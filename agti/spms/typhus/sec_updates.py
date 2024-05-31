@@ -1,84 +1,70 @@
-import threading
-from agti.utilities.user_tools.user_cron_job import CronUpdateWrapper
-import schedule
-import time
 from agti.data.sec_methods.update_cik import RunCIKUpdate
 from agti.data.sec_methods.recent_data_batch_load import SECRecentDataBatchLoad
-from agti.utilities.settings import PasswordMapLoader
+from agti.utilities.data_update_details import DataUpdateDetails
 from agti.data.sec_methods.sec_filing_update import SECFilingUpdateManager
-
-class TyphusUpdate:
-    def __init__(self, pw_map):
-        ## REFERENCE TASK ID 2024-05-23_12:31__YY23
+from agti.utilities.scheduler import TaskScheduler
+class TyphusSECManager:
+    def __init__(self,pw_map):
         self.pw_map = pw_map
-        self.user_name = 'spm_typhus'
-        self.cron_update_wrapper = CronUpdateWrapper(pw_map=pw_map)
+        self.cik_update = RunCIKUpdate(pw_map=self.pw_map, user_name='spm_typhus')
+        self.sec_recent_data_batch_load = SECRecentDataBatchLoad(pw_map=self.pw_map, user_name='spm_typhus')
+        self.data_update_details = DataUpdateDetails(pw_map=self.pw_map)
+        self.sec_filing_update_manager = SECFilingUpdateManager(pw_map=self.pw_map, user_name='spm_typhus')
+        self.task_scheduler = TaskScheduler()
+    def run_full_sec_update(self):
+        try:
+            table_to_work='update_cik'
+            db_table_ref ='sec__'+table_to_work
+            self.cik_update.write_cik_df()
+            self.data_update_details.update_node_on_user_data_update(user_name='spm_typhus',
+                node_name='agti_corp',
+                task_id='2024-05-28_23:54__FJ37',
+                full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/data/sec_methods/update_cik.py',
+                date_column='date_of_update',                                     
+                db_table_ref=db_table_ref)
+        except:
+            print('failed CIK UPDATE')
+            pass
+        try:
+            table_to_work='update_recent_filings'
+            db_table_ref ='sec__'+table_to_work
+            self.sec_recent_data_batch_load.write_recent_sec_updates()
+            self.data_update_details.update_node_on_user_data_update(user_name='spm_typhus',
+                node_name='agti_corp',
+                task_id='2024-05-28_23:54__FJ37',
+                full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/data/sec_methods/recent_data_batch_load.py',
+                date_column='full_datetime',                                     
+                db_table_ref=db_table_ref)
+        except:
+            print('failed SEC Filing Update Recent Batch Load')
+            pass
         
-        self.cik_update = RunCIKUpdate(pw_map=pw_map, user_name=self.user_name)
-        self.cik_update.write_cik_df_if_stale()
-        self.sec_recent_data_batch_load = SECRecentDataBatchLoad(pw_map=pw_map, user_name=self.user_name)
-        self.cron_thread = None
-        self.run_count = 0  # To keep track of the number of runs
-        self.sec_filing_update_manager = SECFilingUpdateManager(pw_map=pw_map)
+        try:
+            table_to_work='full_filing_details'
+            db_table_ref ='sec__'+table_to_work
+            self.sec_filing_update_manager.run_full_filing_update()
+            self.data_update_details.update_node_on_user_data_update(user_name='spm_typhus',
+                node_name='agti_corp',
+                task_id='2024-05-28_23:54__FJ37',
+                full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/data/sec_methods/sec_filing_update.py',
+                date_column='upload_date',                                     
+                db_table_ref=db_table_ref)
+        except:
+            print('failed SEC Filing Update Recent Batch Load')
+            pass
 
-    ## STEP 1
-    def update_cik_and_output_cik_df(self):
-        print("Running update_cik_and_output_cik_df function...")
-        self.cik_update.write_cik_df()
-        cached_cik_df = self.cik_update.output_cached_cik_df()
-        print('CACHED CIK DF')
-        print(cached_cik_df)
-        self.run_count += 1
-        return cached_cik_df
-
-    def start_cik_cron_job(self):
-        """ This updates the CIK data for ticker references in the SEC """ 
-        def job_wrapper():
-            print("Executing time-triggered job wrapper...")
-            self.cron_update_wrapper.schedule_time_triggered_cron_job(
-                user_function=self.update_cik_and_output_cik_df,
-                user_name=self.user_name, 
-                task_id='2024-05-23_12:31__YY23', 
-                evidence_url='https://github.com/postfiatorg/agti/blob/main/data/sec_methods/update_cik.py', 
-                node_address='rKZDcpzRE5hxPUvTQ9S3y2aLBUUTECr1vN', 
-                days=['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
-                times=['3:00 PM']
-            )
-            print("Scheduled time-triggered job wrapper executed.")
-
-        self.cron_thread = threading.Thread(target=job_wrapper)
-        self.cron_thread.start()
-
-    def stop_cik_cron_job(self):
-        """ this stops the CIK cron job"""
-        if self.cron_thread and self.cron_thread.is_alive():
-            print("Stopping cron job...")
-            self.cron_update_wrapper.stop_cron_job()
-            self.cron_thread.join()
-            print("Cron job stopped.")
-
-    def test_cik_cron_job(self):
-        def job_wrapper():
-            print("Executing test job wrapper...")
-            self.cron_update_wrapper.schedule_periodic_cron_job(
-                user_function=self.update_cik_and_output_cik_df,
-                user_name=self.user_name, 
-                task_id='2024-05-23_12:31__YY23', 
-                evidence_url='https://github.com/postfiatorg/agti/blob/main/data/sec_methods/update_cik.py', 
-                node_address='rKZDcpzRE5hxPUvTQ9S3y2aLBUUTECr1vN', 
-                interval_minutes=2
-            )
-            print("Scheduled test job wrapper executed.")
-
-        self.cron_thread = threading.Thread(target=job_wrapper)
-        self.cron_thread.start()
-
-        def stop_test_job():
-            print("Stopping test job after 10 minutes...")
-            self.stop_cik_cron_job()
-            completion_score = (self.run_count / 5) * 100
-            print(f"Test job completion score: {completion_score}%")
-            self.run_count = 0  # Reset the run count
-
-        # Schedule the stop_test_job function to run after 10 minutes
-        threading.Timer(600, stop_test_job).start()
+    def schedule_sec_update(self):
+        """
+        Schedules the run_full_sharadar_update_and_update_node function to run at 11:59 PM
+        on Monday, Tuesday, Wednesday, Thursday, and Friday.
+        """
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        times = ["7:00","7:15","7:30","7:40","7:50","8:00","8:10","8:20",
+                "8:25","8:30","8:35","8:40","8:45","8:50","8:55","9:00",
+                "9:10","9:15","9:20","9:30","13:20","16:00","16:05","16:10","16:15","16:20",
+                "16:25","16:30","16:35","16:40","16:45","16:50","17:00","17:10","17:20","17:30","17:40","17:50","18:00",
+                "18:30","19:00","20:00"]
+        self.task_scheduler.schedule_tasks_for_days_and_times(self.run_full_sec_update, 
+                                                              "run_full_sec_update", 
+                                                              days, 
+                                                              times)

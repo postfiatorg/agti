@@ -34,3 +34,4 @@ class DBConnectionManager:
         psycop_conn = psycopg2.connect(user=db_user, password=db_password, 
                                             host=db_host, database=db_name)
         return psycop_conn
+

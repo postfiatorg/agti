@@ -12,16 +12,15 @@ from agti.utilities.db_manager import DBConnectionManager
 import time
 
 class SECFilingUpdateManager:
-    def __init__(self, pw_map):
+    def __init__(self,pw_map, user_name):
         self.pw_map = pw_map
         self.sec_request_utility = SECRequestUtility(pw_map=self.pw_map)
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
-        self.user_name = 'spm_typhus'
+        self.user_name = user_name
         self.cik_update_tool = RunCIKUpdate(pw_map=self.pw_map, user_name=self.user_name)
         self.cik_to_ticker_map = self.cik_update_tool.output_cached_cik_df().groupby('cik').first()['ticker']
         self.openai_request_tool = OpenAIRequestTool(pw_map=pw_map)
         self.cik_to_ticker_map__stockmapper = StockMapper().cik_to_tickers
-
     def load_existing_filing_df(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         try:
@@ -30,9 +29,7 @@ class SECFilingUpdateManager:
             print(f'No existing updates table: {e}')
             existing_updates = pd.DataFrame()
         return existing_updates
-
-    @staticmethod
-    def extract_99_urls_from_index_page_html(html_content):
+    def extract_99_urls_from_index_page_html(self, html_content):
         base_url = "https://www.sec.gov"
         soup = BeautifulSoup(html_content, 'html.parser')
         tables = soup.find_all('table', class_='tableFile')
@@ -53,70 +50,114 @@ class SECFilingUpdateManager:
         url_output = '|'.join(results_df[results_df['Document Type'].apply(lambda x: '99.' in str(x))]['URL'])
         return url_output
 
-    def output_recent_sec_index_page_html_table(self):
+    def get_updated_index_urls(self):
+        """
+        Reads the 'sec__index_page_html' table and outputs a list of updated index_urls.
+        If the database or table doesn't exist, outputs an empty list.
+        
+        Returns:
+        list: A list of updated index_urls or an empty list if the table doesn't exist.
+        """
+        # Initialize database connection
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        
+        # Check if the table exists
         inspector = sqlalchemy.inspect(dbconnx)
-        if inspector.has_table('sec__index_page_html'):
-            return pd.read_sql('sec__index_page_html', dbconnx)
-        else:
-            return pd.DataFrame()
+        if not inspector.has_table('sec__index_page_html'):
+            return []
+        
+        # Read the table
+        index_html_table = pd.read_sql('sec__index_page_html', dbconnx)
+        
+        # Extract and return the list of updated index_urls
+        updated_index_urls = index_html_table['index_url'].tolist()
+        return updated_index_urls
 
-    def write_full_sec_extractable_data(self, force=False):
-        index_html_table = self.output_recent_sec_index_page_html_table()
-        all_updated_urls = list(index_html_table['html_url'])
+    def write_incremental_index_page_html(self):
+        """ This loads the existing filings generated in real time 
+        and checks if they're earnings. then for the earnings that have not
+        been written it writes the index pages for them to the sec__index_page_html database
+        """ 
         existing_filing_df = self.load_existing_filing_df()
-        existing_filing_df = existing_filing_df[existing_filing_df['is_eps']].copy()
-        existing_filing_df.set_index('html_url', inplace=True)
+        existing_eps = existing_filing_df[existing_filing_df['is_eps']==True].copy()
+        existing_eps.set_index('html_url', inplace=True)
         
-        if not force:
-            existing_filing_df = existing_filing_df[~existing_filing_df.index.isin(all_updated_urls)]
+        existing_filings = []
+        ## Add function to get existing eps filings
+        existing_eps['index_url']=existing_eps.index
         
-        existing_filing_df.reset_index(inplace=True)
-        if not existing_filing_df.empty:
-            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
-            existing_filing_df['updated'] = False
-            existing_filing_df['raw_index_page_html'] = existing_filing_df['html_url'].apply(lambda x: self.sec_request_utility.compliant_request(x).text)
-            existing_filing_df['99_page_urls'] = existing_filing_df['raw_index_page_html'].apply(self.extract_99_urls_from_index_page_html)
-
-            raw_index_page_url_content = existing_filing_df[['raw_index_page_html', 'html_url']].copy()
+        update_urls = self.get_updated_index_urls()
+        non_updated_urls = [i for i in existing_eps.index if i not in update_urls]
+        existing_eps = existing_eps.loc[non_updated_urls]
+        if len(existing_eps)>0:
+            ## get all the raw html of the index pages which contain multiple filing urls
+            existing_eps['raw_index_page_html'] = existing_eps['index_url'].apply(lambda x: self.sec_request_utility.compliant_request(x).text)
+            existing_eps['99_page_urls'] = existing_eps['raw_index_page_html'].apply( lambda x: self.extract_99_urls_from_index_page_html(x))
+            raw_index_page_url_content = existing_eps[['raw_index_page_html', 'index_url','99_page_urls']].copy()
             raw_index_page_url_content['date_of_update'] = datetime.datetime.now()
-            raw_index_page_url_content.set_index('html_url', inplace=True)
-            raw_index_page_url_content_to_write = raw_index_page_url_content[~raw_index_page_url_content.index.isin(all_updated_urls)]
-            
-            raw_index_page_url_content_to_write.to_sql('sec__index_page_html', dbconnx, if_exists='append', index=False)
-            print('wrote sec__index_page_html')
+            raw_index_page_url_content.set_index('index_url', inplace=True)
+            raw_index_page_url_content.reset_index()
+            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)    
+            raw_index_page_url_content.reset_index().to_sql('sec__index_page_html', dbconnx, if_exists='append', index=False)
 
-            valid_earnings_df = existing_filing_df[existing_filing_df['99_page_urls'] != ''].copy()
-            valid_earnings_df['99_page_urls__split'] = valid_earnings_df['99_page_urls'].str.split('|')
 
-            exploded_df = valid_earnings_df.explode('99_page_urls__split')
-            final_html_extraction_df = exploded_df[['99_page_urls__split', 'html_url', 'Document', 'simple_name',
-                                                    'cik', 'items_string', 'is_eps', 'full_datetime']].copy()
-            final_html_extraction_df['full_html_of_99_page'] = final_html_extraction_df['99_page_urls__split'].apply(lambda x: self.sec_request_utility.compliant_request(x).text)
-            final_html_extraction_df.rename(columns={
-                '99_page_urls__split': 'filing_url',
-                'html_url': 'index_page_url',
-                'Document': 'document'
-            }, inplace=True)
+    def get_ticker_for_sec_cik_double_try(self,cik = '0000004457'):
+        ticker = ''
+        try:
+            ticker = self.cik_to_ticker_map[cik]
+        except:
+            try:
+                ticker = list(self.cik_to_ticker_map__stockmapper[cik])[0]
+            except:
+                pass
+            pass
+        return ticker
+    def create_final_constructor_pre_html_load(self):
+        # First load in the index pages that are already written
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)    
+        sec_index_pages = pd.read_sql('sec__index_page_html', dbconnx)
+        valid_earnings_df = sec_index_pages[sec_index_pages['99_page_urls'] != ''].copy()
+        valid_earnings_df['99_page_urls__split'] = valid_earnings_df['99_page_urls'].str.split('|')
+        exploded_df = valid_earnings_df.explode('99_page_urls__split')
+        exploded_df['filing_html']=exploded_df['99_page_urls__split']
+        ## the final constructor is an exploded version of the index_html with all the filing htmls on different rows
+        final_constructor = exploded_df[['index_url','raw_index_page_html','filing_html']].copy()
+        existing_filing_df = self.load_existing_filing_df()
+        index_url_mapping = existing_filing_df.groupby('html_url').first()
+        final_constructor['cik']= final_constructor['index_url'].map(index_url_mapping['CIK'])
+        final_constructor['upload_date']= final_constructor['index_url'].map(index_url_mapping['full_datetime'])
+        final_constructor['sec_name']= final_constructor['index_url'].map(index_url_mapping['simple_name'])
+        final_constructor['sec_item_string']= final_constructor['index_url'].map(index_url_mapping['items_string'])
+        final_constructor['ticker']=final_constructor['cik'].apply(lambda x: self.get_ticker_for_sec_cik_double_try(x))
+        return final_constructor
+    def output_updated_filing_urls(self):
+        updated_filing_urls = []
+        try:
+            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+            updated_filing_urls = pd.read_sql('sec__full_filing_details', dbconnx)['filing_html'].unique()
+        except:
+            pass
+        return updated_filing_urls
 
-            final_html_extraction_df.to_sql('sec_update__extractable_filing_information', dbconnx)
-            return final_html_extraction_df
+    def update_full_filing_details_with_incremental_html_reads(self):
+        updated_filing_urls = self.output_updated_filing_urls()
+        final_constructor_pre_html_load = self.create_final_constructor_pre_html_load()
+        final_constructor_pre_html_load.set_index('filing_html',inplace=True)
+        final_constructor_pre_html_load= final_constructor_pre_html_load[~final_constructor_pre_html_load.index.get_level_values(0).isin(updated_filing_urls)].copy().reset_index()
+        final_constructor_pre_html_load['filing_full_text']=final_constructor_pre_html_load['filing_html'].apply(lambda x: self.sec_request_utility.compliant_request(x).text)
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+        final_constructor_pre_html_load.to_sql('sec__full_filing_details', dbconnx, if_exists='append')
 
-    def output_recent_sec_index_page_html_table(self):
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
-        inspector = sqlalchemy.inspect(dbconnx)
-        if inspector.has_table('sec_update__extractable_filing_information'):
-            return pd.read_sql('sec_update__extractable_filing_information', dbconnx)
-        else:
-            return pd.DataFrame()
-        
-    def run_write_full_sec_extractable_data_for_3_hours(self):
-        """Runs the SEC data batch load every 2 minutes for 3 hours."""
-        start_time = datetime.datetime.now()
-        end_time = start_time + datetime.timedelta(hours=3)
-
-        while datetime.datetime.now() < end_time:
-            print(f"Running update at {datetime.datetime.now()}")
-            self.write_full_sec_extractable_data()
-            print("Sleeping for 2 minutes...")
-            time.sleep(120)
+    def run_full_filing_update(self):
+        """
+        This writes the incremental index page htmls for all the existing earnings loaded from
+        sec__update_recent_filings. Then once they are written (including the extracted filings - the 99s)
+        with the function write_incremental_index_page_html - the output of this is passed in to
+        create_final_constructor_pre_html_load which is an exploded dataframe consisting of a unique row
+        for every 99 filing. this exploded df does not yet have the html loaded in. once it does, it is
+        written to sec__full_filing_details
+        """ 
+        self.write_incremental_index_page_html()
+        print("wrote incremental SEC index page html to sec__index_page_html")
+        self.update_full_filing_details_with_incremental_html_reads()
+        print('updated sec__full_filing_details to sec__full_filing_details')
