@@ -140,3 +140,23 @@ class TiingoDataTool:
             except:
                 print("FAILED " +ticker_to_work)
                 pass
+
+    def output_tiingo_real_time_price_frame(self):
+        ''' this function returns a real time output
+        of all tiingo securities and their prices in a dataframe
+        ''' 
+        headers = {'Content-Type': 'application/json'}
+        requestResponse = requests.get(f"https://api.tiingo.com/iex/?token={self.tiingo_key}", 
+        headers=headers)
+        big_response= requestResponse.json()
+        real_time_tiingo_price_frame = pd.DataFrame(big_response)
+        return real_time_tiingo_price_frame
+
+    def raw_load_tiingo_data(self,ticker='SPY',start_date='2010-01-01', end_date='2023-01-21'):
+        format_map = {'start_date':start_date,
+                    'end_date': end_date,
+                    'token': self.tiingo_key,
+                    'ticker': ticker}
+        temp_df=pd.read_json("https://api.tiingo.com/tiingo/daily/{ticker}/prices?startDate={start_date}&endDate={end_date}&token={token}".format(**format_map))
+        temp_df['ticker']= format_map['ticker']    
+        return temp_df

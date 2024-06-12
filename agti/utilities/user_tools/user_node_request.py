@@ -12,7 +12,8 @@ class UserNodeTaskRequest:
         self.generic_pft_utilities = GenericPFTUtilities(pw_map=self.pw_map)
         self.user_wallet = xrpl.wallet.Wallet.from_seed(self.pw_map[f'{user_name}__v1xrpsecret']) 
         self.user_name = user_name
-        self.node_address = self.pw_map[f'{self.pw_map['node_name']}__v1xrpaddress']
+        node_name = self.pw_map['node_name']
+        self.node_address = self.pw_map[f'{node_name}__v1xrpaddress']
     def create_node_request_memo(self, request_string):
         full_output ='NODE REQUEST ___ '+request_string
         memo = self.generic_pft_utilities.construct_basic_postfiat_memo(user=self.user_name, 
