@@ -75,7 +75,7 @@ class FastEquityPull:
         
         ## Execute the query and load the result into a DataFrame
         tiingo_df = pd.read_sql(query, dbconnx, dtype = {'simple_date': 'datetime64[ns]'})
-        sharadar_df__full['openadj']=(sharadar_df__full['closeadj']/sharadar_df__full['closeunadj']) * sharadar_df__full['open']
+        sharadar_df__full['openadj']=(sharadar_df__full['closeadj']/sharadar_df__full['close']) * sharadar_df__full['open']
         sharadar_df__full['dv']=sharadar_df__full['close']*sharadar_df__full['volume']
         tiingo_df['dv']=tiingo_df['volume']*tiingo_df['close']
         tiingo_ohlc = tiingo_df[['simple_date','adjClose','adjOpen','dv','ticker','close','open','high','low']].copy()

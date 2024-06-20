@@ -24,7 +24,7 @@ class NotebookAITool:
             raise FileNotFoundError("No notebook file found in the current directory.")
         
         # Read the notebook file
-        with open(os.path.join(notebook_path, notebook_file), "r") as f:
+        with open(os.path.join(notebook_path, notebook_file), "r", encoding="utf-8") as f:
             notebook_contents = json.load(f)
         
         # Convert the notebook contents to a JSON string
