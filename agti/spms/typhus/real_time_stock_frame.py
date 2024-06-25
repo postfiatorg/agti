@@ -140,8 +140,13 @@ class TyphusRealTimeStockFrame:
 
     def augment_equity_df_with_recent_price_info(self):
         self.update_stale_bloomberg_open_updates()
-        last_night_divs = self.last_night_dividends()
-        last_night_divs['sharadar_ticker']=last_night_divs['ticker'].apply(lambda x: x.upper())
+        try:
+            last_night_divs = self.last_night_dividends()
+            last_night_divs['sharadar_ticker']=last_night_divs['ticker'].apply(lambda x: x.upper())
+            price_bump= last_night_divs.groupby('sharadar_ticker').first()['distribution']
+        except:
+            pass
+
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='spm_typhus')
         live_bloomberg_prices = pd.read_sql('spm_typhus__bloomberg_open_price_frame', dbconnx)
         live_bloomberg_prices['shar_ticker']=live_bloomberg_prices['bbgTicker'].apply(lambda x: x.split(' us equity')[0].upper())
@@ -151,10 +156,18 @@ class TyphusRealTimeStockFrame:
         live_bloomberg_prices['tiingo_last']=live_bloomberg_prices['shar_ticker'].map(tiingo_grouped['tngoLast'])
         live_bloomberg_prices['tiingo_high']=live_bloomberg_prices['shar_ticker'].map(tiingo_grouped['high'])
         live_bloomberg_prices['tiingo_low']=live_bloomberg_prices['shar_ticker'].map(tiingo_grouped['low'])
-        price_bump= last_night_divs.groupby('sharadar_ticker').first()['distribution']
-        share_split_frame = self.output_share_split_frame()
-        live_bloomberg_prices['share_split_multiplier']=live_bloomberg_prices['shar_ticker'].map(share_split_frame.groupby('ticker_upper').first()['splitFrom']).fillna(1)
-        live_bloomberg_prices['price_bump'] = live_bloomberg_prices['shar_ticker'].map(price_bump)
+        live_bloomberg_prices['share_split_multiplier']=1
+        try:
+            share_split_frame = self.output_share_split_frame()
+            live_bloomberg_prices['share_split_multiplier']=live_bloomberg_prices['shar_ticker'].map(share_split_frame.groupby('ticker_upper').first()['splitFrom']).fillna(1)
+        except:
+            pass
+        
+        live_bloomberg_prices['price_bump']=0
+        try:
+            live_bloomberg_prices['price_bump'] = live_bloomberg_prices['shar_ticker'].map(price_bump)
+        except:
+            pass
         live_bloomberg_prices['openadj']=(live_bloomberg_prices['open_price']/live_bloomberg_prices['share_split_multiplier'])+live_bloomberg_prices['price_bump'].fillna(0)
         live_bloomberg_prices['closeadj']=(live_bloomberg_prices['tiingo_last']/live_bloomberg_prices['share_split_multiplier'])+live_bloomberg_prices['price_bump'].fillna(0)
         live_bloomberg_prices['close']=live_bloomberg_prices['tiingo_last']
