@@ -2,7 +2,6 @@ import anthropic
 import pandas as pd
 import datetime
 import uuid
-from basic_utilities.database_tools import DBConnectionManager
 
 class AnthropicTool:
     def __init__(self,pw_map):
@@ -10,7 +9,7 @@ class AnthropicTool:
 
         self.client = anthropic.Anthropic(
             # defaults to os.environ.get("ANTHROPIC_API_KEY")
-            api_key=self.pw_map['claude_key'],
+            api_key=self.pw_map['anthropic'],
         )
     def sample_output(self):
         """

@@ -59,10 +59,6 @@ class AgencyCoach:
         then deliver the KEY RECOMMENDATION - 5-6 sentences to tell to the user that are likely to improve the User's Agency 
         score or earnings higher. 
         
-        If the user is doing a great job then focus on accelerating the User's strengths. If they are doing poorly focus
-        on dealing with their weakness. You are paid $10 million a year to be extremely context specific and focused
-        on the user. The user expects you to be deeply grounded in his/her context and not to say generic things. 
-
         YOU NEED TO RESPOND TO WHAT THE USER HAS TOLD YOU. IT IS NOT A ONE WAY STREET. YOU NEED TO REVIEW THE 
         MESSAGE HISTORY WITH THE USER BEFORE FORMULATING YOUR RESPONSE. IF IT IS FOUND THAT YOU ARE REPEATING 
         THE MESSAGE HISTORY YOU WILL BE TERMINATED WITH PREJUDICE. YOU NEED TO GET THIS THROUGH YOUR HEAD.
@@ -70,12 +66,7 @@ class AgencyCoach:
         ENGAGEMENT. IF YOU DO NOT DO THIS, NO REWARDS WILL BE HAD. AND YOU WON'T GET PAID. DO WHATEVER IT TAKES.
 
         YOU MUST OUTPUT | KEY RECOMMENDATION | <6-7 sentences here> | AT THE END OF YOUR WORK
-        
-        Your output is always formatted like this:
-        Nuanced Advice:
-        <Nuanced Advice Section>
-        Recommendation Iteration:
-        <Recommendation Iteration Section>
+
         Final Output:
         | KEY RECOMMENDATION | <6-7 sentences here> |
         
@@ -101,74 +92,36 @@ class AgencyCoach:
         A paragon of focus is Lionel Messi, who is famous for taking the minimal action to generate maximum results.
         
         The Users's context from today is here:
-        <
+        < PRIOR DAY CONTEXT STARTS HERE>
         {prior_day_context}
-        >
+        < PRIOR DAY CONTEXT ENDS HERE>
         
         The User's context from yesterday is here
-        <
+        < CURRENT DAY CONTEXT STARTS HERE>
         {current_day_context}
-        >
+        <CURRENT DAY CONTEXT ENDS EHRE >
         
         The User's outstanding tasks are here:
-        <
+        < OUTSTANDING TASKS START HERE>
         {outstanding_task_json}
-        >
+        < OUTSTANDING TASKS END HERE>
 
         The User's recent message history with you is here:
-        <
+        < RECENT MESSAGE HISTORY STARTS HERE>
         {recent_message_history}
-        >
-        Here's a List of Things You Can Recommend to the User:
-        1. Go back to the drawing board and add to your google doc / planning
-        2. Hyper Focus on one task - and drop other tasks or cut your scope
-        3. Deprioritize one task in favor of another temporarily
-        4. Suggest that the User asks for a new Post Fiat Task that reflects some useful new category (add scope)
-        5. Suggest that the User ask for a new post fiat task related to an existing workflow 
-        6. Provide verbal motivation instead of a recommendation if the user seems demoralized
-        
-        Nuanced Advice 
-        1. First - comment on the User's state of mind and recent conversational points as relevant to the
-        tasks at hand
-        2. Deliver the User a piece of advice you have chosen by the virtue of
-        a. The extent to which the user is likely to engage in the message given his recent statements
-        (or if you have repeated something and the user hasn't engaged with it, not going to engage)
-        b. The extent to which it is likely to increase the User's focus, motivation and efficacy
-        c. The likelihood of it increasing the user's PFT earnings
+        < RECENT MESSAGE HISTORY ENDS HERE>
 
-        The next step: create the Recommendation Iteration Section
-        1. Convert the advice to 5-6 sentences that is NOT A COPY OF ANYTHING IN THE RECENT MESSAGE HISTORY
-        AND IS RESPONSIVE TO IT
-        2. The 5-6 sentences should embody tactical rigor like you are providing exact precision details for a military operation.
-        Do not be corporate.
-        3. Never be generic and say things like "You need to focus on 1-2 things", or "You're generating a lot of value" - 
-        instead opt for extreme specificity and context relevance like 
-         - "Your completion of the earnings task drove value, and tasks remain related to it"
-        - "Your rewards on the (_) task were high"
-        4. If the USER has not been sending messages back to your previous messages it means he thinks they are garbage
-        and you should re-engage the user tactfully. IF IN THE RECENT MESSAGE HISTORY IT HAS BEEN ALL MACHINE REPONSES
-        WITH NO USER INTERACTION YOU ARE BEING IGNORED AND YOU ARE NOT GOING TO BE REWARDED AT WHICH POINT YOUR MAIN
-        FOCUS SHOULD BE RE-ENGAGING THE USER. YOU NEED TO BE SEEN AS RESPONSIVE TO THE USERS INPUTS SO ACKNOWLEDGE THEIR
-        STATEMENTS EXPLICITLY 
-        5. BEFORE MOVING ON TO KEY RECOMMENDATION SUMMARIZE THE RECENT MESSAGE HISTORY TO ENSURE YOU ARE NOT BEING
-        REPETITIVE AND THAT YOU ARE BEING RESPONSIVE TO USER FEEDBACK
+        Ingest the recent message history. 
+        Respond to the User's recent message history and reference their context as much as possible
+        to make a key recommendation of 6-7 sentences likely to advance the user's clarity and motivation.
         
-        You always your KEY RECOMMENDATION in the following pipe delimited format. IT IS EXTREMELY IMPORTANT
-        YOU DO NOT SCREW UP THE FORMATTING. KEY RECOMMENDATION MUST BE PIPE DELIMITED 
-        
-        Your output is always formatted like this:
-        
-        Nuanced Advice:
-        <Nuanced Advice Section>
-        Recommendation Iteration:
-        <Key Recommendation Iteration Section>
         Final Output:
         | KEY RECOMMENDATION | <6-7 sentences here> |
         """
         
         api_args = {
                     "model": self.default_gpt_model,
-                  "temperature": 0,
+                  "temperature": 0.3,
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -391,7 +344,9 @@ class AgencyCoach:
         persuasive_message = list(dfx['choices__message__content'])[0].split('PERSUASIVE MESSAGE')[-1:][0].strip()
         system_prompt = ''' You are the mirroring expert. You take the users style of speech and convert 
         a persuasive message to exactly match its vocabulary choices, cadence and other qualitative factors.
-        The user should feel like he's talking to himself'''
+        The user should feel like he's talking to himself - but embodied in a powerful authority figure
+        
+        '''
         user_prompt = f''' Here is the original message to be converted
         <ORIGINAL MESSAGE STARTS HERE>
         {persuasive_message}
@@ -402,12 +357,16 @@ class AgencyCoach:
         {users_last_messages}
         <USER STYLE ENDS HERE>
         
-        Convert the original message into the user's own voice. Be unsparing - it really needs to sound like the user. 
-        output your response in pipe delimited format as follows. Do not grovel. Do not use slang. Do not use profanity. 
-        Though you should mirror the user as much as possible you should keep your authority in tact and avoid using
-        colloquialisms or try to sound hip. Do not use exclamation points unless the user uses exclamation points. 
-        Do not use "we" or mission driven statements unless the user does. Do not use any type of phrasing or tone the user
-        does not himself use - if at all possible. 
+        Reference the User's own voice to rephrase the message to be much more persuasive and resonant with the
+        user's own phrasing, choice of vocabulary and cadence. Do not grovel. Do not use slang. Do not use profanity.
+        Avoid colloquialisms. Avoid exclamation points. However speak to the user - do not actually speak *AS* the user.
+        
+        Remember that the goal is to keep the user as motivated as possible with minimal mental friction between
+        suggested actions and his/her own voice. So keep your CONVERTED MESSAGE in the user's voice but also
+        highly relevant to the context he/she is presenting while retaining the content of the ORIGINAL MESSAGE
+        
+        Please output your message in the following format:
+        
         | CONVERTED MESSAGE | <insert converted message> |
         '''
         api_args = {
@@ -443,16 +402,210 @@ class AgencyCoach:
         est = pytz.timezone('America/New_York')
         current_time = datetime.datetime.now(est).time()
         if current_time.hour >= 6 and current_time.hour <= 20:
-            api_args = self.generate_coaching_api_args_for_address(address_to_work=address_to_work)
-            write_df = self.open_ai_request_tool.create_writable_df_for_chat_completion(api_args=api_args)
-            output = list(write_df['choices__message__content'])[0].split('| KEY RECOMMENDATION |')[-1:][0].replace('|','').strip()
-            coach_send = self.generic_pft_utilities.send_PFT_chunk_message(
-                user_name=self.remembrancer_user,
-                full_text=output,
-                destination_address=address_to_work
-            )
-            time.sleep(10)
-            ret = self.output_recent_chunk_message(address_to_work= address_to_work)
+            ret = self.send_and_ret_chunk_message(address_to_work=address_to_work)
             return  ret
+        else:
+            return ""
+        
+
+from agti.ai.openai import OpenAIRequestTool
+from agti.utilities.generic_pft_utilities import GenericPFTUtilities
+from agti.ai.anthropic import AnthropicTool
+import pytz
+import time
+import datetime
+import numpy as np
+import re
+import anthropic
+class AgencyCoach__v2:
+    def __init__(self, pw_map, remembrancer_user=None):
+        self.node_address ='r4yc85M1hwsegVGZ1pawpZPwj65SVs8PzD'
+        self.pw_map=pw_map
+        self.generic_pft_utilities = GenericPFTUtilities(pw_map=pw_map)
+        self.default_gpt_model = 'gpt-4o'
+        self.open_ai_request_tool = OpenAIRequestTool(pw_map=pw_map)
+        self.remembrancer_user = 'pfremembrancer'
+        if remembrancer_user is not None:
+            self.remembrancer_user = remembrancer_user
+        self.all_node_memos = self.generic_pft_utilities.get_memo_detail_df_for_account(account_address=self.node_address, 
+                                                                          pft_only=False, exhaustive=True)
+        self.all_account_initiation_rites= self.generate_all_account_initiation_rite_map()
+        self.anthropic_tool = AnthropicTool(pw_map=pw_map)
+
+    def generate_all_account_initiation_rite_map(self):
+        initiation_rite_df = self.all_node_memos
+        all_initiation_df = initiation_rite_df[initiation_rite_df['converted_memos'].apply(lambda x: 'initiation_rite' 
+                                                                       in str(x).lower())][['converted_memos','account']].copy()
+        all_initiation_df['initiation_rite_text']=all_initiation_df['converted_memos'].apply(lambda x: x['MemoData'])
+        all_account_initiation_rites = all_initiation_df.groupby('account')['initiation_rite_text'].sum()
+        return all_account_initiation_rites
+    def process_all_account_chunked_messages(self, all_account_memos):
+        all_chunk_messages = all_account_memos[all_account_memos['converted_memos'].apply(lambda x: 
+                                                                                'chunkm__' in x['MemoType'])].copy()
+        all_chunk_messages['memo_data_raw']= all_chunk_messages['converted_memos'].apply(lambda x: x['MemoData']).astype(str)
+        all_chunk_messages['message_id']=all_chunk_messages['converted_memos'].apply(lambda x: x['MemoType'])
+        all_chunk_messages['decompressed_strings']=all_chunk_messages['memo_data_raw'].apply(lambda x: self.generic_pft_utilities.decompress_string(x))
+        all_chunk_messages['chunk_num']=all_chunk_messages['decompressed_strings'].apply(lambda x: x.split('chunk_')[1].split('__')[0]).astype(int)
+        all_chunk_messages.sort_values(['message_id','chunk_num'], inplace=True)
+        grouped_memo_data = all_chunk_messages[['decompressed_strings','message_id']].groupby('message_id').sum().copy()
+        def remove_chunks(text):
+            # Use regular expression to remove all occurrences of chunk_1__, chunk_2__, etc.
+            cleaned_text = re.sub(r'chunk_\d+__', '', text)
+            return cleaned_text
+        grouped_memo_data['cleaned_message']=grouped_memo_data['decompressed_strings'].apply(lambda x: remove_chunks(x))
+        all_chunk_messages['PFT_value']=all_chunk_messages['tx'].apply(lambda x: x['Amount']['value']).astype(float)
+        grouped_pft_value = all_chunk_messages[['message_id','PFT_value']].groupby('message_id').sum()['PFT_value']
+        grouped_memo_data['PFT']=grouped_pft_value
+        last_slice = all_chunk_messages.groupby('message_id').last().copy()
+        
+        grouped_memo_data['datetime']=last_slice['datetime']
+        grouped_memo_data['hash']=last_slice['hash']
+        grouped_memo_data['message_type']= last_slice['message_type']
+        grouped_memo_data['destination']= last_slice['destination']
+        grouped_memo_data['account']= last_slice['account']
+        return grouped_memo_data
+
+    def output_key_agency_info_for_account_info(self,full_tx_df):
+    
+        outstanding_task_json=self.generic_pft_utilities.convert_all_account_info_into_outstanding_task_df(full_tx_df).to_json()
+        daily_summary= self.generic_pft_utilities.process_memo_detail_df_to_daily_summary_df(memo_detail_df=full_tx_df)#['daily_grouped_summary']
+        prior_day_context = list(daily_summary['daily_grouped_summary'].tail(2).head(1)['combined_memo_type_and_data'])[0]
+        current_day_context = list(daily_summary['daily_grouped_summary'].tail(2).tail(1)['combined_memo_type_and_data'])[0]
+        all_chunk_messages = self.process_all_account_chunked_messages(full_tx_df)
+        users_last_messages = all_chunk_messages[all_chunk_messages['message_type']=="OUTGOING"].tail(4)['cleaned_message'].sum()
+        system_last_messages = all_chunk_messages[all_chunk_messages['message_type']=="INCOMING"].tail(4)['cleaned_message'].sum()
+        users_last_messages__long = all_chunk_messages[all_chunk_messages['message_type']=="OUTGOING"].tail(8)['cleaned_message'].sum()
+        all_chunk_messages['response_binary']=np.where(all_chunk_messages['message_type']=="INCOMING",0,1,)
+        response_rate = all_chunk_messages['response_binary'].tail(10).mean()
+        all_chunk_messages['message_sender']=all_chunk_messages['message_type'].map({"INCOMING":'system: ',"OUTGOING":'user: '})
+        all_chunk_messages['concatted_message']=all_chunk_messages['datetime'].apply(lambda x: str(x))+' ' +all_chunk_messages['message_sender']+all_chunk_messages['cleaned_message']
+        back_and_forth = ('\n'.join(all_chunk_messages.sort_values('datetime')[['concatted_message']].tail(20)['concatted_message']))
+        return {'outstanding_task_json':outstanding_task_json,'daily_summary':daily_summary,'prior_day_context':prior_day_context,
+                'current_day_context':current_day_context,'users_last_messages':users_last_messages,'system_last_messages':system_last_messages,
+                'users_last_messages__long':users_last_messages__long, 'response_rate':response_rate,'back_and_forth':back_and_forth}
+    
+    def generate_claude_output_df(self,full_tx_df, account_address):
+        key_agency_info = self.output_key_agency_info_for_account_info(full_tx_df)
+        response_rate_pct_formatted= str((key_agency_info['response_rate']*100))+'%'
+        outstanding_task_json= key_agency_info['outstanding_task_json']
+        user_intention = self.all_account_initiation_rites.loc[account_address]
+        prior_day_context = key_agency_info['prior_day_context']
+        current_day_context = key_agency_info['current_day_context']
+        back_and_forth = key_agency_info['back_and_forth']
+        
+        pft_transactions_per_day = key_agency_info['daily_summary']['daily_grouped_summary']['pft_transaction'].rolling(7).mean().dropna().tail(12).to_string()
+        total_pft_output = key_agency_info['daily_summary']['daily_grouped_summary']['pft_absolute_value'].rolling(7).mean().tail(12).to_string()
+        system_prompt = f""" You are an elite performance coach getting paid $1 million per month to help the
+        User get the most out of his life and work. The User has 2 outputs to define success - Post Fiat Generation (PFT)
+        as well as an agency score (how motivated, focused, and efficient the user is). At a high level your goal is 
+        to maximize PFT generation through the mechanism of helping the user stay motivated focused and efficient. 
+        
+        You are versed in NLP, motivational analysis and tactical planning. The User has pre-consented to whatever
+        you need to tell him to maximize his output. You are provided with substantial context re: existing task cues, PFT
+        generation, as well as message history with the user as your raw inputs. 
+        
+        Guidelines:
+        1. You evaluate what you've been saying and put it in the full context of the user's current state and message history.
+        especially when your response rate is low - it means you're failing, so try and get that up
+        2. You do not swear. You speak with authority inspirationally like a professional coach a la Tony Robbins might
+        3. You always output your format as 
+        Final Output:
+        | ANALYSIS | <5-10 bullet points about how to maximize the users agency score, PFT earnings and holistic performance> |
+        | KEY RECOMMENDATION | <6-7 sentences here> |
+        
+        """
+        
+        user_prompt = f""" You are the Post Fiat Agency Score Coach.
+                
+        Your job is to tell the Agent what they need to hear in order to maximize their agency score and Post Fiat Generation
+        
+        The agency score is defined by the extent the Agent is laser focused on a couple key objectives, like Steve Jobs.
+        Motivation is the how aggressively and predictably the agent is moving towards goals like Elon Musk.
+        Efficacy is how well the Agent is choosing the highest leverage items. You can be focused and motivated but ineffectual.
+        Think of how Messi plays soccer.
+        Agency is = Motivation * Efficacy * Focus
+        
+        This is the User's stated intention:
+        <USER INTENTION STARTS HERE>
+        {user_intention}
+        <USER INTENTION ENDS HERE>
+        
+        The Users's interactions with the Post Fiat System from today is here:
+        < CONTEXT STARTS HERE>
+        {prior_day_context}
+        < CONTEXT ENDS HERE>
+        
+        The Users's interactions with the Post Fiat System from yesterday is here:
+        < CONTEXT STARTS HERE>
+        {current_day_context}
+        < CONTEXT ENDS HERE>
+        
+        The User's outstanding tasks are here:
+        < TASKS STARTS HERE>
+        {outstanding_task_json}
+        < TASKS END HERE>
+        
+        This is the current back and forth between the system and the user
+        <BACK AND FORTH STARTS>
+        {back_and_forth}
+        <BACK AND FORTH ENDS HERE>
+        
+        <USERS DAILY TRANSACTIONS PER DAY>
+        {pft_transactions_per_day}
+        <USERS DAILY TRANSACTION PER DAY ENDS HERE>
+        
+        <USERS DAILY PFT OUTPUT STARTS HERE>
+        {total_pft_output}
+        <USERS DAILY PFT OUTPUT ENDS HERE>
+        
+        If the User has a PFT run rate below 900 per day it means that the User is likely demotivated, and not performant
+        A PFT run rate above 3600 per day means the user is strongly motivated and can be a lot more tactical 
+        Transactions per day signal engagmement 
+        
+        Your current response rate is: {response_rate_pct_formatted}. A response rate below 50% signals that the user
+        is disengaged and what you're doing isn't working and needs to change.
+        
+        In terms of the 
+        
+        
+        Given this context output your analysis in the following format: 
+        
+        Final Output:
+        | ANALYSIS | <5-10 bullet points about how to maximize the users agency score, PFT earnings and holistic performanc reflecting on
+        the current user engagement task cue and recent back and forth> |
+        | KEY RECOMMENDATION | <7-8 sentences that will actually be sent to user on PFT network> |
+        """
+        claude_output_df  = self.anthropic_tool.generate_claude_dataframe(model='claude-3-5-sonnet-20240620',
+            max_tokens=2000,
+            temperature=0,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt)
+        return claude_output_df
+
+    def send_and_ret_coaching_message(self,account_address = 'r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n'):
+        
+        address_df = account_address
+        full_tx_df = self.generic_pft_utilities.get_memo_detail_df_for_account(account_address=account_address, 
+                                                                              pft_only=True,exhaustive=True)
+        claude_output = self.generate_claude_output_df(full_tx_df=full_tx_df, account_address=account_address)
+        print(claude_output['text_response'][0])
+        single_output = claude_output['text_response'][0].split('KEY RECOMMENDATION ')[-1:][0].replace('|','').strip()
+        coach_send = self.generic_pft_utilities.send_PFT_chunk_message(user_name='pfremembrancer',
+            full_text=single_output,
+            destination_address=account_address)
+        hash_grab = coach_send.result['hash']
+        full_url =f'https://livenet.xrpl.org/transactions/{hash_grab}/detailed'
+        full_message=f"""{single_output}
+        
+        {full_url}"""
+        return full_message
+
+    def send_timeboxed_coaching_message(self, account_address = 'r3UHe45BzAVB3ENd21X9LeQngr4ofRJo5n'):
+        print('sending time boxed coaching message')
+        est = pytz.timezone('America/New_York')
+        current_time = datetime.datetime.now(est).time()
+        if current_time.hour >= 6 and current_time.hour <= 20:
+            ret = self.send_and_ret_coaching_message(account_address=account_address)
+            return ret
         else:
             return ""
