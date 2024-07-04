@@ -133,7 +133,7 @@ class TyphusRealTimeStockFrame:
         }
         business_date = pd.Timestamp(datetime.datetime.now().date())
         bdate_format = business_date.strftime('%Y-%m-%d')
-        requestResponse = requests.get(f"https://api.tiingo.com/tiingo/corporate-actions/splits?exDate={business_date}&token=66b7620a9897e67af4730f8059dc3b85e43e82fc", headers=headers)
+        requestResponse = requests.get(f"https://api.tiingo.com/tiingo/corporate-actions/splits?exDate={business_date}&token={self.api_token}", headers=headers)
         share_split_frame = pd.DataFrame(requestResponse.json())
         share_split_frame['ticker_upper']= share_split_frame['ticker'].apply(lambda x: x.upper())
         return share_split_frame
