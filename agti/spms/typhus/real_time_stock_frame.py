@@ -14,20 +14,21 @@ import datetime
 
 import requests
 class TyphusRealTimeStockFrame:
-    def __init__(self,pw_map, equity_df, ib_connection_spawn):
+    def __init__(self,pw_map, equity_df):
         self.pw_map = pw_map
         self.equity_df = equity_df
-        self.ib_connection_spawn=ib_connection_spawn
+        #self.ib_connection_spawn=ib_connection_spawn
         self.all_equities = list(equity_df.index.get_level_values(0).unique())
-        self.async_stock_data_manager =  AsyncStockDataManager(ib=self.ib_connection_spawn.ib_connection)
+        
         self.db_connection_manager = DBConnectionManager(pw_map=pw_map)
         self.gsheet_manager = GoogleSheetManager(prod_trading=True)
         self.tiingo_data_tool = TiingoDataTool(pw_map=self.pw_map)
         self.bloomberg_daily_data_tool = BloombergDailyDataTool(pw_map=self.pw_map, bloomberg_connection=True)
-    def write_full_ibkr_contract_ids(self):
+    def write_full_ibkr_contract_ids(self, ib_connection_spawn):
         """ This writes all the IBKR contract ids to the database -- needed for fast real time price references
         needs to be run weekly""" 
         tickers= self.all_equities
+        self.async_stock_data_manager =  AsyncStockDataManager(ib=ib_connection_spawn.ib_connection)
         all_loaded_tickers = []
         try:
             dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='spm_typhus')
@@ -85,10 +86,12 @@ class TyphusRealTimeStockFrame:
         except:
             pass
         return updated_tickers
-    def update_stale_bloomberg_open_updates(self):
+    def update_stale_bloomberg_open_updates(self, force=True):
         all_bloomberg_tickers = [i.lower()+' us equity' for i in self.all_equities]
         existing_open_updates = self.output_existing_open_updates()
         all_tickers_to_update_open_px = [i for i in all_bloomberg_tickers if i not in existing_open_updates]
+        if force == True:
+            all_tickers_to_update_open_px = all_bloomberg_tickers
         if len(all_tickers_to_update_open_px) == 0:
             print("Bloomberg Opens have been updated")
         if len(all_tickers_to_update_open_px)>0:
@@ -139,7 +142,7 @@ class TyphusRealTimeStockFrame:
         return share_split_frame
 
     def augment_equity_df_with_recent_price_info(self):
-        self.update_stale_bloomberg_open_updates()
+        self.update_stale_bloomberg_open_updates(force=True)
         try:
             last_night_divs = self.last_night_dividends()
             last_night_divs['sharadar_ticker']=last_night_divs['ticker'].apply(lambda x: x.upper())
@@ -149,6 +152,7 @@ class TyphusRealTimeStockFrame:
 
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='spm_typhus')
         live_bloomberg_prices = pd.read_sql('spm_typhus__bloomberg_open_price_frame', dbconnx)
+
         live_bloomberg_prices['shar_ticker']=live_bloomberg_prices['bbgTicker'].apply(lambda x: x.split(' us equity')[0].upper())
         live_bloomberg_prices['open_price']=pd.to_numeric(live_bloomberg_prices['value'], errors='coerce')
         rt_px_frame = self.tiingo_data_tool.output_tiingo_real_time_price_frame()
@@ -162,7 +166,7 @@ class TyphusRealTimeStockFrame:
             live_bloomberg_prices['share_split_multiplier']=live_bloomberg_prices['shar_ticker'].map(share_split_frame.groupby('ticker_upper').first()['splitFrom']).fillna(1)
         except:
             pass
-        
+
         live_bloomberg_prices['price_bump']=0
         try:
             live_bloomberg_prices['price_bump'] = live_bloomberg_prices['shar_ticker'].map(price_bump)
@@ -183,6 +187,8 @@ class TyphusRealTimeStockFrame:
         live_bloomberg_prices['date']=pd.to_datetime(live_bloomberg_prices['write_date'])
         live_bloomberg_prices['ticker']=live_bloomberg_prices['shar_ticker']
         appender = live_bloomberg_prices[['ticker','date','closeadj', 'openadj', 'dv', 
-                                          'close','open','high','low']].groupby(['ticker','date']).first()
+                                        'close','open','high','low']].groupby(['ticker','date']).first()
+        #recent_df = pd.concat([self.equity_df,appender]).sort_index()
+        appender = appender[appender.index.get_level_values(1)==appender.index.get_level_values(1).max()]
         recent_df = pd.concat([self.equity_df,appender]).sort_index()
         return recent_df
