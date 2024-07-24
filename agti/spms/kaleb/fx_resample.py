@@ -1,13 +1,27 @@
 from agti.data.bloomberg.standard_pulls import BloombergDailyDataTool
 import itertools
 from agti.data.tiingo.equities import TiingoDataTool
+import sqlalchemy
+from agti.utilities.scheduler import TaskScheduler
+from agti.utilities.data_update_details import DataUpdateDetails
+from agti.utilities.db_manager import DBConnectionManager
+from agti.data.bloomberg.standard_pulls import BloombergDailyDataTool
+import datetime
+from agti.utilities.settings import PasswordMapLoader
+import pandas as pd
+from agti.spms.angron.droid import FXDroidCache
+from agti.data.tiingo.forex import TiingoFXTool
+import numpy as np
+from agti.utilities.scheduler import TaskScheduler
 class FXFrameLoader:
     def __init__(self,pw_map):
+        self.pw_map = pw_map
         self.db_connection_manager = DBConnectionManager(pw_map=pw_map)
         self.fx_droid_cache = FXDroidCache(pw_map=pw_map)
         self.tiingo_fx_tool = TiingoFXTool(pw_map=pw_map)
         self.bloomberg_daily_tool = BloombergDailyDataTool(pw_map=pw_map, bloomberg_connection=True)
-        self.tiingo_data_tool= TiingoDataTool(pw_map=password_loader.pw_map)
+        self.tiingo_data_tool= TiingoDataTool(pw_map=pw_map)
+        self.task_scheduler =  TaskScheduler()
         #dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='agti_corp')
     def output_full_historical_half_hourly_forex_history(self, update=False):
         if update==True:
@@ -119,6 +133,34 @@ class FXFrameLoader:
         history['spx_date']= np.where(history.index.get_level_values(1)==
                  datetime.datetime.now().strftime('%Y-%m-%d'),True, history['spx_date'])
         sliced = history[history['spx_date']==True].copy()
-        sliced['nt__z']=((sliced['ntRet']-sliced['ntRet'].fillna(0).rolling(126).mean())/sliced['ntRet'].fillna(0).rolling(126).std())*history['tick_is126']
-        sliced['dt__z']=((sliced['dtRet']-sliced['dtRet'].fillna(0).rolling(126).mean())/sliced['dtRet'].fillna(0).rolling(126).std())*history['tick_is126']
-        return history
+        sliced['date_of_update']= pd.to_datetime(datetime.datetime.now().strftime('%Y-%m-%d'))
+        
+        return sliced
+    
+    def write_equity_aligned_return_frame(self):
+        self.generate_simple_equity_aligned_return_frame().to_sql('spm_kaleb__equity_aligned_fx', 
+                        self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='spm_typhus'), if_exists='replace')
+        
+    def run_fx_equity_aligned_return_frame_and_update_node(self):
+        self.write_equity_aligned_return_frame()
+        data_update_details = DataUpdateDetails(pw_map=self.pw_map)
+        db_table_ref ='spm_kaleb__equity_aligned_fx'
+        data_update_details.update_node_on_user_data_update(user_name='spm_kaleb',
+            node_name='agti_corp',
+            task_id='2024-05-29_20:00__TK37',
+            full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/spms/kaleb/fx_resample.py',
+            date_column='date_of_update',                                     
+            db_table_ref=db_table_ref)
+        
+
+    def schedule_fx_aligned_return_frame_write(self):
+        """
+        Schedules the run_full_sharadar_update_and_update_node function to run at 11:59 PM
+        on Monday, Tuesday, Wednesday, Thursday, and Friday.
+        """
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        times = ["09:45","16:45"]
+        self.task_scheduler.schedule_tasks_for_days_and_times(self.run_fx_equity_aligned_return_frame_and_update_node, 
+                                                              "run_fx_equity_aligned_return_frame_and_update_node", 
+                                                              days, 
+                                                              times)
