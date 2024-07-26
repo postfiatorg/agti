@@ -4,6 +4,11 @@ from agti.utilities.db_manager import DBConnectionManager
 import datetime 
 import pandas as pd 
 import numpy as np 
+from agti.utilities.data_update_details import DataUpdateDetails
+from agti.data.sharadar.sharadar_bulk_update import SharadarDataUpdate
+import pandas as pd
+from agti.utilities.scheduler import TaskScheduler
+
 class DefaultPeerTool:
     def __init__(self,pw_map):
         self.user_name= 'spm_typhus'
@@ -109,3 +114,36 @@ class DefaultPeerTool:
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         full_peering_df.to_sql('spm_typhus__us_equity_peers', dbconnx, if_exists='append')
         return full_peering_df
+
+
+
+class TyphusPeerUpdate:
+    def __init__(self,pw_map):
+        self.pw_map= pw_map
+        self.task_scheduler =  TaskScheduler()
+        self.default_peer_tool = DefaultPeerTool(pw_map=self.pw_map)
+
+    def run_full_equity_peering_update_and_update_node(self):
+        data_update_details = DataUpdateDetails(pw_map=self.pw_map)
+        self.default_peer_tool.write_full_agti_equity_peering()
+        db_table_ref ='spm_typhus__us_equity_peers'
+        data_update_details.update_node_on_user_data_update(user_name='spm_typhus',
+            node_name='agti_corp',
+            task_id='2024-05-29_20:00__TK37',
+            full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/spms/typhus/run_equity_peering.py',
+            date_column='peer_date',                                     
+            db_table_ref=db_table_ref)
+        print(f"DID EQUITY PEERING")
+    
+    def schedule_peering_update(self):
+        """
+        Schedules the run_full_sharadar_update_and_update_node function to run at 11:59 PM
+        on Monday, Tuesday, Wednesday, Thursday, and Friday.
+        """
+        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+        times = ["01:00"]
+        self.task_scheduler.schedule_tasks_for_days_and_times(self.run_full_equity_peering_update_and_update_node, 
+                                                              "run_full_equity_peering_update_and_update_node", 
+                                                              days, 
+                                                              times)
+        

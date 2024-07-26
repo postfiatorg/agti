@@ -175,3 +175,26 @@ class TiingoDataTool:
             #print(df)
         return df
 
+    def output_dividends_for_date(self, date_to_work):
+        headers = {
+            'Content-Type': 'application/json'
+        }
+        
+        # Adding 1 business day to today's date using Pandas
+        next_business_date = pd.to_datetime(date_to_work)
+        
+        # Assuming `self.pw_map['tiingo']` correctly accesses your API token
+        # You might need to adjust this part if 'self' is not defined in this context
+        api_token = self.tiingo_key # Replace this with your actual API token
+        
+        # Making a GET request to the Tiingo API for corporate actions distributions
+        request_url = f"https://api.tiingo.com/tiingo/corporate-actions/distributions?exDate={next_business_date.strftime('%Y-%m-%d')}&token={api_token}"
+        request_response = requests.get(request_url, headers=headers)
+        
+        # Check if the request was successful
+        if request_response.status_code == 200:
+            # Convert the JSON response to a pandas DataFrame
+            df = pd.DataFrame(request_response.json())
+            #print(df)
+        return df
+

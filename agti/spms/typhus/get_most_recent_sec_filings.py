@@ -83,35 +83,37 @@ class GetTickerMostRecentSECFiling:
         ticker_to_primary_cik = xdf.reset_index().groupby('ticker').first()['cik']
         return ticker_to_primary_cik
     def get_all_recent_earnings_filings_for_ticker(self,ticker_to_work='AMZN'):
-        
-        cik_to_get = self.ticker_to_primary_cik[ticker_to_work]
-        cik_formatter = str(int(cik_to_get))
-        ## Construct the URL for the SEC EDGAR search page
-        all_filings_page = f'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_formatter}&type=8-K&dateb=&owner=exclude&count=100'
-        print(f'working {all_filings_page}')
-        ## Make a request to the SEC EDGAR page
-        response = self.sec_request_utility.compliant_request(all_filings_page)
-        
-        stringio_obj = io.StringIO(response.text)
-        ## Read the HTML content using `pd.read_html` with `io.StringIO`
-        recent_100_8ks = pd.read_html(stringio_obj)
-        default_table = recent_100_8ks[2]
-        all_2_filings = default_table[default_table['Description'].apply(lambda x: '2.02' in x)].copy()
-        all_2_filings['stripped_filing_number']=all_2_filings['Description'].apply(lambda x: x.split('Acc-no: ')[-1:][0].split('\xa0')[0])
-        all_2_filings['cik__full_length']= cik_to_get
-        all_2_filings['cik__smol_format']= cik_formatter
+        if ticker_to_work not in self.ticker_to_primary_cik.index:
+            return None
+        else:
+            cik_to_get = self.ticker_to_primary_cik[ticker_to_work]
+            cik_formatter = str(int(cik_to_get))
+            ## Construct the URL for the SEC EDGAR search page
+            all_filings_page = f'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_formatter}&type=8-K&dateb=&owner=exclude&count=100'
+            print(f'working {all_filings_page}')
+            ## Make a request to the SEC EDGAR page
+            response = self.sec_request_utility.compliant_request(all_filings_page)
+            
+            stringio_obj = io.StringIO(response.text)
+            ## Read the HTML content using `pd.read_html` with `io.StringIO`
+            recent_100_8ks = pd.read_html(stringio_obj)
+            default_table = recent_100_8ks[2]
+            all_2_filings = default_table[default_table['Description'].apply(lambda x: '2.02' in x)].copy()
+            all_2_filings['stripped_filing_number']=all_2_filings['Description'].apply(lambda x: x.split('Acc-no: ')[-1:][0].split('\xa0')[0])
+            all_2_filings['cik__full_length']= cik_to_get
+            all_2_filings['cik__smol_format']= cik_formatter
 
-        all_2_filings['full_filing_num']=all_2_filings['stripped_filing_number'].apply(lambda x: x.replace('-',''))
-        ## Apply function to generate URLs for recent_filings dataframe
-        def generate_sec_url(row):
-            smol_cik = row['cik__smol_format']
-            no_dash_filing = row['full_filing_num']
-            stripped_filing_number = row['stripped_filing_number']
-            return f'https://www.sec.gov/Archives/edgar/data/{smol_cik}/{no_dash_filing}/{stripped_filing_number}-index.htm'
-        
-        all_2_filings['index_page_url'] = all_2_filings.apply(generate_sec_url, axis=1)
+            all_2_filings['full_filing_num']=all_2_filings['stripped_filing_number'].apply(lambda x: x.replace('-',''))
+            ## Apply function to generate URLs for recent_filings dataframe
+            def generate_sec_url(row):
+                smol_cik = row['cik__smol_format']
+                no_dash_filing = row['full_filing_num']
+                stripped_filing_number = row['stripped_filing_number']
+                return f'https://www.sec.gov/Archives/edgar/data/{smol_cik}/{no_dash_filing}/{stripped_filing_number}-index.htm'
+            
+            all_2_filings['index_page_url'] = all_2_filings.apply(generate_sec_url, axis=1)
 
-        return all_2_filings
+            return all_2_filings
 
     def get_most_recent_filing_html_files_for_ticker(self,ticker_to_work='AMZN'):
         recent_filings = self.get_all_recent_earnings_filings_for_ticker(ticker_to_work=ticker_to_work)

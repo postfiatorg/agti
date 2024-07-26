@@ -11,6 +11,7 @@ class AnthropicTool:
             # defaults to os.environ.get("ANTHROPIC_API_KEY")
             api_key=self.pw_map['anthropic'],
         )
+        self.default_model = 'claude-3-5-sonnet-20240620'
     def sample_output(self):
         """
         Generates a sample output message using the given input.
