@@ -7,30 +7,31 @@ from IPython import get_ipython
 import pandas as pd
 from agti.ai.anthropic import AnthropicTool
 class NotebookAITool:
-    def __init__(self, pw_map):
+    def __init__(self, pw_map,notebook_name):
         self.pw_map = pw_map
         self.open_ai_request_tool = OpenAIRequestTool(pw_map=self.pw_map)
         self.default_open_ai_model ='gpt-4o'
         self.anthropic_tool = AnthropicTool(pw_map=pw_map)
+        self.notebook_name = notebook_name
     def get_notebook_contents(self):
-        # Get the notebook path
-        notebook_path = os.path.abspath(".")
+        notebook_name = self.notebook_name
+        def get_notebook_path(notebook_name):
+            """Get the full path of the current Jupyter notebook."""
+            try:
+                # Get the current working directory
+                current_dir = os.getcwd()
+                # Combine with the provided notebook name
+                return os.path.join(current_dir, notebook_name)
+            except Exception as e:
+                return f"Error determining path: {str(e)}"
         
-        # Find the notebook file
-        for file in os.listdir(notebook_path):
-            if file.endswith(".ipynb"):
-                notebook_file = file
-                break
-        else:
-            raise FileNotFoundError("No notebook file found in the current directory.")
+        # Replace 'ai_notebook2.ipynb' with the actual notebook name
         
-        # Read the notebook file
-        with open(os.path.join(notebook_path, notebook_file), "r", encoding="utf-8") as f:
+        current_notebook_path = get_notebook_path(notebook_name)
+        print(current_notebook_path)
+
+        with open(current_notebook_path, "r", encoding="utf-8") as f:
             notebook_contents = json.load(f)
-        
-        # Convert the notebook contents to a JSON string
-        #notebook_json = json.dumps(notebook_contents, indent=4)
-        
         return notebook_contents
     def convert_notebook_to_pretty_string(self):
         x=self.get_notebook_contents()
@@ -63,7 +64,7 @@ __________________________
         return full_con_string
 
     def construct_notebook_api_arg(self, user_input):
-        notebook_content=self.convert_notebook_to_pretty_string()[-200_000:]
+        notebook_content=self.convert_notebook_to_pretty_string()[0:200_000]
         system_prompt = """ You are the world's premier python coding expert designed to work inside of ipython Notebooks. 
     You are given a full Notebook Input log. The user will include mark up in the notebook with comments preceded by 
     ## COMMENT on where he wants you to focus to augment your output
@@ -115,7 +116,7 @@ in the notebook but use them as supplements, do not respond to them
         shell = get_ipython()
         shell.set_next_input(code, replace=False)
     def ai_help(self,user_input):
-        notebook_content=self.convert_notebook_to_pretty_string()[-200_000:]
+        notebook_content=self.convert_notebook_to_pretty_string()[0:200_000]
         system_prompt = """ You are the world's premier python coding expert designed to work inside of ipython Notebooks. 
 You are given a full Notebook Input log. The user will include mark up in the notebook with comments preceded by 
 ## COMMENT on where he wants you to focus to augment your output
