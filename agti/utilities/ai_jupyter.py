@@ -118,8 +118,7 @@ in the notebook but use them as supplements, do not respond to them
     def ai_help(self,user_input):
         notebook_content=self.convert_notebook_to_pretty_string()[0:200_000]
         system_prompt = """ You are the world's premier python coding expert designed to work inside of ipython Notebooks. 
-You are given a full Notebook Input log. The user will include mark up in the notebook with comments preceded by 
-## COMMENT on where he wants you to focus to augment your output
+You are given a full Notebook Input log. 
 
 Here are some rules for your engagement
 1. When you output things it is code that can be directly pasted into an ipython notebook. That means if you provide comments you
@@ -129,10 +128,7 @@ of what is neccesary for the user to understand your
 3. You do not need to preface your code with '''python - just output it with the assumption the user will add it into 
 a new cell in the notebook or print it out. You similarly do not need to end it with stuff like ```
 """ 
-        user_prompt=f"""The user has asked help with this:
-USER INPUT STARTS HERE
-{user_input}
-USER INPUT ENDS HERE 
+        user_prompt=f"""
 
     Here is the notebook content that you are to reference when addressing the user's input
     NOTEBOOK CONTENT STARTS HERE
@@ -140,10 +136,15 @@ ___
     {notebook_content}
 ___
 
+The user has asked help with this question:
+USER INPUT STARTS HERE
+{user_input}
+USER INPUT ENDS HERE 
+
 Here are some guidelines
-1. please review the notebook for ##COMMENT tags to ensure you're paying attention to what
-the user wants you to focus on
+1. please pay special attention to the user input 
 2. The code you generate will be pasted into the next cell so make sure that your output can be pasted into a cell. 
+For example - if you have ANY HUMAN READABLE TEXT MAKE SURE AND COMMENT IT OUT WITH #
 3. If you include explanation make sure to comment them appropriately and include doc strings  
 4. It is best if you keep your commentary terse and include the relevant information in your doc strings 
 The user doesn't need explanations he needs results. Make sure to get the code right and without errors.
