@@ -6,6 +6,7 @@ import datetime
 import requests
 import pandas as pd
 import numpy as np
+import os
 import itertools
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
