@@ -116,7 +116,6 @@ class FXFrameLoader:
         spx_history= self.load_full_spx_history()
         valid_spx_dates = list(spx_history['date'].unique())
         open_history = fx_hist[fx_hist['hour']=='09:30:00'].copy().groupby(['ticker','simple_date']).last()[['open']]
-        
         close_history = fx_hist[fx_hist['hour']=='16:00:00'].copy().groupby(['ticker','simple_date']).last()[['open']]
         close_history.columns=['close']
         history = pd.concat([open_history, close_history],axis=1)
@@ -128,8 +127,6 @@ class FXFrameLoader:
         history['tick_is126']= np.where(history['tick_copy']==history['tick_copy'].shift(63),1,np.nan)
         history['tick_is21']= np.where(history['tick_copy']==history['tick_copy'].shift(21),1,np.nan)
         history['tick_is252']= np.where(history['tick_copy']==history['tick_copy'].shift(21),1,np.nan)
-        
-        
         history['spx_date']= np.where(history.index.get_level_values(1)==
                  datetime.datetime.now().strftime('%Y-%m-%d'),True, history['spx_date'])
         sliced = history[history['spx_date']==True].copy()
