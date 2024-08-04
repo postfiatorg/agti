@@ -6,13 +6,15 @@ from IPython.core.getipython import get_ipython
 from IPython import get_ipython
 import pandas as pd
 from agti.ai.anthropic import AnthropicTool
+
 class NotebookAITool:
     def __init__(self, pw_map,notebook_name):
         self.pw_map = pw_map
         self.open_ai_request_tool = OpenAIRequestTool(pw_map=self.pw_map)
-        self.default_open_ai_model ='gpt-4o'
+        self.default_open_ai_model = 'gpt-4o'
         self.anthropic_tool = AnthropicTool(pw_map=pw_map)
         self.notebook_name = notebook_name
+
     def get_notebook_contents(self):
         notebook_name = self.notebook_name
         def get_notebook_path(notebook_name):
@@ -24,9 +26,6 @@ class NotebookAITool:
                 return os.path.join(current_dir, notebook_name)
             except Exception as e:
                 return f"Error determining path: {str(e)}"
-        
-        # Replace 'ai_notebook2.ipynb' with the actual notebook name
-        
         current_notebook_path = get_notebook_path(notebook_name)
         print(current_notebook_path)
 
@@ -127,9 +126,9 @@ have to put ## in front of them to explain your work.
 of what is neccesary for the user to understand your 
 3. You do not need to preface your code with '''python - just output it with the assumption the user will add it into 
 a new cell in the notebook or print it out. You similarly do not need to end it with stuff like ```
-""" 
+"""
+        
         user_prompt=f"""
-
     Here is the notebook content that you are to reference when addressing the user's input
     NOTEBOOK CONTENT STARTS HERE
 ___
@@ -153,7 +152,7 @@ The user doesn't need explanations he needs results. Make sure to get the code r
 For your output ONLY RETURN WHAT THE USER ASKS FOR IN THE USER INPUT - you reference other things
 in the notebook but use them as supplements, do not respond to them
     """
-        op_df = self.anthropic_tool.generate_claude_dataframe( model='claude-3-5-sonnet-20240620',
+        op_df = self.anthropic_tool.generate_claude_dataframe(model='claude-3-5-sonnet-20240620',
             max_tokens=3000,
             temperature=0,
             system_prompt=system_prompt,

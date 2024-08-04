@@ -16,6 +16,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException,
 from selenium.webdriver.edge.service import Service
 from selenium.webdriver.edge.options import Options
 import re
+import os
 class CoinMarketCapDataTool:
     def __init__(self,pw_map):
         self.pw_map= pw_map
