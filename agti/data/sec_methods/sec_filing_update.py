@@ -143,7 +143,13 @@ class SECFilingUpdateManager:
         final_constructor_pre_html_load = self.create_final_constructor_pre_html_load()
         final_constructor_pre_html_load.set_index('filing_html',inplace=True)
         final_constructor_pre_html_load= final_constructor_pre_html_load[~final_constructor_pre_html_load.index.get_level_values(0).isin(updated_filing_urls)].copy().reset_index()
-        final_constructor_pre_html_load['filing_full_text']=final_constructor_pre_html_load['filing_html'].apply(lambda x: self.sec_request_utility.compliant_request(x).text)
+        def try_get_text(x):
+            try:
+                return self.sec_request_utility.compliant_request(x).text
+            except:
+                return ''        
+        final_constructor_pre_html_load['filing_full_text']=final_constructor_pre_html_load['filing_html'].apply(lambda x: try_get_text(x))
+        final_constructor_pre_html_load['filing_full_text'] = final_constructor_pre_html_load['filing_full_text'].str.replace('\x00', '')
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         final_constructor_pre_html_load.to_sql('sec__full_filing_details', dbconnx, if_exists='append')
 

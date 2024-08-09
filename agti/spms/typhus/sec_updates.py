@@ -35,6 +35,7 @@ class TyphusSECManager:
                 full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/data/sec_methods/recent_data_batch_load.py',
                 date_column='full_datetime',                                     
                 db_table_ref=db_table_ref)
+            print('DID SEC Filing Update Recent Batch Load')
         except:
             print('failed SEC Filing Update Recent Batch Load')
             pass
@@ -49,6 +50,7 @@ class TyphusSECManager:
                 full_evidence_url='https://github.com/postfiatorg/agti/blob/main/agti/data/sec_methods/sec_filing_update.py',
                 date_column='upload_date',                                     
                 db_table_ref=db_table_ref)
+            print('DID SEC Filing Update Full Filing Load')
         except:
             print('failed SEC Filing Update Recent Batch Load')
             pass

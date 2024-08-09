@@ -439,6 +439,26 @@ class GenericPFTUtilities:
         
         print(f"Longest list of transactions: {len(longest_transactions)} transactions")
         return longest_transactions
+    
+    def output_post_fiat_holder_df(self):
+        """ This function outputs a detail of all accounts holding PFT tokens
+        with a float of their balances as pft_holdings. note this is from
+        the view of the issuer account so balances appear negative so the pft_holdings 
+        are reverse signed.
+        """
+        client = xrpl.clients.JsonRpcClient(self.mainnet_url)
+        print("Getting all accounts holding PFT tokens...")
+        response = client.request(xrpl.models.requests.AccountLines(
+            account=self.pft_issuer,
+            ledger_index="validated",
+            peer=None,
+            limit=None))
+        full_post_fiat_holder_df = pd.DataFrame(response.result)
+        for xfield in ['account','balance','currency','limit_peer']:
+            full_post_fiat_holder_df[xfield] = full_post_fiat_holder_df['lines'].apply(lambda x: x[xfield])
+        full_post_fiat_holder_df['pft_holdings']=full_post_fiat_holder_df['balance'].astype(float)*-1
+        return full_post_fiat_holder_df
+    
 
     def get_memo_detail_df_for_account(self,account_address,transaction_limit=5000, pft_only=True, exhaustive=False):
         """ This function gets all the memo details for a given account """
@@ -471,6 +491,7 @@ class GenericPFTUtilities:
         if pft_only == True:
             live_memo_tx= live_memo_tx[live_memo_tx['tx'].apply(lambda x: self.pft_issuer in str(x))].copy()
         live_memo_tx['reference_account']=account_address
+       
         return live_memo_tx
     
     def convert_memo_detail_df_into_essential_caching_details(self, memo_details_df):

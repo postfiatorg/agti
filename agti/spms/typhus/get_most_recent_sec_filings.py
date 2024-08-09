@@ -84,11 +84,9 @@ class GetTickerMostRecentSECFiling:
         return ticker_to_primary_cik
     def get_all_recent_earnings_filings_for_ticker(self,ticker_to_work='AMZN'):
         if ticker_to_work not in self.ticker_to_primary_cik.index:
-            print(f'{ticker_to_work} not in the ticker_to_primary_cik index')
             return None
-        if ticker_to_work in self.ticker_to_primary_cik.index:
+        else:
             cik_to_get = self.ticker_to_primary_cik[ticker_to_work]
-            
             cik_formatter = str(int(cik_to_get))
             ## Construct the URL for the SEC EDGAR search page
             all_filings_page = f'https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik_formatter}&type=8-K&dateb=&owner=exclude&count=100'
