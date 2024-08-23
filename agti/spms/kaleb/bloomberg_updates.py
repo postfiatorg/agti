@@ -12,10 +12,25 @@ class KalebRequiredBloombergWrites:
         self.bloomberg_daily_data_tool = BloombergDailyDataTool(pw_map=self.pw_map, bloomberg_connection=True)
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         self.task_scheduler =  TaskScheduler()
+    def output_recent_equity_peer_df(self):
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='agti_corp')
+        #equity_peers_dexed= pd.read_sql('select * from spm_typhus__us_equity_peers limit 1;', dbconnx)
+        query = """
+        SELECT *
+        FROM spm_typhus__us_equity_peers
+        WHERE peer_date = (
+            SELECT MAX(peer_date)
+            FROM spm_typhus__us_equity_peers
+        )
+        """
+        
+        max_peer_date = pd.read_sql(query, dbconnx)#['max_peer_date'].iloc[0]
+        return max_peer_date
     def write_bloomberg_explict_table(self,field_name='px_open'):
         ''' example field name: px_open '''
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='agti_corp')
-        equity_peers_dexed= pd.read_sql('spm_typhus__us_equity_peers', dbconnx)
+        # equity_peers_dexed= pd.read_sql('spm_typhus__us_equity_peers', dbconnx)
+        equity_peers_dexed = self.output_recent_equity_peer_df()
         recent_peers = equity_peers_dexed[equity_peers_dexed['peer_date']==equity_peers_dexed['peer_date'].max()]
         all_tickers = list(set(list(recent_peers['ticker'].unique())
                  +list(recent_peers['ticker_to_peer'].unique())))
@@ -29,6 +44,7 @@ class KalebRequiredBloombergWrites:
         px_opens.to_sql(f'bloomberg__{field_name}', 
                         dbconnx, if_exists='replace', index=False)
         print(f"Wrote {field_name}")
+
         
     def write_bloomberg_field_if_after_time(self, field_name='px_open', time_to_filter=datetime.time(9, 50)):
         valid_time=False
