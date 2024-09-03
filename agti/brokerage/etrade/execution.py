@@ -754,7 +754,71 @@ class EtradeTool:
         response = session.post(order_url, header_auth=True, headers=headers, data=order_payload)
         print(response.text)
         print('placed MOC '+symbol+" "+order_action+' '+str(quantity))
+
+    def output_rejected_order_df(self):
+        account_map = self.account_map
+        session = self.session
+        consumer_key = self.consumer_key
+        order_arr = []
+        headers = {"consumerkey": consumer_key}
+        params_rejected = {"status": "REJECTED", 'count': 100}
+
+        base_url = 'https://api.etrade.com'
+        orders_json = base_url + "/v1/accounts/" + account_map['accountIdKey'] + "/orders.json"
+        response_rejected = session.get(orders_json, header_auth=True, params=params_rejected, headers=headers)
+        all_orders = response_rejected.json()
+        order_arr.append(all_orders)
+
+        iterx = 0
+        while iterx < 15:
+            next_string = ''
+            next_token = ''
+            try:
+                next_string = all_orders['OrdersResponse']['next']
+                next_token = next_string.split('marker=')[1].split('&')[0]
+            except:
+                pass
+            if next_token != '':
+                params_rejected = {"status": "REJECTED", 'count': 100, 'marker': next_token}
+                response_rejected = session.get(orders_json, header_auth=True, params=params_rejected, headers=headers)
+                all_orders = response_rejected.json()
+                order_arr.append(all_orders)
+            iterx += 1
+
+        full_order_arr = []
+        for orders_to_work in order_arr:
+            single_order_to_work = orders_to_work['OrdersResponse']['Order']
+            temp_order_df = pd.DataFrame(single_order_to_work).copy()
+            for xfield in ['placedTime', 'orderValue', 'status', 'orderTerm', 'priceType', 
+                        'limitPrice', 'stopPrice', 'marketSession', 'allOrNone', 'netPrice', 
+                        'netBid', 'netAsk', 'gcd', 'ratio', 'Instrument']:
+                temp_order_df[xfield] = temp_order_df['OrderDetail'].apply(lambda x: x[0][xfield])
+            
+            instrument_fields = ['symbolDescription', 'orderAction', 'quantityType', 
+                                'orderedQuantity', 'filledQuantity', 'estimatedCommission', 
+                                'estimatedFees', 'Product']
+            for xinstr in instrument_fields:
+                temp_order_df[xinstr] = temp_order_df['Instrument'].apply(lambda x: x[0][xinstr])
+            
+            temp_order_df['symbol'] = temp_order_df['Product'].apply(lambda x: x['symbol'])
+            temp_order_df['securityType'] = temp_order_df['Product'].apply(lambda x: x['securityType'])
+            full_order_arr.append(temp_order_df)
+
+        final_output = pd.concat(full_order_arr)
+        final_output['orderAction'] = final_output['Instrument'].apply(lambda x: x[0]['orderAction'])
+        final_output['orderedQuantity'] = final_output['Instrument'].apply(lambda x: x[0]['orderedQuantity'])
+        final_output['placedTime'] = final_output['OrderDetail'].apply(lambda x: x[0]['placedTime'])
+        final_output['placed_datetime'] = final_output['placedTime'].apply(lambda x: datetime.datetime.fromtimestamp(x/1000))
+        final_output['placed_date'] = final_output['placed_datetime'].apply(lambda x: pd.to_datetime(x.strftime('%Y-%m-%d')))
+        final_output['placed_hour'] = final_output['placed_datetime'].apply(lambda x: x.hour)
+        final_output['placed_minute'] = final_output['placed_datetime'].apply(lambda x: x.minute)
         
+        # Add rejection reason if available
+        final_output['rejectionReason'] = final_output['OrderDetail'].apply(lambda x: x[0].get('rejectionReason', 'Not specified'))
+
+        return final_output
+
+
     def get_open_orders(self):
         account_map=self.account_map
         session=self.session

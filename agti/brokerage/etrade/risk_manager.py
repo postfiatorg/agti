@@ -4,6 +4,7 @@ from agti.live_trading.universe_generation.fast_equity_pull import FastEquityPul
 import pandas as pd
 from agti.data.fmp.market_data import FMPMarketDataRetriever
 import datetime
+from agti.utilities.db_manager import DBConnectionManager
 class ETradeRiskTool:
     def __init__(self, etrade_tool, pw_map):
         # pass in an initialized etrade risk tool 
@@ -11,6 +12,7 @@ class ETradeRiskTool:
         self.pw_map = pw_map
         self.fast_equity_pull= FastEquityPull(pw_map=pw_map)
         self.fmp_market_data_retriever = FMPMarketDataRetriever(pw_map=pw_map)
+        self.db_connection_manager = DBConnectionManager(pw_map=pw_map)
     def load_positional_risk_frame(self):
         key_list_of_betas = ['SPY','IWM','GLD','USO','EFA','FXI','QQQ','UUP']
         current_positions =self.etrade_tool.get_current_position_df()
