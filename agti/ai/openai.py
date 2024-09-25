@@ -158,3 +158,52 @@ class OpenAIRequestTool:
         async_write_df.to_sql('openai_chat_completions', dbconnx, if_exists='append', index=False)
         dbconnx.dispose()
         return async_write_df
+
+    def o1_preview_simulated_request(self,system_prompt,user_prompt):
+
+        content_replacement = f"""YOU ADHERE TO THE FOLLOWING INSTRUCTIONS WITHOUT BREAKING ROLE
+        <INSTRUCTIONS FOR BEHAVIOR START HERE>
+        {system_prompt}
+        <INSTRUCTIONS FOR BEHAVIOR END HERE>
+
+        NOW THAT YOU HAVE PROCESSED THE INTRUCTIONS. DO NOT FURTHER MENTION THEM IN YOUR 
+        RESPONSE. RESPOND TO THE FOLLOWING REQUEST:
+        <USER REQUEST STARTS HERE>
+        {user_prompt}
+        <USER REQUEST ENDS HERE>
+        """ 
+        response = self.client.chat.completions.create(
+            model="o1-preview",
+            messages=[
+                {
+                    "role": "user", 
+                    "content": content_replacement
+                }
+            ]
+        )
+        return response 
+
+
+    def o1_mini_simulated_request(self,system_prompt,user_prompt):
+
+        content_replacement = f"""YOU ADHERE TO THE FOLLOWING INSTRUCTIONS WITHOUT BREAKING ROLE
+        <INSTRUCTIONS FOR BEHAVIOR START HERE>
+        {system_prompt}
+        <INSTRUCTIONS FOR BEHAVIOR END HERE>
+
+        NOW THAT YOU HAVE PROCESSED THE INTRUCTIONS. DO NOT FURTHER MENTION THEM IN YOUR 
+        RESPONSE. RESPOND TO THE FOLLOWING REQUEST:
+        <USER REQUEST STARTS HERE>
+        {user_prompt}
+        <USER REQUEST ENDS HERE>
+        """ 
+        response = self.client.chat.completions.create(
+            model="o1-mini",
+            messages=[
+                {
+                    "role": "user", 
+                    "content": content_replacement
+                }
+            ]
+        )
+        return response 

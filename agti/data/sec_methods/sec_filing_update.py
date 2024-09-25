@@ -10,6 +10,7 @@ from agti.data.sec_methods.update_cik import RunCIKUpdate
 from agti.data.sec_methods.request_utility import SECRequestUtility
 from agti.utilities.db_manager import DBConnectionManager
 import time
+import numpy as np
 class SECFilingUpdateManager:
     def __init__(self,pw_map, user_name):
         self.pw_map = pw_map
@@ -20,6 +21,8 @@ class SECFilingUpdateManager:
         self.cik_to_ticker_map = self.cik_update_tool.output_cached_cik_df().groupby('cik').first()['ticker']
         self.openai_request_tool = OpenAIRequestTool(pw_map=pw_map)
         self.cik_to_ticker_map__stockmapper = StockMapper().cik_to_tickers
+        self.ticker_to_cik_map = self.cik_to_ticker_map.reset_index().groupby('ticker').first()['cik']
+
     def load_existing_filing_df(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         try:
@@ -28,6 +31,7 @@ class SECFilingUpdateManager:
             print(f'No existing updates table: {e}')
             existing_updates = pd.DataFrame()
         return existing_updates
+
     def extract_99_urls_from_index_page_html(self, html_content):
         base_url = "https://www.sec.gov"
         soup = BeautifulSoup(html_content, 'html.parser')
@@ -111,6 +115,7 @@ class SECFilingUpdateManager:
                 pass
             pass
         return ticker
+
     def create_final_constructor_pre_html_load(self):
         # First load in the index pages that are already written
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)    
@@ -166,3 +171,48 @@ class SECFilingUpdateManager:
         print("wrote incremental SEC index page html to sec__index_page_html")
         self.update_full_filing_details_with_incremental_html_reads()
         print('updated sec__full_filing_details to sec__full_filing_details')
+
+    def load_historical_sec_docs_for_ticker(self,ticker = 'AAPL',get_history = True):
+        ticker_to_work=ticker
+        ticker_cik = self.ticker_to_cik_map[ticker_to_work]
+        req_url = f'https://data.sec.gov/submissions/CIK{ticker_cik}.json'
+        resp_object = self.sec_request_utility.compliant_request(req_url)
+        hist_json = resp_object.json()
+
+        recent_doc_block=pd.DataFrame(hist_json['filings']['recent'])
+        historical_filings = hist_json['filings']['files']
+        dfarr=[]
+        dfarr.append(recent_doc_block)
+        if get_history == True:
+            print('filing pages to work through ')
+            historical_filings_to_work = historical_filings
+            for historical_filing in historical_filings_to_work:
+                try:
+                    htext=self.sec_request_utility.compliant_request('https://data.sec.gov/submissions/'
+                                    + historical_filing['name'])
+                    df_block = pd.DataFrame(htext.json())
+                    dfarr.append(df_block)
+                    print('worked a filing')
+                except:
+                    pass
+        all_historical_docs = pd.concat(dfarr)
+        all_historical_docs['ticker']=ticker
+        all_historical_docs['CIK']=ticker_cik
+        all_historical_docs['acceptanceDateTime']=pd.to_datetime(all_historical_docs['acceptanceDateTime'])
+        all_historical_docs['filingDate']=pd.to_datetime(all_historical_docs['filingDate'])
+        all_historical_docs['request_time']= datetime.datetime.now()
+        has_financials = all_historical_docs['items'].apply(lambda x: np.where(('2.02' in str(x)),1,np.nan))
+        has_8k= all_historical_docs['form'].apply(lambda x: np.where('8-K' in x,1,np.nan))
+        all_historical_docs['eightk_eps']=np.where(has_financials*has_8k==1,True,False)
+        all_historical_docs['tenk_or_q']=all_historical_docs['form'].apply(lambda x: np.where('10' in x,True,False))
+        def convert_cik_and_accession_numberinto_url(cik, accession_number):
+            ret = ''
+            try:
+                ret = f'https://www.sec.gov/Archives/edgar/data/{int(cik)}/{accession_number.split('-')[0]}/{accession_number}-index.htm'
+
+            except:
+                pass
+            return ret
+        all_historical_docs['url']=all_historical_docs.apply(lambda x: convert_cik_and_accession_numberinto_url(x['CIK'], x['accessionNumber']),axis=1)
+
+        return all_historical_docs

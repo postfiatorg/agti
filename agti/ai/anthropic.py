@@ -2,16 +2,22 @@ import anthropic
 import pandas as pd
 import datetime
 import uuid
+import asyncio
+import nest_asyncio
+from anthropic import AsyncAnthropic
+import time
+from asyncio import Semaphore
 
 class AnthropicTool:
-    def __init__(self,pw_map):
+    def __init__(self, pw_map, max_concurrent_requests=2, requests_per_minute=30):
         self.pw_map = pw_map
-
-        self.client = anthropic.Anthropic(
-            # defaults to os.environ.get("ANTHROPIC_API_KEY")
-            api_key=self.pw_map['anthropic'],
-        )
+        self.client = anthropic.Anthropic(api_key=self.pw_map['anthropic'])
+        self.async_client = AsyncAnthropic(api_key=self.pw_map['anthropic'])
         self.default_model = 'claude-3-5-sonnet-20240620'
+        self.semaphore = Semaphore(max_concurrent_requests)
+        self.rate_limit = requests_per_minute
+        self.request_times = []
+
     def sample_output(self):
         """
         Generates a sample output message using the given input.
@@ -38,8 +44,8 @@ class AnthropicTool:
         )
         output = message.content
         return output
-        
-    def generate_simple_text_output(self,model, max_tokens, temperature, system_prompt, user_prompt):
+
+    def generate_simple_text_output(self, model, max_tokens, temperature, system_prompt, user_prompt):
         """ 
         Example
         model="claude-3-opus-20240229",
@@ -71,7 +77,6 @@ class AnthropicTool:
         output = message.content
         return output
 
-        
     def generate_claude_dataframe(self,model, max_tokens, temperature, system_prompt, user_prompt):
         output = self.generate_simple_text_output(model, max_tokens, temperature, system_prompt, user_prompt)
         output_map ={'text_response':output[0].text,
@@ -84,3 +89,87 @@ class AnthropicTool:
                      'job_uuid': str(uuid.uuid4())}
         output_x = pd.DataFrame( output_map, index=[0])
         return output_x
+
+    async def rate_limited_request(self, job_name, api_args):
+        async with self.semaphore:
+            await self.wait_for_rate_limit()
+            print(f"Task {job_name} start: {datetime.datetime.now().time()}")
+            try:
+                response = await self.async_client.messages.create(**api_args)
+                print(f"Task {job_name} end: {datetime.datetime.now().time()}")
+                return job_name, response
+            except anthropic.RateLimitError as e:
+                print(f"Rate limit error for task {job_name}: {str(e)}")
+                await asyncio.sleep(5)  # Wait for 5 seconds before retrying
+                return await self.rate_limited_request(job_name, api_args)
+
+    async def wait_for_rate_limit(self):
+        now = time.time()
+        self.request_times = [t for t in self.request_times if now - t < 60]
+        if len(self.request_times) >= self.rate_limit:
+            sleep_time = 60 - (now - self.request_times[0])
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+        self.request_times.append(time.time())
+
+    async def get_completions(self, arg_async_map):
+        '''Get completions asynchronously for given arguments map'''
+        tasks = [self.rate_limited_request(job_name, args) for job_name, args in arg_async_map.items()]
+        return await asyncio.gather(*tasks)
+
+    def create_writable_df_for_async_chat_completion(self, arg_async_map):
+        '''Create DataFrame for async chat completion results'''
+        nest_asyncio.apply()
+        loop = asyncio.get_event_loop()
+        x1 = loop.run_until_complete(self.get_completions(arg_async_map=arg_async_map))
+        dfarr = []
+        for xobj in x1:
+            internal_name = xobj[0]
+            completion_object = xobj[1]
+            raw_df = pd.DataFrame({
+                'id': completion_object.id,
+                'model': completion_object.model,
+                'role': completion_object.role,
+                'content': completion_object.content[0].text if completion_object.content else '',
+                'stop_reason': completion_object.stop_reason,
+                'stop_sequence': completion_object.stop_sequence,
+                'usage': str(completion_object.usage),
+                'write_time': datetime.datetime.now(),
+                'internal_name': internal_name
+            }, index=[0])
+            dfarr.append(raw_df)
+        full_writable_df = pd.concat(dfarr)
+        return full_writable_df
+
+    def run_chat_completion_async_demo(self):
+        '''Run demo for async chat completion'''
+        job_hashes = [f'job{i}sample__{uuid.uuid4()}' for i in range(1, 6)]
+        arg_async_map = {
+            job_hashes[0]: {
+                "model": self.default_model,
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": "Explain quantum computing in simple terms"}]
+            },
+            job_hashes[1]: {
+                "model": self.default_model,
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": "What are the main differences between Python and JavaScript?"}]
+            },
+            job_hashes[2]: {
+                "model": self.default_model,
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": "Describe the process of photosynthesis"}]
+            },
+            job_hashes[3]: {
+                "model": self.default_model,
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": "Explain the theory of relativity"}]
+            },
+            job_hashes[4]: {
+                "model": self.default_model,
+                "max_tokens": 1000,
+                "messages": [{"role": "user", "content": "What are the key features of machine learning?"}]
+            }
+        }
+        async_write_df = self.create_writable_df_for_async_chat_completion(arg_async_map=arg_async_map)
+        return async_write_df

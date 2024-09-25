@@ -2,6 +2,7 @@ import requests
 from io import TextIOWrapper, BytesIO
 from io import BytesIO as Buffer
 from zipfile import ZipFile
+from sqlalchemy import text
 import csv
 import json
 import sqlalchemy
@@ -124,22 +125,7 @@ class TiingoDataTool:
         tiingo_loading_frame['days_out_of_date']=tiingo_loading_frame['days_out_of_date'].fillna(100)
         return tiingo_loading_frame
 
-    def update_all_stale_tiingo_data(self):
-        # updated_as_of_map = self.output_max_date_of_equity_update().groupby('ticker').first()['max_date']
-        tiingo_loading_frame = self.generate_tiingo_data_loading_cue()
-        tickers_out_of_date = list(tiingo_loading_frame[tiingo_loading_frame['days_out_of_date']>0].index)
-        for ticker_to_work in tickers_out_of_date:
-            try:
-                start_date = tiingo_loading_frame.loc[ticker_to_work]['start_date_data_pull'].strftime('%Y-%m-%d')
-                end_date = tiingo_loading_frame.loc[ticker_to_work]['endDate'].strftime('%Y-%m-%d')
-                xdf = self.raw_load_tiingo_data(ticker=ticker_to_work, start_date=start_date, end_date=end_date)
-                dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
-                xdf.to_sql('tiingo__equities', dbconnx, if_exists='append', index=False)
-                dbconnx.dispose()
-                print(ticker_to_work)
-            except:
-                print("FAILED " +ticker_to_work)
-                pass
+
 
     def output_tiingo_real_time_price_frame(self):
         ''' this function returns a real time output
@@ -197,4 +183,130 @@ class TiingoDataTool:
             df = pd.DataFrame(request_response.json())
             #print(df)
         return df
+    def output_candidates_for_tiingo_rewrites(self):
+        """ Looks at large overnight percent changes for data abberations"""
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+        def get_important_dates(dbconnx):
+            # Calculate the date 1 year ago
+            one_year_ago = datetime.datetime.now() - datetime.timedelta(days=365)
+            target_date = one_year_ago.strftime('%Y-%m-%d')
+        
+            # SQL query to find the closest date to 1 year ago and the most recent date
+            query = f"""
+            WITH closest_date AS (
+                SELECT simple_date
+                FROM tiingo__equities
+                ORDER BY 
+                    CASE 
+                        WHEN simple_date > DATE '{target_date}' THEN simple_date - DATE '{target_date}'
+                        ELSE DATE '{target_date}' - simple_date
+                    END
+                LIMIT 1
+            ),
+            most_recent_date AS (
+                SELECT MAX(simple_date) as recent_date
+                FROM tiingo__equities
+            )
+            SELECT 
+                (SELECT simple_date FROM closest_date) as closest_to_year_ago,
+                recent_date as most_recent
+            FROM most_recent_date
+            """
+        
+            # Execute the query
+            result = pd.read_sql(query, dbconnx)
+        
+            return result
+        
+        # Usage
+        #dbconnx = # Your database connection object
+        important_dates = get_important_dates(dbconnx)
+        print("Date closest to 1 year ago:", important_dates['closest_to_year_ago'].iloc[0])
+        print("Most recent date in the database:", important_dates['most_recent'].iloc[0])
+        last_year_date_string = important_dates['closest_to_year_ago'].iloc[0].strftime('%Y-%m-%d')
+        recent_date_string = important_dates['most_recent'].iloc[0].strftime('%Y-%m-%d')
+        # SQL query to select all data between the two dates
+        query = f"""
+        SELECT *
+        FROM tiingo__equities
+        WHERE simple_date > '{last_year_date_string}'
+        ORDER BY simple_date
+        """
+        
+        # Execute the query
+        result = pd.read_sql(query, dbconnx)
+        sorted_past_year_df = result.groupby(['ticker','simple_date']).first().sort_index()
+        sorted_past_year_df['tick_copy']=sorted_past_year_df.index.get_level_values(0)
+        sorted_past_year_df['tick_is1']=sorted_past_year_df['tick_copy']==sorted_past_year_df['tick_copy'].shift(1)
+        sorted_past_year_df['ntRet']=sorted_past_year_df['tick_is1']*((sorted_past_year_df['adjOpen']-sorted_past_year_df['adjClose'].shift(1))/sorted_past_year_df['adjClose'].shift(1))
+        largest_nt_ret = sorted_past_year_df['ntRet'].abs().groupby('ticker').max()
+        candidates_for_rewrites = list(largest_nt_ret[largest_nt_ret>.5].index)
+        return candidates_for_rewrites
 
+    def conduct_tiingo_rewrite_for_abberant_data(self):
+        # Get the candidates for rewrites
+        all_rewrites = self.output_candidates_for_tiingo_rewrites()
+        
+        # Generate the Tiingo data loading cue
+        tiingo_loading_frame = self.generate_tiingo_data_loading_cue()
+        
+        engine = None
+        connection = None
+        try:
+            # Get database engine
+            engine = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+            
+            # Create a connection from the engine
+            connection = engine.connect()
+            
+            # Start a transaction
+            with connection.begin():
+                # Bulk delete existing data for all tickers
+                delete_query = text("DELETE FROM tiingo__equities WHERE ticker IN :tickers")
+                connection.execute(delete_query, {"tickers": tuple(all_rewrites)})
+                print("DELETED TICKERS")
+                # Fetch and insert new data for each ticker
+                for ticker in all_rewrites:
+                    try:
+                        # Get the start and end dates for the ticker
+                        start_date = tiingo_loading_frame.loc[ticker]['startDate'].strftime('%Y-%m-%d')
+                        end_date = tiingo_loading_frame.loc[ticker]['endDate'].strftime('%Y-%m-%d')
+                        
+                        # Fetch new data
+                        new_data = self.raw_load_tiingo_data(ticker=ticker, start_date=start_date, end_date=end_date)
+                        
+                        # Insert new data
+                        new_data.to_sql('tiingo__equities', connection, if_exists='append', index=False)
+                        
+                        print(f"Successfully rewrote data for {ticker}")
+                    except Exception as e:
+                        print(f"Failed to rewrite data for {ticker}. Error: {str(e)}")
+            
+            print("Completed rewriting Tiingo data for all candidates.")
+        
+        except Exception as e:
+            print(f"An error occurred during the bulk operation: {str(e)}")
+        
+        finally:
+            # Ensure the database connection is closed, even if an exception occurs
+            if connection:
+                connection.close()
+            if engine:
+                engine.dispose()
+    def update_all_stale_tiingo_data(self):
+        # updated_as_of_map = self.output_max_date_of_equity_update().groupby('ticker').first()['max_date']
+        tiingo_loading_frame = self.generate_tiingo_data_loading_cue()
+        tickers_out_of_date = list(tiingo_loading_frame[tiingo_loading_frame['days_out_of_date']>0].index)
+        for ticker_to_work in tickers_out_of_date:
+            try:
+                start_date = tiingo_loading_frame.loc[ticker_to_work]['start_date_data_pull'].strftime('%Y-%m-%d')
+                end_date = tiingo_loading_frame.loc[ticker_to_work]['endDate'].strftime('%Y-%m-%d')
+                xdf = self.raw_load_tiingo_data(ticker=ticker_to_work, start_date=start_date, end_date=end_date)
+                dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+                xdf.to_sql('tiingo__equities', dbconnx, if_exists='append', index=False)
+                dbconnx.dispose()
+                print(ticker_to_work)
+            except:
+                print("FAILED " +ticker_to_work)
+                pass
+        self.conduct_tiingo_rewrite_for_abberant_data()

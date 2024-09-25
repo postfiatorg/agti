@@ -166,4 +166,17 @@ class PasswordMapLoader:
             password = getpass.getpass('Enter your decryption password: ')
         self.password = password
         self.credential_manager = CredentialManager()
-        self.pw_map = self.credential_manager.output_fully_decrypted_cred_map(pw_decryptor=self.password)
+        #self.pw_map = self.credential_manager.output_fully_decrypted_cred_map(pw_decryptor=self.password)
+        self.pw_map = {}
+        self._load_passwords()
+
+    def _load_passwords(self):
+        try:
+            print("Starting to load passwords...")
+            self.pw_map = self.credential_manager.output_fully_decrypted_cred_map(pw_decryptor=self.password)
+            print(f"Loaded {len(self.pw_map)} passwords successfully.")
+        except Exception as e:
+            print(f"Error loading passwords: {str(e)}")
+            print("Traceback:")
+            import traceback
+            traceback.print_exc()
