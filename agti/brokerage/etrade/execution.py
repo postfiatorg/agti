@@ -25,6 +25,7 @@ from agti.data.tiingo.equities import TiingoDataTool
 from agti.utilities.google_sheet_manager import GoogleSheetManager
 #from basic_utilities.global_initializor import *
 from basic_utilities.regression import *
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
 
 class ETradeUXDriver:
     def __init__(self,pw_map,driver_type):
@@ -47,9 +48,9 @@ class ETradeUXDriver:
             driver = webdriver.Chrome(options=chrome_options)
         
         if driver_type=='firefox':
-            firefox_options = webdriver.FirefoxOptions()
-            firefox_options.add_argument("--private")
-            driver = webdriver.Firefox(firefox_options=firefox_options)
+            firefox_options = FirefoxOptions()
+            firefox_options.add_argument("-private")
+            driver = webdriver.Firefox(options=firefox_options)
 
         if driver_type=='edge':
             edge_options = Options()
@@ -162,7 +163,7 @@ class ETradeUXDriver:
         except:
             pass
 
-    def navigate_to_ticker_page(self, ticker_to_work='ORCL'):
+    def navigate_to_ticker_page__legacy(self, ticker_to_work='ORCL'):
         max_retries = 1
         current_try = 0
         if ticker_to_work != 'NAN':
@@ -207,6 +208,48 @@ class ETradeUXDriver:
             except NoSuchElementException:
                 print(f"Element not found while navigating to {ticker_to_work}. Retry {current_try + 1}/{max_retries}")
                 current_try += 1
+
+    def navigate_to_ticker_page(self, ticker_to_work='ORCL'):
+        max_retries = 3
+        current_try = 0
+
+        while current_try < max_retries:
+            try:
+                # Wait for search bar to be present and then interact
+                search_bar = WebDriverWait(self.firefox_driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, 'input[data-id="ViewPort_Navigation_symbolSearchInput"]'))
+                )
+                search_bar.clear()
+                time.sleep(0.5)
+                search_bar.send_keys(ticker_to_work)
+                time.sleep(1)  # Wait for dropdown to populate
+
+                # Wait for dropdown to appear and be populated
+                WebDriverWait(self.firefox_driver, 10).until(
+                    EC.presence_of_all_elements_located((By.CSS_SELECTOR, 'li.SymbolSearch---menuItem---xwN3j'))
+                )
+
+                dropdown_menu = self.firefox_driver.find_element(By.CSS_SELECTOR, 'ul.SymbolSearch---menu---98GcZ')
+
+                # Loop through dropdown items
+                for item in dropdown_menu.find_elements(By.CSS_SELECTOR, 'li.SymbolSearch---menuItem---xwN3j'):
+                    symbol = item.find_element(By.CSS_SELECTOR, 'span.SymbolSearch---symbol---BQiqg').text
+                    if symbol == ticker_to_work:
+                        # Use ActionChains for better reliability
+                        actions = ActionChains(self.firefox_driver)
+                        actions.move_to_element(item).click().perform()
+                        return  # Successfully clicked; exit method
+
+                current_try += 1  # Increment retry count if not successful
+
+            except TimeoutException:
+                print(f"Timed out waiting for elements. Retry {current_try + 1}/{max_retries}")
+                current_try += 1
+            except NoSuchElementException:
+                print(f"Element not found. Retry {current_try + 1}/{max_retries}")
+                current_try += 1
+
+        print(f"Failed to navigate to {ticker_to_work} after {max_retries} attempts")
 
     def pop_up_sell_dialogue(self, ticker_to_verify):
         try:
