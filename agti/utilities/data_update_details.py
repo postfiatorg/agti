@@ -15,6 +15,7 @@ class DataUpdateDetails:
         self.generic_pft_utilities = GenericPFTUtilities(pw_map=self.pw_map)
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         print("NEW DATA UPDATE DETAILS OBJECT CREATED")
+        self.test_value = 2
     def get_most_recent_update_date_for_table(self,table_name = 'sec__update_cik', 
                                               date_column = 'date_of_update',user_name = 'spm_typhus'):
         

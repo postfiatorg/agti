@@ -149,7 +149,7 @@ class OpenAIRequestTool:
         }
         async_write_df = self.create_writable_df_for_async_chat_completion(arg_async_map=arg_async_map)
         return async_write_df
-
+    
     def query_chat_completion_async_and_write_to_db(self, arg_async_map):
         '''Query chat completion asynchronously and write result to database'''
         async_write_df = self.create_writable_df_for_async_chat_completion(arg_async_map=arg_async_map)

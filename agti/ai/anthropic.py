@@ -13,7 +13,7 @@ class AnthropicTool:
         self.pw_map = pw_map
         self.client = anthropic.Anthropic(api_key=self.pw_map['anthropic'])
         self.async_client = AsyncAnthropic(api_key=self.pw_map['anthropic'])
-        self.default_model = 'claude-3-5-sonnet-20240620'
+        self.default_model = 'claude-3-5-sonnet-20241022'
         self.semaphore = Semaphore(max_concurrent_requests)
         self.rate_limit = requests_per_minute
         self.request_times = []

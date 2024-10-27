@@ -28,7 +28,7 @@ class GenericPFTUtilities:
     def __init__(self,pw_map):
         self.pw_map= pw_map
         self.pft_issuer = 'rnQUEEg8yyjrwk9FhyXpKavHyCRJM9BDMW'
-        self.mainnet_url= "https://xrplcluster.com"
+        self.mainnet_url= "https://s2.ripple.com:51234"
         self.mainnet_urls = [
             "https://xrplcluster.com",
             "https://xrpl.ws",

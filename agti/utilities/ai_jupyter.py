@@ -14,6 +14,7 @@ class NotebookAITool:
         self.default_open_ai_model = 'gpt-4o'
         self.anthropic_tool = AnthropicTool(pw_map=pw_map)
         self.notebook_name = notebook_name
+        self.default_anthropic_model = 'claude-3-5-sonnet-20241022'
 
     def get_notebook_contents(self):
         notebook_name = self.notebook_name
@@ -152,7 +153,7 @@ The user doesn't need explanations he needs results. Make sure to get the code r
 For your output ONLY RETURN WHAT THE USER ASKS FOR IN THE USER INPUT - you reference other things
 in the notebook but use them as supplements, do not respond to them
     """
-        op_df = self.anthropic_tool.generate_claude_dataframe(model='claude-3-5-sonnet-20240620',
+        op_df = self.anthropic_tool.generate_claude_dataframe(model= self.default_anthropic_model,
             max_tokens=3000,
             temperature=0,
             system_prompt=system_prompt,
