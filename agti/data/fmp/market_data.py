@@ -21,7 +21,7 @@ class FMPMarketDataRetriever:
         """
         # Initialize an empty DataFrame to store results
         full_df = pd.DataFrame()
-
+        symbols = [i.replace('.','-') for i in symbols]
         # Calculate the number of batches
         num_batches = math.ceil(len(symbols) / batch_size)
 
@@ -44,7 +44,7 @@ class FMPMarketDataRetriever:
                 full_df = pd.concat([full_df, batch_df], ignore_index=True)
             else:
                 print(f"Failed to fetch data for batch {i + 1}: {response.status_code}")
-        
+        full_df['symbol']=full_df['symbol'].apply(lambda x: x.replace('-','.'))
         return full_df
     
     def retrieve_batch_pre_market_data(self, symbols, batch_size=5):
