@@ -255,7 +255,7 @@ class MosaicCreator:
         zscore_eps.columns= [reversed_map[i] for i in zscore_eps]
         movement['eps']=zscore_eps[-1:].mean()
         movement['create_date']=datetime.datetime.now()
-        return movement
+        return movement.reset_index()
 
     def generate_vw_ret_report(self):
             timeseries_display = self.core_historical_data[['spy us equity','tlt us equity','gld us equity',
