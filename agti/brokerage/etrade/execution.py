@@ -26,6 +26,8 @@ from agti.utilities.google_sheet_manager import GoogleSheetManager
 #from basic_utilities.global_initializor import *
 from basic_utilities.regression import *
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from agti.data.fmp.market_data import FMPMarketDataRetriever
+
 
 class ETradeUXDriver:
     def __init__(self,pw_map,driver_type):
@@ -578,6 +580,8 @@ class EtradeTool:
         self.google_sheet_manager = GoogleSheetManager(prod_trading=True)
         self.etrade_ux_driver = ETradeUXDriver(pw_map=self.pw_map, driver_type=driver_type)
         self.tiingo_data_tool= TiingoDataTool(pw_map=self.pw_map)
+        self.fmp_market_data_retriever = FMPMarketDataRetriever(pw_map=self.pw_map)
+
         def oauth():
             """Allows user authorization for the sample application with OAuth 1"""
             etrade = OAuth1Service(
@@ -1071,7 +1075,7 @@ class EtradeTool:
         cdf= pd.concat([current_values,tquantity],axis=1)
         cdf.columns=['current','target']
         cdf=cdf.astype(float)
-        cdf = cdf.loc[[i for i in cdf.index if i.isalpha()]].copy()
+        # cdf = cdf.loc[[i for i in cdf.index if i.isalpha()]].copy()
         cdf.index.name = 'ticker'
         rebalance_df=cdf.reset_index()
         rebalance_df=rebalance_df.fillna(0)
@@ -1155,10 +1159,12 @@ class EtradeTool:
         op=self.generate_production_realignment_order_frame_and_outstanding_orders(session_to_realign_to='nt')
         oframe = op['order_frame_to_execute']
         oframe= oframe[oframe['orders_to_work']!=0].copy()
-        rt_px_frm = self.tiingo_data_tool.output_tiingo_real_time_price_frame()
-        tngo_last = rt_px_frm.groupby('ticker').first()['tngoLast']
+        # rt_px_frm = self.tiingo_data_tool.output_tiingo_real_time_price_frame()
+        # tngo_last = rt_px_frm.groupby('ticker').first()['tngoLast']
+        symbols_to_get = list(oframe['symbol'].unique())
+        px_map = self.fmp_market_data_retriever.retrieve_batch_equity_data(symbols=symbols_to_get, batch_size=1000).groupby('symbol').last()['price']
         # last_price_df = self.td_ameritrade_tool.get_price_frame_for_ticker_list(list(set(list(oframe['symbol']))))
-        oframe['lastPrice'] = oframe['symbol'].map(tngo_last)
+        oframe['lastPrice'] = oframe['symbol'].map(px_map)
         # Ensure the lastPrice column in oframe is of type float
         #oframe['lastPrice'] = oframe['symbol'].map(last_price_df.transpose()['lastPrice'].astype(float))
         # Split oframe into the three categories
@@ -1220,12 +1226,10 @@ class EtradeTool:
         op=self.generate_production_realignment_order_frame_and_outstanding_orders(session_to_realign_to='nt')
         oframe = op['order_frame_to_execute']
         oframe= oframe[oframe['orders_to_work']!=0].copy()
-        # last_price_df = self.td_ameritrade_tool.get_price_frame_for_ticker_list(list(set(list(oframe['symbol']))))
-        rt_px_frm = self.tiingo_data_tool.output_tiingo_real_time_price_frame()
-        tngo_last = rt_px_frm.groupby('ticker').first()['tngoLast']
-        oframe['lastPrice']=oframe['symbol'].map(tngo_last )
-        # Ensure the lastPrice column in oframe is of type float
-        oframe['lastPrice'] = oframe['symbol'].map(tngo_last)
+        # oframe['symbol']
+        symbols_to_get = list(oframe['symbol'].unique())
+        px_map = self.fmp_market_data_retriever.retrieve_batch_equity_data(symbols=symbols_to_get, batch_size=1000).groupby('symbol').last()['price']
+        oframe['lastPrice'] = oframe['symbol'].map(px_map)
         # Split oframe into the three categories
         buy_above_102 = oframe[(oframe['order_action'] == 'BUY') & (oframe['lastPrice'] > 1.02)].copy()
         buy_below_102 = oframe[(oframe['order_action'] == 'BUY') & (oframe['lastPrice'] < 1.02)].copy()

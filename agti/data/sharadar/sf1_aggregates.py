@@ -15,6 +15,7 @@ class SF1Aggregates:
         self.us_corps_only['ticker_is12']=np.where(self.us_corps_only['ticker_copy']==self.us_corps_only['ticker_copy'].shift(12),1,np.nan)
         self.us_corps_only['ebt__4']= (self.us_corps_only['ticker_is4']*self.us_corps_only['ebt']).rolling(4).sum()
         self.us_corps_only['netinc__4']= (self.us_corps_only['ticker_is4']*self.us_corps_only['netinc']).rolling(4).sum()
+        self.us_corps_only['fcf__4']= (self.us_corps_only['ticker_is4']*self.us_corps_only['fcf']).rolling(4).sum()
         self.all_non_financial_and_utes = list(self.ticker_map[(self.ticker_map['sector'] !='Financial Services') 
                                                & (self.ticker_map['sector'] !='Utilities')].index.unique())
 

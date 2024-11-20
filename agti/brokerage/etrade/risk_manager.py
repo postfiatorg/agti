@@ -5,6 +5,7 @@ import pandas as pd
 from agti.data.fmp.market_data import FMPMarketDataRetriever
 import datetime
 from agti.utilities.db_manager import DBConnectionManager
+from agti.utilities.google_sheet_manager import GoogleSheetManager
 class ETradeRiskTool:
     def __init__(self, etrade_tool, pw_map):
         # pass in an initialized etrade risk tool 
@@ -12,6 +13,7 @@ class ETradeRiskTool:
         self.pw_map = pw_map
         self.fast_equity_pull= FastEquityPull(pw_map=pw_map)
         self.fmp_market_data_retriever = FMPMarketDataRetriever(pw_map=pw_map)
+        self.google_sheet_manger = GoogleSheetManager(prod_trading=True)
         self.db_connection_manager = DBConnectionManager(pw_map=pw_map)
     def load_positional_risk_frame(self):
         key_list_of_betas = ['SPY','IWM','GLD','USO','EFA','FXI','QQQ','UUP']
@@ -51,7 +53,7 @@ class ETradeRiskTool:
         etrade_overnight_risk['date']=datetime.datetime.now()
         etrade_overnight_risk.index.name = 'field'
         etrade_overnight_risk['brokerage']='etrade'
-        return etrade_overnight_risk
+        return {'risk_df':etrade_overnight_risk,'nt_pnl':nt_pnl}
     
     def output_morning_realized_pnl_df(self):
         executed_order_df = self.etrade_tool.output_executed_order_df()
@@ -69,3 +71,23 @@ class ETradeRiskTool:
         this_mornings_fills['slippage']=(this_mornings_fills['averageExecutionPrice']
                                         -this_mornings_fills['recorded_open'])* this_mornings_fills['filledQuantity']*-this_mornings_fills['pnl_direction']
         return this_mornings_fills
+
+    def output_failed_order_df(self):
+        full_df = self.google_sheet_manger.load_google_sheet_as_df(workbook='odv',worksheet='etrade_target')
+        target_positions = full_df.groupby('localSymbol').first()[['notional_usd','position']].astype(float)
+        etrade_positions = self.etrade_tool.get_current_position_df()#.groupby('symbol').first()#['quantity']
+        etrade_positions['directional_quantity']=etrade_positions['positionType'].map({'LONG':1,'SHORT':-1})*etrade_positions['quantity']
+        current_posis=etrade_positions[['symbolDescription','directional_quantity']].groupby('symbolDescription').sum().sort_values('directional_quantity',ascending=False)
+        current_posis.columns=['current_etrade_positions']
+        order_failure = pd.concat([current_posis,target_positions],axis=1)
+        order_failure['failed_order_amount']=order_failure['position'].fillna(0)-order_failure['current_etrade_positions'].fillna(0)
+        failed_order_df = order_failure[order_failure['failed_order_amount']!=0].copy()
+        
+        #pricer = self.fmp_market_data_retriever.retrieve_batch_equity_data(symbols=list(failed_order_df.index), batch_size=1000).groupby('symbol').first()['price']
+        #failed_order_df['price']=pricer
+        xd = self.fmp_market_data_retriever.retrieve_batch_equity_data(symbols= list(failed_order_df.index),batch_size=1000)
+        xd['symbol']=xd['symbol'].apply(lambda x: x.replace('-','.'))
+        
+        failed_order_df['price']=xd.groupby('symbol').first()['price']
+        failed_order_df['failed_dollar_amount']=failed_order_df['failed_order_amount']*failed_order_df['position']
+        return failed_order_df
