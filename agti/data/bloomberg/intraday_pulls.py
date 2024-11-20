@@ -13,6 +13,9 @@ from dateutil.relativedelta import relativedelta
 import datetime
 import pytz
 import sqlalchemy
+import logging
+from blpapi.exception import InvalidArgumentException
+
 
 class Pybbg():
     def __init__(self, host='localhost', port=8194):
@@ -365,7 +368,7 @@ def processMessage(msg):
 class IntradayBloombergTool:
     def __init__(self):
         self.in_load=Pybbg()
-    def get_intraday_history(self,ticker, 
+    def get_intraday_history__legacy(self,ticker, 
                              field_name, 
                              interval, 
                              startDateTime,
@@ -392,5 +395,104 @@ class IntradayBloombergTool:
         op_df=op_df.reset_index()
         op_df['unique_identifier']= op_df['date'].astype(str)+'___'+op_df['field_name'].astype(str)+ '___'+op_df['ticker'].astype(str)
         return op_df
+
+
+    def get_intraday_history(self, ticker, field_name, interval, startDateTime, endDateTime):
+        """
+        Fetch intraday historical data from Bloomberg for a given ticker.
+
+        Args:
+            ticker (str): Bloomberg ticker symbol.
+            field_name (str): Field to fetch (e.g., 'close').
+            interval (int): Time interval in minutes.
+            startDateTime (datetime): Start of data period.
+            endDateTime (datetime): End of data period.
+
+        Returns:
+            pd.DataFrame: Historical data with all fields, or an empty DataFrame if fetch fails.
+        """
+        fld_list = [field_name]
+        try:
+            # Retrieve intraday bar data
+            op_df = self.in_load.bdib(
+                ticker,
+                fld_list,
+                startDateTime=startDateTime,
+                endDateTime=endDateTime,
+                eventType='TRADE',
+                interval=interval
+            )
+            
+            # Preserve all necessary columns
+            op_df.index.name = 'date'
+            op_df.columns = ['value']
+            op_df['field_name'] = field_name
+            op_df['ticker'] = ticker
+            op_df.index = op_df.index.tz_localize('UTC').tz_convert('US/Eastern')
+            op_df['timezone'] = 'EST'
+            op_df = op_df.reset_index()
+            
+            # Create unique identifier
+            op_df['unique_identifier'] = (
+                op_df['date'].astype(str) + '___' + 
+                op_df['field_name'].astype(str) + '___' + 
+                op_df['ticker'].astype(str)
+            )
+            
+            return op_df
+
+        except InvalidArgumentException as e:
+            logging.warning(f"No data available for ticker: {ticker}. Returning empty DataFrame. Error: {e}")
+            return pd.DataFrame(columns=['date', 'value', 'field_name', 'ticker', 'timezone', 'unique_identifier'])
+
+        except Exception as e:
+            logging.error(f"Unexpected error for ticker: {ticker}. Returning empty DataFrame. Error: {e}")
+            return pd.DataFrame(columns=['date', 'value', 'field_name', 'ticker', 'timezone', 'unique_identifier'])
+
+
+    def get_intraday_history_for_ticker_list(self, tickers, field_name, interval, startDateTime, endDateTime):
+        """
+        Fetch intraday historical data for a list of tickers from Bloomberg.
+
+        Args:
+            tickers (list): List of Bloomberg ticker symbols.
+            field_name (str): Field to fetch (e.g., 'close').
+            interval (int): Time interval in minutes.
+            startDateTime (datetime): Start of data period.
+            endDateTime (datetime): End of data period.
+
+        Returns:
+            dict: Dictionary of tickers and their corresponding DataFrames.
+                Failed tickers will not appear in the result.
+        """
+        results = {}
+        failed_tickers = []
+
+        for ticker in tickers:
+            try:
+                logging.info(f"Fetching data for ticker: {ticker}")
+                data = self.get_intraday_history(
+                    ticker=ticker,
+                    field_name=field_name,
+                    interval=interval,
+                    startDateTime=startDateTime,
+                    endDateTime=endDateTime
+                )
+                if data is not None:
+                    results[ticker] = data
+                else:
+                    failed_tickers.append(ticker)
+
+            except Exception as e:
+                logging.error(f"Unexpected error for ticker: {ticker}. Error: {e}")
+                failed_tickers.append(ticker)
+
+        # Log any failures
+        if failed_tickers:
+            logging.warning(f"Failed to fetch data for the following tickers: {', '.join(failed_tickers)}")
+
+        return results
+
+
 
                 
