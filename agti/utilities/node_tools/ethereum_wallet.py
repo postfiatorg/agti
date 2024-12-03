@@ -1,11 +1,13 @@
 from web3 import Web3, Account
 import secrets
 
-
 class EthereumWallet:
-    # USDT Contract Details
+    # USDT and USDC Contract Details
     USDT_CONTRACT_ADDRESS = '0xdAC17F958D2ee523a2206206994597C13D831ec7'
-    USDT_ABI = [
+    USDC_CONTRACT_ADDRESS = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
+
+    # USDT and USDC ABI (ERC-20 standard with decimals included)
+    ERC20_ABI = [
         {
             "constant": False,
             "inputs": [
@@ -21,6 +23,13 @@ class EthereumWallet:
             "inputs": [{"name": "_owner", "type": "address"}],
             "name": "balanceOf",
             "outputs": [{"name": "balance", "type": "uint256"}],
+            "type": "function",
+        },
+        {
+            "constant": True,
+            "inputs": [],
+            "name": "decimals",
+            "outputs": [{"name": "", "type": "uint8"}],
             "type": "function",
         },
     ]
@@ -47,32 +56,36 @@ class EthereumWallet:
         balance = self.w3.eth.get_balance(self.address)
         return self.w3.from_wei(balance, 'ether')
 
-    def get_usdt_balance(self):
-        # USDT Contract instance
-        usdt_contract = self.w3.eth.contract(
-            address=self.w3.to_checksum_address(self.USDT_CONTRACT_ADDRESS), 
-            abi=self.USDT_ABI
+    def get_token_balance(self, token_address):
+        # Create ERC-20 Token contract instance
+        token_contract = self.w3.eth.contract(
+            address=self.w3.to_checksum_address(token_address),
+            abi=self.ERC20_ABI
         )
-        # Get USDT balance
-        balance = usdt_contract.functions.balanceOf(self.address).call()
-        return balance / (10 ** 6)  # Adjust for 6 decimal places
+        # Get token balance
+        balance = token_contract.functions.balanceOf(self.address).call()
+       
+        # Fetch decimals directly from the contract
+        decimals = token_contract.functions.decimals().call()  # Get token decimals dynamically
+        return balance / (10 ** decimals)  # Adjust for token decimals
 
-    def send_usdt(self, recipient_address, amount, gas_limit=100000):
-        # Create USDT Contract instance
-        usdt_contract = self.w3.eth.contract(
-            address=self.w3.to_checksum_address(self.USDT_CONTRACT_ADDRESS), 
-            abi=self.USDT_ABI
+    def send_token(self, recipient_address, amount, token_address, gas_limit=100000):
+        # Create ERC-20 Token contract instance
+        token_contract = self.w3.eth.contract(
+            address=self.w3.to_checksum_address(token_address),
+            abi=self.ERC20_ABI
         )
-        
+
         # Convert recipient address to checksum address
         recipient = self.w3.to_checksum_address(recipient_address)
-        
+
         # Prepare the transaction
         nonce = self.w3.eth.get_transaction_count(self.address)
         gas_price = self.w3.eth.gas_price
-        amount_in_wei = int(amount * (10 ** 6))  # USDT has 6 decimals
-        
-        transaction = usdt_contract.functions.transfer(
+        decimals = token_contract.functions.decimals().call()  # Get token decimals dynamically
+        amount_in_wei = int(amount * (10 ** decimals))  # Adjust for token decimals
+
+        transaction = token_contract.functions.transfer(
             recipient, amount_in_wei
         ).build_transaction({
             'chainId': 1,  # Mainnet
@@ -93,4 +106,18 @@ class EthereumWallet:
         txn_receipt = self.w3.eth.wait_for_transaction_receipt(txn_hash)
         return txn_receipt
 
+    def get_usdt_balance(self):
+        # Get USDT balance
+        return self.get_token_balance(self.USDT_CONTRACT_ADDRESS)
 
+    def get_usdc_balance(self):
+        # Get USDC balance
+        return self.get_token_balance(self.USDC_CONTRACT_ADDRESS)
+
+    def send_usdt(self, recipient_address, amount, gas_limit=100000):
+        # Send USDT
+        return self.send_token(recipient_address, amount, self.USDT_CONTRACT_ADDRESS, gas_limit)
+
+    def send_usdc(self, recipient_address, amount, gas_limit=100000):
+        # Send USDC
+        return self.send_token(recipient_address, amount, self.USDC_CONTRACT_ADDRESS, gas_limit)
