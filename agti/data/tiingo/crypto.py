@@ -46,12 +46,15 @@ class TiingoCryptoTool:
         crypto_px_data = pd.DataFrame(xjson)
         df_arr=[]
         for ind_to_work in crypto_px_data.index:
-            
-            df_to_write = pd.DataFrame(crypto_px_data.loc[ind_to_work]['priceData'])
-            df_to_write['ticker']=crypto_px_data.loc[ind_to_work]['ticker']
-            df_to_write['base_currency']=crypto_px_data.loc[ind_to_work]['baseCurrency']
-            df_to_write['quote_currency']=crypto_px_data.loc[ind_to_work]['quoteCurrency']
-            df_arr.append(df_to_write)
+            try:
+                df_to_write = pd.DataFrame(crypto_px_data.loc[ind_to_work]['priceData'])
+                df_to_write['ticker']=crypto_px_data.loc[ind_to_work]['ticker']
+                df_to_write['base_currency']=crypto_px_data.loc[ind_to_work]['baseCurrency']
+                df_to_write['quote_currency']=crypto_px_data.loc[ind_to_work]['quoteCurrency']
+                df_arr.append(df_to_write)
+            except:
+                print(ind_to_work)
+                pass
         xdf = pd.concat(df_arr)
         return xdf
 

@@ -9,8 +9,39 @@ import time
 from asyncio import Semaphore
 
 class OpenRouterTool:
-    """
-    A wrapper for OpenRouter API that provides unified access to both OpenAI and Anthropic models
+    """ 
+    # Example usage:
+    if __name__ == "__main__":
+        client = OpenRouterTool(pw_map={'openrouter': 'your-api-key'})
+        
+        # Example 1: Basic text completion
+        print("\nExample 1: Text Completion")
+        print(client.example_text_completion())
+        
+        # Example 2: Image analysis
+        print("\nExample 2: Image Analysis")
+        image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+        print(client.example_image_analysis(image_url))
+        
+        # Example 3: Structured output
+        print("\nExample 3: Structured Output")
+        print(client.example_structured_output())
+        
+        # Example 4: Multi-turn conversation
+        print("\nExample 4: Multi-turn Conversation")
+        conversation = client.example_multi_turn_conversation()
+        for turn, response in conversation:
+            print(f"\n{turn}:")
+            print(response)
+        
+        # Example 5: Function calling
+        print("\nExample 5: Function Calling")
+        print(client.example_function_calling())
+        
+        # Example 6: Async completion with DataFrame output
+        print("\nExample 6: Async Completion")
+        df = client.run_chat_completion_async_demo()
+        print(df)
     """
     def __init__(self, pw_map, max_concurrent_requests=2, requests_per_minute=30, http_referer="postfiat.org"):
         self.pw_map = pw_map
@@ -125,6 +156,7 @@ class OpenRouterTool:
             }, index=[0])
             dfarr.append(raw_df)
         full_writable_df = pd.concat(dfarr)
+        full_writable_df['choices__message__content']=full_writable_df['content']
         return full_writable_df
 
     def run_chat_completion_async_demo(self):
@@ -256,36 +288,3 @@ class OpenRouterTool:
         except:
             return {"error": "Could not parse response into structured format", "raw_response": response}
 
-
-# Example usage:
-if __name__ == "__main__":
-    client = OpenRouterTool(pw_map={'openrouter': 'your-api-key'})
-    
-    # Example 1: Basic text completion
-    print("\nExample 1: Text Completion")
-    print(client.example_text_completion())
-    
-    # Example 2: Image analysis
-    print("\nExample 2: Image Analysis")
-    image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
-    print(client.example_image_analysis(image_url))
-    
-    # Example 3: Structured output
-    print("\nExample 3: Structured Output")
-    print(client.example_structured_output())
-    
-    # Example 4: Multi-turn conversation
-    print("\nExample 4: Multi-turn Conversation")
-    conversation = client.example_multi_turn_conversation()
-    for turn, response in conversation:
-        print(f"\n{turn}:")
-        print(response)
-    
-    # Example 5: Function calling
-    print("\nExample 5: Function Calling")
-    print(client.example_function_calling())
-    
-    # Example 6: Async completion with DataFrame output
-    print("\nExample 6: Async Completion")
-    df = client.run_chat_completion_async_demo()
-    print(df)

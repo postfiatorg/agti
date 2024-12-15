@@ -7,6 +7,7 @@ import requests
 import pandas as pd
 import numpy as np
 import os
+import time 
 import itertools
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
@@ -37,7 +38,7 @@ class CoinMarketCapDataTool:
         self.scraper = driver
         self.data_dump_directory_path  =self.pw_map['local_data_dump']
         self.write_all_cmc_currency_pages(days_stale_max=15)
-        self.cmc_details_df = self.parse_coinmarketcap_details_df()
+        self.cmc_details_df = self.load_cached_cmc_currency_details()
         self.cmc_details_df['fdv']=self.cmc_details_df['fdv'].astype(float)
         self.cmc_details_df= self.cmc_details_df.sort_values('fdv',ascending=False)
 
@@ -168,7 +169,16 @@ class CoinMarketCapDataTool:
         full_output = pd.concat(varr)
         cmc_details_df = full_output
         return cmc_details_df
+    
+    def write_cmc_currency_details(self):
+        cmc_details_df = self.parse_coinmarketcap_details_df()
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='agti_corp')
+        cmc_details_df.to_sql('coinmarketcap__currency_details',dbconnx, if_exists='replace')
 
+    def load_cached_cmc_currency_details(self):
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='agti_corp')
+        cmc_details_df = pd.read_sql('coinmarketcap__currency_details',dbconnx)
+        return cmc_details_df
 
 
     def output_cmc_history_for_currency(self, currency_to_get='bitcoin'):
