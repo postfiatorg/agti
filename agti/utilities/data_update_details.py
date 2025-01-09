@@ -174,3 +174,9 @@ class DataUpdateDetails:
             return None  # or raise an exception if you prefer
         # 2+2 adsf 
         return df_to_write  # Return the DataFrame for further use or verification
+
+    def get_all_existing_updates(self,ndays=1):
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name='spm_typhus')
+        all_existing_updates =pd.read_sql(self.pw_map['node_name']+'__'+'data_update_details', dbconnx)#.tail(1).transpose()
+        op= all_existing_updates[all_existing_updates['write_time'] >= datetime.datetime.now()-datetime.timedelta(ndays)].copy()
+        return op
