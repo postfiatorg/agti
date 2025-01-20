@@ -105,15 +105,10 @@ AND date_created < :end_date
 
             if href.endswith("pdf"):
                 print("Downloading file:", link_text)
-                try:
-                    text = self.download_and_read_pdf(href)
-                except:
-                    print("Error downloading file:", link_text)
-                    continue
+                text = self.download_and_read_pdf(href)
             elif href.endswith("htm"):
                 print("Parsing HTML file:", link_text)
-                continue
-                #text = self.read_html(href)
+                text = self.read_html(href)
             else:
                 raise ValueError("Unknown file format")
             
@@ -152,7 +147,10 @@ AND date_created < :end_date
 
     
     def read_html(self, url: str):
-        raise NotImplementedError("Method not implemented yet")
+        text = self._driver.find_element(By.CSS_SELECTOR, "div.outline.mod_outer").text
+        if len(text):
+            raise ValueError("No text found in HTML file")
+        return text
     
 
 
