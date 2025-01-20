@@ -1,6 +1,7 @@
 
 import os
 import re
+import socket
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -31,6 +32,11 @@ class JapanBankScrapper:
         self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
 
         self._driver = self._setup_driver()
+
+    def ip_hostname(self):
+        hostname = socket.gethostname()
+        IPAddr = socket.gethostbyname(hostname)
+        return IPAddr, hostname
 
 
     def _setup_driver(self):
@@ -129,11 +135,13 @@ AND date_created < :end_date
             return
         
         df["date_created"] = df["date_created"].apply(self.convert_JPN_to_EST)
+        
+        ipaddr, hostname = self.ip_hostname()
 
         df["country_name"] = "Japan"
         df["country_code_alpha_3"] = "JPN"
-        df["scraping_machine"] = "Test1"
-        df["scraping_ip"] = "127.0.0.1"
+        df["scraping_machine"] = hostname
+        df["scraping_ip"] = ipaddr
 
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         df.to_sql("central_banks", con=dbconnx, if_exists="append", index=False)
