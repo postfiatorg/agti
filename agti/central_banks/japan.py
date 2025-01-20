@@ -8,6 +8,8 @@ import urllib
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 import pdfplumber
 from sqlalchemy import text
 
@@ -85,13 +87,11 @@ AND date_created < :end_date
         table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
         #caption = table.find_element(By.XPATH, ".//caption").text
         tbody = table.find_element(By.XPATH, ".//tbody")
-
-        result = []
+        pre_processed = {}
         for row in tbody.find_elements(By.XPATH,".//tr"):
             tds = list(row.find_elements(By.XPATH,".//td"))
             current_date_JPN = pd.to_datetime(tds[0].text)
             if current_date_JPN in jpn_dates:
-                print(f"Skipping row: {current_date_JPN}")
                 continue
             link = tds[1].find_element(By.XPATH, ".//a")
             # parse link, get href and text
@@ -102,7 +102,11 @@ AND date_created < :end_date
             # using regex
             link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
 
+            pre_processed[current_date_JPN] = (link_text, href)
 
+
+        result = []
+        for current_date_JPN, (link_text, href) in pre_processed.items():
             if href.endswith("pdf"):
                 print("Downloading file:", link_text)
                 text = self.download_and_read_pdf(href)
@@ -147,8 +151,10 @@ AND date_created < :end_date
 
     
     def read_html(self, url: str):
-        text = self._driver.find_element(By.CSS_SELECTOR, "div.outline.mod_outer").text
-        if len(text):
+        self._driver.get(url)
+        element = self._driver.find_element(By.CSS_SELECTOR, "div.outline.mod_outer")
+        text = element.text
+        if len(text) == 0:
             raise ValueError("No text found in HTML file")
         return text
     
