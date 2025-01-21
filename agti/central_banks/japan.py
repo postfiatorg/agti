@@ -22,7 +22,9 @@ from sqlalchemy import text
 
 
 class JapanBankScrapper:
-    initial_year = 1998
+    COUNTRY_CODE_ALPHA_3 = "JPN"
+    COUNTRY_NAME = "Japan"
+    INITIAL_YEAR = 1998
 
     def __init__(self, pw_map, user_name):
         self.pw_map = pw_map
@@ -64,10 +66,12 @@ SELECT date_created
 FROM central_banks 
 WHERE date_created >= :start_date 
 AND date_created < :end_date
+AND country_code_alpha_3 = :country_code_alpha_3
 """)
         params = {
             "start_date": f"{year}-01-01",
-            "end_date": f"{year + 1}-01-01"
+            "end_date": f"{year + 1}-01-01",
+            "country_code_alpha_3": JapanBankScrapper.COUNTRY_CODE_ALPHA_3
         }
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
@@ -138,8 +142,8 @@ AND date_created < :end_date
         
         ipaddr, hostname = self.ip_hostname()
 
-        df["country_name"] = "Japan"
-        df["country_code_alpha_3"] = "JPN"
+        df["country_name"] = JapanBankScrapper.COUNTRY_NAME
+        df["country_code_alpha_3"] = JapanBankScrapper.COUNTRY_CODE_ALPHA_3
         df["scraping_machine"] = hostname
         df["scraping_ip"] = ipaddr
 
@@ -150,7 +154,7 @@ AND date_created < :end_date
 
     def process_all_years(self):
         this_year = pd.Timestamp.now().year
-        for year in range(JapanBankScrapper.initial_year, this_year + 1):
+        for year in range(JapanBankScrapper.INITIAL_YEAR, this_year + 1):
             self.process_year(year)
     
 
