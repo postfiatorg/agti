@@ -2,12 +2,10 @@
 import os
 import re
 import socket
-import time
-import warnings
 import pandas as pd
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import urllib
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -54,20 +52,42 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             rs = con.execute(query, params)
             return [row[0] for row in rs.fetchall()]
 
-    def parse_html(self, href: str):
-        self._driver.get(href)
-        # get div id article
-        div = self._driver.find_element(By.XPATH, "//div[@id='article']")
-        text = div.text
-        if len(text) == 0:
-            raise ValueError("No text found in HTML file")
+    def get_pdf_links(self, text):
+        pattern = r'<a\s+href="([^"]+)">([^<]+)</a>'
+        a_elements = re.findall(pattern, text)
+        out = []
+        for href, text in a_elements:
+            # it can be "PDF" or " PDF" (with space :) ).
+            if "PDF" in text:
+                out.append(href)
+        if len(out) == 0:
+            return None
+        if len(out) > 1:
+            raise ValueError("Multiple PDF links found in text")
+        return out[0]
+
+    def download_and_read_pdf(self, url: str) -> str:
+        filename = os.path.basename(url)
+
+        r = requests.get(url)
+
+        with open(self.datadump_directory_path / filename, 'wb') as outfile:
+            outfile.write(r.content)
+
+        with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
+            text = ""
+            for page in pdf.pages:
+                text += page.extract_text()
+
+        os.remove(self.datadump_directory_path / filename)
+
         return text
 
     def process_all_years(self):
         dates_scraped = self.get_all_dates_in_db_for_year()
         pd_dates = [pd.to_datetime(date) for date in dates_scraped]
 
-        self._driver.get(self.get_base_url_for_year())
+        self._driver.get(self.get_base_url_years())
 
         to_process = {}
 
@@ -78,32 +98,31 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         elements = list(div.find_elements(By.XPATH, "./*"))
         h4s = elements[::3]
         ps = elements[1::3]
-        hrs = elements[2::3]  # we can ignore these
+        # hrs = elements[2::3]  # we can ignore these
         for h4, p in zip(h4s, ps):
             # get year
-            year = int(h4.text)
+            year = int(h4.text.strip())
             print("Processing year:", year)
-            for line in p.text.split('\n'):
-                month_word = line.split(':')[0]
-                urls = p.find_elements(By.XPATH, ".//a")
-                testemony_href = urls[0].get_attribute("href")
-                html_href = urls[1].get_attribute("href")
-                pdf_href = urls[2].get_attribute("href")
-                chart_data_href = urls[3].get_attribute("href")
+            # get inner html of p
+            html_p = p.get_attribute("innerHTML")
+            for line in html_p.split("<br>"):
+                month_word = line.split(':')[0].strip()
+                print(f"{month_word} {year}")
                 date = pd.to_datetime(f"{month_word} {year}", format='%B %Y')
-                print(date)
-                print("HTML href", html_href)
-
+                if date in pd_dates:
+                    print("Skipping date:", date)
+                    continue
+                pdf_url_path = self.get_pdf_links(line)
+                if pdf_url_path is None:
+                    print("No PDF link found for date:", date)
+                    continue
                 to_process[date] = {
-                    "file_url": html_href,
+                    "file_url": self.get_base_url() + pdf_url_path
                 }
 
-            if year <= 2017:
-                break
-
         for date, data in to_process.items():
-            print("Processing date:", date)
-            text = self.parse_html(data["file_url"])
+            print("Processing url:", data["file_url"])
+            text = self.download_and_read_pdf(data["file_url"])
             to_process[date]["full_extracted_text"] = text
 
         df = pd.DataFrame(to_process).T.reset_index(names=["date_created"])
@@ -122,5 +141,8 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
     def __del__(self):
         self._driver.close()
 
-    def get_base_url_for_year(self) -> str:
-        return f"https://www.federalreserve.gov/monetarypolicy/publications/mpr_default.htm"
+    def get_base_url(self):
+        return "https://www.federalreserve.gov"
+
+    def get_base_url_years(self) -> str:
+        return self.get_base_url() + "/monetarypolicy/publications/mpr_default.htm"
