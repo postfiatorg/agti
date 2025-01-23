@@ -85,15 +85,28 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
         with open(self.datadump_directory_path / filename, 'wb') as outfile:
             outfile.write(r.content)
-
+        x_tol, y_tol = self.evaluate_tolerances(
+            self.datadump_directory_path / filename)
         with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
             text = ""
             for page in pdf.pages:
-                text += page.extract_text()
+                text += page.extract_text(
+                    x_tolerance=x_tol, y_tolerance=y_tol)
 
         os.remove(self.datadump_directory_path / filename)
 
         return text
+
+    def evaluate_tolerances(self, pdf_path):
+        with pdfplumber.open(pdf_path) as pdf:
+            page = pdf.pages[0]
+            for x_tol in range(1, 10):
+                for y_tol in range(1, 10):
+                    text = page.extract_text(
+                        x_tolerance=x_tol, y_tolerance=y_tol)
+                    if "For use at" in text:
+                        return x_tol, y_tol
+        raise ValueError("No correct tolerances found")
 
     def process_all_years(self):
         dates_scraped = self.get_all_dates_in_db_for_year()
@@ -118,7 +131,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         for h4, p in zip(h4s, ps):
             # get year
             year = int(h4.text.strip())
-            print("Processing year:", year)
             # get inner html of p
             html_p = p.get_attribute("innerHTML")
             for line in html_p.split("<br>"):
@@ -131,7 +143,8 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
                 pdf_url_path = self.get_pdf_links(line)
                 if pdf_url_path is None:
-                    print("No PDF link found for date:", date)
+                    print("No PDF link found for date:",
+                          f"{month_word} {year}")
                     continue
                 to_process.append(self.get_base_url() + pdf_url_path)
 
