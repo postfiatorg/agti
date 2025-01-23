@@ -66,6 +66,18 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             raise ValueError("Multiple PDF links found in text")
         return out[0]
 
+    def get_exact_date(self, text):
+        pattern = r"For use at (\d{1,2}:\d{2}) (a\.m\.|p\.m\.)\,? (EST|EDT|E\.S\.T\.|E\.D\.T\.)\s([a-zA-Z]+|[a-zA-Z]+\s[a-zA-Z]+) (\d|\d\d), (\d\d\d\d)"
+        initial_text = text[:200]
+        groups = re.findall(pattern, initial_text)[0]
+        clock = groups[0]  # 10:00
+        ampm = groups[1]  # a.m.
+        month = groups[3].split('\n')[1] if '\n' in groups[3] else groups[3]
+        day = groups[4]
+        year = groups[5]
+        # convert to pandas with clock
+        return pd.to_datetime(f"{month} {day}, {year} {clock} {ampm}")
+
     def download_and_read_pdf(self, url: str) -> str:
         filename = os.path.basename(url)
 
@@ -86,15 +98,19 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
     def process_all_years(self):
         dates_scraped = self.get_all_dates_in_db_for_year()
         pd_dates = [pd.to_datetime(date) for date in dates_scraped]
+        # this is not exact datetime, but we expect that they release just one document per day
+        # keep years and days only (no days, no hours, no minutes, no seconds)
+        pd_dates = [pd.Timestamp(year=date.year, month=date.month, day=1)
+                    for date in pd_dates]
 
         self._driver.get(self.get_base_url_years())
 
-        to_process = {}
+        to_process = []
 
         # select dl by id lazyload-container
         div = self._driver.find_element(
             By.XPATH, "//div[@id='article']/div/div[@class='row']/div")
-        # itarete over all divs inside dl
+        # iterate over all divs inside dl
         elements = list(div.find_elements(By.XPATH, "./*"))
         h4s = elements[::3]
         ps = elements[1::3]
@@ -110,22 +126,27 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 print(f"{month_word} {year}")
                 date = pd.to_datetime(f"{month_word} {year}", format='%B %Y')
                 if date in pd_dates:
-                    print("Skipping date:", date)
+                    print("Skipping date:", f"{month_word} {year}")
                     continue
+
                 pdf_url_path = self.get_pdf_links(line)
                 if pdf_url_path is None:
                     print("No PDF link found for date:", date)
                     continue
-                to_process[date] = {
-                    "file_url": self.get_base_url() + pdf_url_path
-                }
+                to_process.append(self.get_base_url() + pdf_url_path)
 
-        for date, data in to_process.items():
-            print("Processing url:", data["file_url"])
-            text = self.download_and_read_pdf(data["file_url"])
-            to_process[date]["full_extracted_text"] = text
+        to_process_dates = []
 
-        df = pd.DataFrame(to_process).T.reset_index(names=["date_created"])
+        for href in to_process:
+            print("Processing url:", href)
+            text = self.download_and_read_pdf(href)
+            exact_datetime = self.get_exact_date(text)
+            to_process_dates.append(
+                {"date_created": exact_datetime, "file_url": href,
+                    "full_extracted_text": text}
+            )
+
+        df = pd.DataFrame(to_process_dates)
         df["country_code_alpha_3"] = FEDBankScrapper.COUNTRY_CODE_ALPHA_3
         df["country_name"] = FEDBankScrapper.COUNTRY_NAME
 
