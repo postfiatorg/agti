@@ -16,6 +16,10 @@ from sqlalchemy import text
 
 
 class FEDBankScrapper:
+    """
+    We use  "For use at" initial text to detect correct tolerances for pdfplumber.
+    Plus, we use it for extracting exact datetime.
+    """
     COUNTRY_CODE_ALPHA_3 = "USA"
     COUNTRY_NAME = "United States of America"
 
