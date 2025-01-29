@@ -82,58 +82,51 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         self._driver.get(self.get_base_url())
         wait = WebDriverWait(self._driver, 10)
         # wait for cookie banner to appear and find it by class "cookie__button btn btn-default btn-neutral" using xpath
-        cookie_banner = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[@class='cookie__button btn btn-default btn-neutral']"))
+        xpath = "//button[@class='cookie__button btn btn-default btn-neutral']"
+        cookie_btn = wait.until(
+            EC.element_to_be_clickable((By.XPATH, xpath))
         )
         # click the cookie banner
-        cookie_banner.click()
+        cookie_btn.click()
+
+        def iterate_over_labels(filter_labels, filters_list, check_staleness):
+            for label in filter_labels:
+                name = label.text.strip()
+                if name in filters_list:
+                    #self._driver.execute_script("arguments[0].scrollIntoView(false);", label)
+                    label = wait.until(EC.element_to_be_clickable(label))
+                    label.click()
+                    if check_staleness:
+                        wait.until(EC.staleness_of(label))
+                    filters_list.remove(name)
+                    return True
+            return False
+
+        type_filters_to_check = set(["Research blog", "Publication", "Speech"])
+        while len(type_filters_to_check) > 0:
+            # search div with class "sidebar-filters type-filters" using xpath
+            filter_div = self._driver.find_element(By.XPATH, "//div[@class='sidebar-filters type-filters']")
+
+            # find all labels elements in the filter div
+            filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
+            if not iterate_over_labels(filter_labels, type_filters_to_check,False):
+                raise Exception(f"Filter {type_filters_to_check} not checked")
 
 
-        # search div with class "sidebar-filters type-filters" using xpath
-        filter_div = self._driver.find_element(By.XPATH, "//div[@class='sidebar-filters type-filters']")
 
-
-        # find all labels elements in the filter div
-        filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
-        type_filters_to_check = {
-            "Research blog": False,
-            "Publication": False,
-            "Speech": False,
-        }
-        for label in filter_labels:
-            if label.text.strip() in type_filters_to_check.keys():
-                self._driver.execute_script("arguments[0].scrollIntoView(false);", label)
-                wait.until(EC.element_to_be_clickable(label))
-                label.click()
-                type_filters_to_check[label.text.strip()] = True
-
-        # verify that all type filters are checked
-        # otherwise raise an exception
-        for filter_name, checked in type_filters_to_check.items():
-            if not checked:
-                raise Exception(f"Filter {filter_name} not checked")
-
-
-        # search div with class "sidebar-filters taxonomy-filters" using xpath
+        taxonomy_filters_to_check = set(["Monetary Policy Committee (MPC)", "Monetary policy"])
         xpath = "//div[@class='sidebar-filters taxonomy-filters']"
-        filter_div = self._driver.find_element(By.XPATH, xpath)
-        wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        # search div with class "sidebar-filters taxonomy-filters" using xpath
+        while len(taxonomy_filters_to_check) > 0:
+            
+            filter_div = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
         
-        
-        filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
-        taxonomy_filters_to_check = {
-            "Monetary Policy Committee (MPC)": False,
-            "Monetary policy": False
-        }
-        for label in filter_labels:
-            if label.text.strip() in taxonomy_filters_to_check.keys():
-                wait.until(EC.element_to_be_clickable(label))
-                label.click()
-                taxonomy_filters_to_check[label.text.strip()] = True
+            filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
+            if not iterate_over_labels(filter_labels, taxonomy_filters_to_check,True):
+                raise Exception(f"Taxonomy {type_filters_to_check} not checked")
+            
 
-        for filter_name, checked in taxonomy_filters_to_check.items():
-            if not checked:
-                raise Exception(f"Filter {filter_name} not checked")
+        
             
 
     
@@ -160,8 +153,12 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
     def process_all_years(self):
         self.init_filter()
-        self.pageBottom()
-        time.sleep(2)
+        #self.pageBottom()
+        print(self.get_current_page())
+        self.go_to_next_page()
+        print(self.get_current_page())
+        self.go_to_next_page()
+        print(self.get_current_page())
         # get id = SearchResults div
         search_results = self._driver.find_element(By.ID, "SearchResults")
         # find all elements with class="col3"
@@ -175,6 +172,28 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             time_tag = element.find_element(By.TAG_NAME, "time")
             date = time_tag.get_attribute("datetime")
             print(date, href)
+
+
+
+    def get_current_page(self):
+        wait = WebDriverWait(self._driver, 10)
+        # find list-pagination__link list-pagination__link--page list-pagination__link--is-current
+        xpath = "//a[@class='list-pagination__link list-pagination__link--page list-pagination__link--is-current']"
+        current_page = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        # get data-page-link attribute
+        return int(current_page.get_attribute("data-page-link"))
+    
+
+    def go_to_next_page(self):
+        wait = WebDriverWait(self._driver, 10)
+        current_page = self.get_current_page()
+        # find a href with data-page-link attribute = current_page + 1
+        xpath = f"//a[@data-page-link='{current_page + 1}']"
+        next_page = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        next_page.click()
+        # wait for finish loading class list-pagination ul
+        wait.until(EC.staleness_of(self._driver.find_element(By.XPATH, xpath)))
+    
     
 
 
