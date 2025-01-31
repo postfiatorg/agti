@@ -17,21 +17,23 @@ from sqlalchemy import text
 
 
 
-
-
-
-
-
 class EnglandBankScrapper:
+    """
+    Issues
+    - speech as pdf with graphs only (https://www.bankofengland.co.uk/speech/2024/november/swati-dhingra-panellist-at-third-boe-watchers-conference-inflation-dynamics)
+
+    
+    """
     COUNTRY_CODE_ALPHA_3 = "ENG"
     COUNTRY_NAME = "England"
 
-    def __init__(self, pw_map, user_name):
+    def __init__(self, pw_map, user_name, table_name):
         self.pw_map = pw_map
         self.user_name = user_name
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         self.credential_manager = CredentialManager()
         self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
+        self.table_name = table_name
 
         self._driver = self._setup_driver()
 
@@ -123,55 +125,122 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         
             filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
             if not iterate_over_labels(filter_labels, taxonomy_filters_to_check,True):
-                raise Exception(f"Taxonomy {type_filters_to_check} not checked")
+                raise Exception(f"Taxonomy {taxonomy_filters_to_check} not checked")
             
-
-        
-            
-
+        # wait for the page to load
+        wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
     
 
-    def process_research_blog(self, href):
-        print("Processing research blog")
+    def find_text_and_pdfs(self, tag, href):
+        pdf_links = []
+        all_text = ""
+        self._driver.get(href)
+        if '//' not in tag:
+            #type_tag = tag
+            taxonomy_tag = None
+        else:
+            _, taxonomy_tag = tag.split(" // ")
 
+            
+        if taxonomy_tag == "Inflation Report (IR)" or taxonomy_tag == "Centre for Central Banking Studies (CCBS)":
+            # find a tag with class="btn btn-pubs btn-has-img btn-lg link-image" using xpath
+            xpath = "//a[@class='btn btn-pubs btn-has-img btn-lg link-image']"
+            try:
+                a = self._driver.find_element(By.XPATH, xpath)
+                pdf_links.append(a.get_attribute("href"))
+                return all_text, pdf_links
+            except:
+                # special cases
+                if href == "https://www.bankofengland.co.uk/inflation-report/2017/november-2017-visual-summary":
+                    pdf_links = ["https://www.bankofengland.co.uk/-/media/boe/files/inflation-report/2017/nov.pdf?la=en&hash=950B4B1481D081CA035FC076CF9FFFFB08F658A6"]
+                    return all_text, pdf_links
+                print("Cant not find pdf link: ", tag, href)
+                return None
+                    
+        try:
+            # get div by class="published-date"
+            date_div = self._driver.find_element(By.CLASS_NAME, "published-date")
+            # get parent
+            p_section = date_div.find_element(By.XPATH, "./parent::div[@class='col9' or @class='col12']/parent::div[@class='container']/parent::section")
+            all_text = p_section.text
+            pdf_links = [a.get_attribute("href") for a in p_section.find_elements(By.XPATH, ".//a[contains(@href, '.pdf')]")]
+            # drop duplicates
+            pdf_links = list(set(pdf_links))
+            if len(all_text) >= 300 or len(pdf_links) != 0:
+                return all_text, pdf_links
+            
+            
+            all_text = ""
+            try:
+                container = self._driver.find_element(By.XPATH, "//div[@class='container container-has-navigation']/div[@class='container-publication']")
+                all_text = container.text
+                if len(all_text) < 300:
+                    print("No text find on container-publication")
+                    return None
+                return all_text, pdf_links
+                
+            except:
+                # we dafault to pdf links
+                # find all a tags with class="btn btn-pubs btn-has-img btn-lg link-image" or "btn btn-pubs btn-has-img btn-lg"
+                xpath = "//a[@class='btn btn-pubs btn-has-img btn-lg link-image' or @class='btn btn-pubs btn-has-img btn-lg']"
+                
+                a_tags = self._driver.find_elements(By.XPATH, xpath)
+                for a_tag in a_tags:
+                    pdf_links.append(a_tag.get_attribute("href"))
+                if len(a_tags) == 0:
+                    print("Missing content and publish date and pdf files: ", tag, href)
+                    return None
+                return all_text, pdf_links
+        except:
+            pass
+        print("Not working: ", tag, href)
+        return None
 
-    def process_speeches(self, href):
-        print("Processing speeches")
-
-
-    # publication
-    def process_working_papers(self, href):
-        print("Processing working paper")
-
-    # publication
-    def process_monetery_policy_reports(self, href):
-        print("Processing monetary policy report")
-
-    # publication
-    def process_monetary_policy_committee(self, href):
-        print("Processing monetary policy committee")
 
     def process_all_years(self):
+        """
         self.init_filter()
-        #self.pageBottom()
-        print(self.get_current_page())
-        self.go_to_next_page()
-        print(self.get_current_page())
-        self.go_to_next_page()
-        print(self.get_current_page())
-        # get id = SearchResults div
-        search_results = self._driver.find_element(By.ID, "SearchResults")
-        # find all elements with class="col3"
-        elements = search_results.find_elements(By.XPATH, ".//div[@class='col3']")
-        for element in elements:
-            # get a href
-            a = element.find_element(By.TAG_NAME, "a")
-            href = a.get_attribute("href")
+        year = pd.Timestamp.now().year
 
-            # get date using time tag with datetime attribute
-            time_tag = element.find_element(By.TAG_NAME, "time")
-            date = time_tag.get_attribute("datetime")
-            print(date, href)
+        to_process = []
+        while year >= 1998:
+            # get id = SearchResults div
+            search_results = self._driver.find_element(By.ID, "SearchResults")
+            # find all elements with class="col3"
+            elements = search_results.find_elements(By.XPATH, ".//div[@class='col3']")
+            for element in elements:
+                a = element.find_element(By.TAG_NAME, "a")
+                href = a.get_attribute("href")
+
+                # tag is under a in class="release-tag" div 
+                tag = a.find_element(By.CLASS_NAME, "release-tag-wrap").text
+
+                # get date using time tag with datetime attribute
+                time_tag = element.find_element(By.TAG_NAME, "time")
+                date = pd.to_datetime(time_tag.get_attribute("datetime"))
+                to_process.append((tag, href, date))
+                year = min(year, date.year)
+            
+            self.go_to_next_page()
+
+        
+        import pickle
+        with open("to_process.pickle", "wb") as f:
+            pickle.dump(to_process, f)
+        """
+        import pickle
+        with open("to_process.pickle", "rb") as f:
+            to_process = pickle.load(f)
+
+        # This is how we scrape the data
+        # 1. use published date and get text + pdf files
+        # if len(text) < 300 and len(pdf_links) == 0:
+        # 2. we use "container container-has-navigation" and get text 
+        # 3. 
+        
+        for tag, href, date in to_process:
+            self.find_text_and_pdfs(tag, href)
+            
 
 
 
@@ -192,7 +261,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         next_page = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         next_page.click()
         # wait for finish loading class list-pagination ul
-        wait.until(EC.staleness_of(self._driver.find_element(By.XPATH, xpath)))
+        wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
     
     
 
