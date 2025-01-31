@@ -36,12 +36,13 @@ class AustraliaBankScrapper:
     COUNTRY_CODE_ALPHA_3 = "AUS"
     COUNTRY_NAME = "Australia"
 
-    def __init__(self, pw_map, user_name):
+    def __init__(self, pw_map, user_name, table_name):
         self.pw_map = pw_map
         self.user_name = user_name
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         self.credential_manager = CredentialManager()
         self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
+        self.table_name = table_name
 
         self._driver = self._setup_driver()
 
@@ -59,11 +60,11 @@ class AustraliaBankScrapper:
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
 SELECT date_created 
-FROM central_banks 
+FROM {} 
 WHERE date_created >= :start_date 
 AND date_created < :end_date            
 AND country_code_alpha_3 = :country_code_alpha_3
-""")
+""".format(self.table_name))
         params = {
             "start_date": f"{year}-01-01",
             "end_date": f"{year + 1}-01-01",
@@ -147,7 +148,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
         df["scraping_ip"] = ipaddr
 
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
-        df.to_sql("central_banks", con=dbconnx, if_exists="append", index=False)
+        df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
             
 
 
