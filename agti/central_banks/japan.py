@@ -63,10 +63,10 @@ class JapanBankScrapper:
     def get_all_dates_in_db_for_year(self, year: int):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_created 
+SELECT date_published 
 FROM {}
-WHERE date_created >= :start_date 
-AND date_created < :end_date
+WHERE date_published >= :start_date 
+AND date_published < :end_date
 AND country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
         params = {
@@ -131,7 +131,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
             result.append({
                 "file_url": href,
                 "full_extracted_text": text,
-                "date_created": current_date_JPN,
+                "date_published": current_date_JPN,
             })
 
         df = pd.DataFrame(result)
@@ -140,7 +140,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
             print(f"No new data found for year: {year}")
             return
         
-        df["date_created"] = df["date_created"].apply(self.convert_JPN_to_EST)
+        df["date_published"] = df["date_published"].apply(self.convert_JPN_to_EST)
         
         ipaddr, hostname = self.ip_hostname()
 

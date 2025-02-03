@@ -4,6 +4,7 @@ import re
 import socket
 import time
 import pandas as pd
+import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import urllib
@@ -16,14 +17,7 @@ import pdfplumber
 from sqlalchemy import text
 
 
-
 class EnglandBankScrapper:
-    """
-    Issues
-    - speech as pdf with graphs only (https://www.bankofengland.co.uk/speech/2024/november/swati-dhingra-panellist-at-third-boe-watchers-conference-inflation-dynamics)
-
-    
-    """
     COUNTRY_CODE_ALPHA_3 = "ENG"
     COUNTRY_NAME = "England"
 
@@ -49,25 +43,35 @@ class EnglandBankScrapper:
     
     def download_and_read_pdf(self, url: str) -> str:
         filename = os.path.basename(url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0"
+        }
+        try:
+            r = requests.get(url, headers=headers)
 
-        urllib.request.urlretrieve(url, self.datadump_directory_path / filename)
+            with open(self.datadump_directory_path / filename, 'wb') as outfile:
+                outfile.write(r.content)
+        
+            with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
+                text = ""
+                for page in pdf.pages:
+                    text += page.extract_text().replace('\x00','')
+        except Exception as e:
+            print("Error processing pdf from: ", url)
+            print("Error: ", e)
+            return ""
 
-        with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
-            text = ""
-            for page in pdf.pages:
-                text += page.extract_text()
-
-        os.remove(self.datadump_directory_path / filename)
+        #os.remove(self.datadump_directory_path / filename)
 
         return text
     
     def get_all_dates(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_created 
-FROM central_banks 
+SELECT date_published 
+FROM {} 
 WHERE country_code_alpha_3 = :country_code_alpha_3
-""")
+""".format(self.table_name))
         params = {
             "country_code_alpha_3": EnglandBankScrapper.COUNTRY_CODE_ALPHA_3
         }
@@ -85,11 +89,24 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         wait = WebDriverWait(self._driver, 10)
         # wait for cookie banner to appear and find it by class "cookie__button btn btn-default btn-neutral" using xpath
         xpath = "//button[@class='cookie__button btn btn-default btn-neutral']"
-        cookie_btn = wait.until(
-            EC.element_to_be_clickable((By.XPATH, xpath))
-        )
-        # click the cookie banner
-        cookie_btn.click()
+
+        success = False
+        for _ in range(3):
+            try:
+                cookie_btn = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, xpath))
+                )
+                # click the cookie banner
+                cookie_btn.click()
+                success = True
+                break
+            except Exception as e:
+                print(f"Retrying click due to: {e}")
+        
+        if not success:
+            raise Exception("Can not click cookie banner")
+
+        wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
 
         def iterate_over_labels(filter_labels, filters_list, check_staleness):
             for label in filter_labels:
@@ -114,14 +131,16 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             if not iterate_over_labels(filter_labels, type_filters_to_check,False):
                 raise Exception(f"Filter {type_filters_to_check} not checked")
 
-
+        wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
 
         taxonomy_filters_to_check = set(["Monetary Policy Committee (MPC)", "Monetary policy"])
         xpath = "//div[@class='sidebar-filters taxonomy-filters']"
         # search div with class "sidebar-filters taxonomy-filters" using xpath
         while len(taxonomy_filters_to_check) > 0:
             
+            wait.until(EC.visibility_of_all_elements_located((By.XPATH, xpath)))
             filter_div = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+            
         
             filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
             if not iterate_over_labels(filter_labels, taxonomy_filters_to_check,True):
@@ -169,7 +188,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             if len(all_text) >= 300 or len(pdf_links) != 0:
                 return all_text, pdf_links
             
-            
+
             all_text = ""
             try:
                 container = self._driver.find_element(By.XPATH, "//div[@class='container container-has-navigation']/div[@class='container-publication']")
@@ -186,6 +205,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 
                 a_tags = self._driver.find_elements(By.XPATH, xpath)
                 for a_tag in a_tags:
+                    time.sleep(0.01)
                     pdf_links.append(a_tag.get_attribute("href"))
                 if len(a_tags) == 0:
                     print("Missing content and publish date and pdf files: ", tag, href)
@@ -198,7 +218,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
     def process_all_years(self):
-        """
         self.init_filter()
         year = pd.Timestamp.now().year
 
@@ -223,23 +242,49 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             
             self.go_to_next_page()
 
-        
-        import pickle
-        with open("to_process.pickle", "wb") as f:
-            pickle.dump(to_process, f)
-        """
-        import pickle
-        with open("to_process.pickle", "rb") as f:
-            to_process = pickle.load(f)
 
-        # This is how we scrape the data
-        # 1. use published date and get text + pdf files
-        # if len(text) < 300 and len(pdf_links) == 0:
-        # 2. we use "container container-has-navigation" and get text 
-        # 3. 
-        
+
+        all_dates = self.get_all_dates()
+        output = []
         for tag, href, date in to_process:
-            self.find_text_and_pdfs(tag, href)
+            if date in all_dates:
+                # NOTE: some data can have the same dates, so this not proper way to check
+                print("Skipping date:", date)
+                continue
+            print("Processing date:", date)
+            if (data := self.find_text_and_pdfs(tag, href)) is not None:
+                text, pdf_links = data
+                total_text = text
+                for pdf_link in pdf_links:
+                    print("Processing pdf link:", pdf_link)
+                    pdf_text = self.download_and_read_pdf(pdf_link)
+                    total_text += "\n######## PDF FILE START ########\n" + pdf_text + "\n######## PDF FILE END ########\n"
+
+            output.append({
+                "date_published": date,
+                "file_url": href,
+                "full_extracted_text": total_text,
+            })
+
+        df = pd.DataFrame(output)
+        if df.empty:
+            print("No new data found")
+            return
+        
+        ipaddr, hostname = self.ip_hostname()
+
+        df["country_name"] = EnglandBankScrapper.COUNTRY_NAME
+        df["country_code_alpha_3"] = EnglandBankScrapper.COUNTRY_CODE_ALPHA_3
+        df["scraping_machine"] = hostname
+        df["scraping_ip"] = ipaddr
+
+
+        #df.to_parquet("england.parquet")
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
+        df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
+
+                
+                
             
 
 
@@ -262,20 +307,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         next_page.click()
         # wait for finish loading class list-pagination ul
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
-    
-    
-
-
-    def pageBottom(self):
-        bottom=False
-        a=0
-        while not bottom:
-            new_height = self._driver.execute_script("return document.body.scrollHeight")
-            self._driver.execute_script(f"window.scrollTo(0, {a});")
-            if a > new_height:
-                bottom=True
-            time.sleep(0.001)
-            a+=5
 
 
 

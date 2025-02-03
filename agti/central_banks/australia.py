@@ -59,10 +59,10 @@ class AustraliaBankScrapper:
     def get_all_dates_in_db_for_year(self, year:int):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_created 
+SELECT date_published 
 FROM {} 
-WHERE date_created >= :start_date 
-AND date_created < :end_date            
+WHERE date_published >= :start_date 
+AND date_published < :end_date            
 AND country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
         params = {
@@ -127,7 +127,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
             print("Processing date:", date)
             text = self.parse_html(data["file_url"])
             result.append({
-                "date_created": date,
+                "date_published": date,
                 "file_url": data["file_url"],
                 "full_extracted_text": text
             })

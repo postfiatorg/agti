@@ -46,7 +46,7 @@ class FEDBankScrapper:
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
             user_name=self.user_name)
         query = text("""
-SELECT date_created
+SELECT date_published
 FROM {}
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -160,7 +160,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             text = self.download_and_read_pdf(href)
             exact_datetime = self.get_exact_date(text)
             to_process_dates.append(
-                {"date_created": exact_datetime, "file_url": href,
+                {"date_published": exact_datetime, "file_url": href,
                     "full_extracted_text": text}
             )
 
