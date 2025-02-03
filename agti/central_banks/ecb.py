@@ -55,7 +55,7 @@ class ECBBankScrapper:
     def get_all_dates_in_db_for_year(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_created 
+SELECT date_published 
 FROM {} 
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -135,7 +135,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             text = self.parse_html(data["file_url"])
             to_process[date]["full_extracted_text"] = text
 
-        df = pd.DataFrame(to_process).T.reset_index(names=["date_created"])
+        df = pd.DataFrame(to_process).T.reset_index(names=["date_published"])
         df["country_code_alpha_3"] = ECBBankScrapper.COUNTRY_CODE_ALPHA_3
         df["country_name"] = ECBBankScrapper.COUNTRY_NAME
 

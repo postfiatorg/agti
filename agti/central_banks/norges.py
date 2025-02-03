@@ -52,7 +52,7 @@ class NorgesBankScrapper:
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
             user_name=self.user_name)
         query = text("""
-SELECT date_created
+SELECT date_published
 FROM {}
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -148,7 +148,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             text = self.download_and_read_pdf(pdf_link)
             output.append(
                 {
-                    "date_created": timestamp,
+                    "date_published": timestamp,
                     "file_url": pdf_link,
                     "full_extracted_text": text,
                 }
@@ -159,7 +159,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             print("No new data found")
             return
         
-        df["date_created"] = df["date_created"].apply(self.convert_CET_to_EST)
+        df["date_published"] = df["date_published"].apply(self.convert_CET_to_EST)
 
         ipaddr, hostname = self.ip_hostname()
 
