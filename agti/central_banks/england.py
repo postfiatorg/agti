@@ -61,7 +61,7 @@ class EnglandBankScrapper:
             print("Error: ", e)
             return ""
 
-        #os.remove(self.datadump_directory_path / filename)
+        os.remove(self.datadump_directory_path / filename)
 
         return text
     
