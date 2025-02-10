@@ -56,18 +56,14 @@ class AustraliaBankScrapper:
         driver = webdriver.Firefox()
         return driver
     
-    def get_all_dates_in_db_for_year(self, year:int):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_published 
+SELECT file_url 
 FROM {} 
-WHERE date_published >= :start_date 
-AND date_published < :end_date            
-AND country_code_alpha_3 = :country_code_alpha_3
+WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
         params = {
-            "start_date": f"{year}-01-01",
-            "end_date": f"{year + 1}-01-01",
             "country_code_alpha_3": AustraliaBankScrapper.COUNTRY_CODE_ALPHA_3
         }
         with dbconnx.connect() as con:
@@ -99,7 +95,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
     
 
     def process_year(self, year:int):
-        dates_scraped = self.get_all_dates_in_db_for_year(year)
+        all_urls = self.get_all_db_urls()
         self._driver.get(self.get_base_url_monetary_policy_minutes_year(year))
         # get class "list-articles"
         try:
@@ -108,27 +104,25 @@ AND country_code_alpha_3 = :country_code_alpha_3
             print(f"No data found for year: {year}")
             return
         # iterate over all li elements
-        to_process = {}
+        to_process = []
         for li in ul.find_elements(By.XPATH, "./*"):
             # find a element
             a = li.find_element(By.XPATH, ".//a")
             href = a.get_attribute("href")
             text = a.text
             date = pd.to_datetime(text)
-            if date in dates_scraped:
-                print("Skipping decision date:", date)
+            if href in all_urls:
+                print("Skipping href:", href)
                 continue
 
-            to_process[date] = {
-                "file_url": href,
-            }
+            to_process.append([date, href])
         result = []
-        for date, data in to_process.items():
+        for date, href in to_process:
             print("Processing date:", date)
-            text = self.parse_html(data["file_url"])
+            text = self.parse_html(href)
             result.append({
                 "date_published": date,
-                "file_url": data["file_url"],
+                "file_url": href,
                 "full_extracted_text": text
             })
 
