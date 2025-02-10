@@ -86,6 +86,7 @@ class NorgesBankScrapper(BaseBankScraper):
             output.append(
                 {
                     "date_published": timestamp,
+                    "scraping_time": pd.Timestamp.now(),
                     "file_url": href,
                     "full_extracted_text": text,
                 }

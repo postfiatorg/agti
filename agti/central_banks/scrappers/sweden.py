@@ -66,6 +66,7 @@ class SwedenBankScrapper(BaseBankScraper):
                     break
             output.append({
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
                 "full_extracted_text": download_and_read_pdf(pdf_href, self.datadump_directory_path) if pdf_href else None,
             })
@@ -118,12 +119,13 @@ class SwedenBankScrapper(BaseBankScraper):
 
         output = []
         for date, href in to_process:
-            text = ""
-            print("Processing: ", date)
+            text = None
+            print("Processing: ", href)
             if href.endswith(".pdf"):
-                text = self.download_and_read_pdf(href)
+                text = download_and_read_pdf(href, self.datadump_directory_path)
             output.append({
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
                 "full_extracted_text": text,
             })

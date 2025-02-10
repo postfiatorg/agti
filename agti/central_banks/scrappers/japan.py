@@ -68,6 +68,7 @@ class JapanBankScrapper(BaseBankScraper):
                 "file_url": href,
                 "full_extracted_text": text,
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
             })
 
         self.add_to_db(result)

@@ -43,6 +43,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 print("No German or French download button found")
                 return {
                     "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
                     "full_extracted_text": "",
                 }
@@ -51,6 +52,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         text = download_and_read_pdf(pdf_href,self.datadump_directory_path)
         return {
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
                 "full_extracted_text": text,
             }
@@ -88,6 +90,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 text = download_and_read_pdf(url, self.datadump_directory_path)
                 output.append({
                     "date_published": None,
+                    "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
                     "full_extracted_text": text,
                 })
@@ -132,6 +135,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                     text = download_and_read_pdf(href, self.datadump_directory_path)
                     output.append({
                         "date_published": None,
+                        "scraping_time": pd.Timestamp.now(),
                         "file_url": href,
                         "full_extracted_text": text,
                     })

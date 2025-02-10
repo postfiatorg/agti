@@ -30,7 +30,7 @@ class CanadaBankScrapper(BaseBankScraper):
             for a in a_tags:
                 a_href = a.get_attribute("href")
                 if a_href.endswith(".pdf"):
-                    return self.download_and_read_pdf(a_href)
+                    return download_and_read_pdf(a_href, self.datadump_directory_path)
         return None
     
     def extract_main_content(self):
@@ -84,7 +84,8 @@ class CanadaBankScrapper(BaseBankScraper):
                 output.append({
                     "file_url": href,
                     "date_published": date,
-                    "full_extracted_text": self.download_and_read_pdf(pdf_href)
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": download_and_read_pdf(pdf_href, self.datadump_directory_path)
                 })
             elif href.endswith(".pdf"):
                 # Note there can be multiple other pdf files as well on the page
@@ -93,6 +94,7 @@ class CanadaBankScrapper(BaseBankScraper):
                 output.append({
                     "file_url": href,
                     "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
                     "full_extracted_text": text
                 })
             else:
@@ -103,12 +105,14 @@ class CanadaBankScrapper(BaseBankScraper):
                     output.append({
                         "file_url": href,
                         "date_published": date,
+                        "scraping_time": pd.Timestamp.now(),
                         "full_extracted_text": text
                     })
                 elif (text := self.extract_main_content()) is not None:
                     output.append({
                         "file_url": href,
                         "date_published": date,
+                        "scraping_time": pd.Timestamp.now(),
                         "full_extracted_text": text
                     })
                 else:

@@ -89,6 +89,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             text = self.parse_html(href)
             result.append({
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
                 "full_extracted_text": text
             })

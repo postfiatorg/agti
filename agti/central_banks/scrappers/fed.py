@@ -108,6 +108,7 @@ class FEDBankScrapper(BaseBankScraper):
             output.append({
                     "file_url": href,
                     "date_published": exact_datetime,
+                    "scraping_time": pd.Timestamp.now(),
                     "full_extracted_text": text,
                 })
 

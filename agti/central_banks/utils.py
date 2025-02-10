@@ -20,15 +20,17 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
         with open(filepath, "wb") as f:
             f.write(response.content)
 
-        x_tol, y_tol = None, None
+        extract_kwargs = {}
         if evaluate_tolerances:
             x_tol, y_tol = evaluate_tolerances(filepath)
+            extract_kwargs["x_tolerance"] = x_tol
+            extract_kwargs["y_tolerance"] = y_tol
 
         with pdfplumber.open(filepath) as pdf:
             text = ""
             for page in pdf.pages:
-                text += page.extract_text(
-                    x_tolerance=x_tol, y_tolerance=y_tol)
+                # pass x_tol and y_tol to extract_text method if they are not None
+                text += page.extract_text(**extract_kwargs)
 
 
     except Exception as e:

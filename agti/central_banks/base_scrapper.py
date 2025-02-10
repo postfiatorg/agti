@@ -17,7 +17,7 @@ class BaseBankScraper:
     COUNTRY_CODE_ALPHA_3 = None  # Set in child classes
     COUNTRY_NAME = None  # Set in child classes
 
-    def __init__(self, pw_map, user_name, table_name, driver):
+    def __init__(self,driver, pw_map, user_name, table_name):
         self.pw_map = pw_map
         self.user_name = user_name
         self.table_name = table_name

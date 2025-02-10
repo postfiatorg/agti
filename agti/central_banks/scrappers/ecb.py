@@ -77,6 +77,7 @@ class ECBBankScrapper(BaseBankScraper):
             output.append({
                     "file_url": href,
                     "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
                     "full_extracted_text": text
                 })
 

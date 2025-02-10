@@ -199,6 +199,7 @@ class EnglandBankScrapper(BaseBankScraper):
 
             output.append({
                 "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
                 "full_extracted_text": total_text,
             })
