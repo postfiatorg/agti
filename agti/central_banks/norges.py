@@ -39,20 +39,13 @@ class NorgesBankScrapper:
     def _setup_driver(self):
         driver = webdriver.Firefox()
         return driver
-    
-    def convert_EST_to_CET(self, date: pd.Timestamp):
-        return date + pd.Timedelta(hours=6)
-    
-
-    def convert_CET_to_EST(self, date: pd.Timestamp):
-        return date - pd.Timedelta(hours=6)
 
 
-    def get_all_dates_in_db(self):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
             user_name=self.user_name)
         query = text("""
-SELECT date_published
+SELECT file_url
 FROM {}
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -98,11 +91,9 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
     def process_all_years(self):
-        dates = self.get_all_dates_in_db()
-        tz_dates = [self.convert_EST_to_CET(date) for date in dates]
+        all_urls = self.get_all_db_urls()
         self._driver.get(self.get_base_url())
         self.load_main_page()
-        print("Page loaded")
 
 
         news_list_div = WebDriverWait(self._driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "_jsNewsListResultList_newslist")))
@@ -111,13 +102,16 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         subsites = []
         for article in articles:
             h3_element = article.find_element(By.TAG_NAME, "h3")
-            subsite = h3_element.find_element(By.TAG_NAME, "a").get_attribute("href")
-            subsites.append(subsite)
+            href = h3_element.find_element(By.TAG_NAME, "a").get_attribute("href")
+            if href in all_urls:
+                print("Skipping", href)
+                continue
+            subsites.append(href)
 
         # process links
         output = []
-        for subsite in subsites:
-            self._driver.get(subsite)
+        for href in subsites:
+            self._driver.get(href)
             # extract timestamp
             # locate div meta-container
             meta_container = self._driver.find_element(By.CLASS_NAME, "meta-container")
@@ -126,9 +120,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             # drop "published " from text 
             timestamp_text = meta.text[10:]
             timestamp = pd.to_datetime(timestamp_text)
-            if timestamp in tz_dates:
-                print("Skipping date:", timestamp_text)
-                continue
             print(timestamp_text)
 
             # get link to pdf
@@ -149,7 +140,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             output.append(
                 {
                     "date_published": timestamp,
-                    "file_url": pdf_link,
+                    "file_url": href,
                     "full_extracted_text": text,
                 }
             )
@@ -158,8 +149,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         if df.empty:
             print("No new data found")
             return
-        
-        df["date_published"] = df["date_published"].apply(self.convert_CET_to_EST)
 
         ipaddr, hostname = self.ip_hostname()
 

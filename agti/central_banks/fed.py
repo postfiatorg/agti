@@ -42,11 +42,11 @@ class FEDBankScrapper:
         driver = webdriver.Firefox()
         return driver
 
-    def get_all_dates_in_db_for_year(self):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
             user_name=self.user_name)
         query = text("""
-SELECT date_published
+SELECT file_url
 FROM {}
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -114,12 +114,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         raise ValueError("No correct tolerances found")
 
     def process_all_years(self):
-        dates_scraped = self.get_all_dates_in_db_for_year()
-        pd_dates = [pd.to_datetime(date) for date in dates_scraped]
-        # this is not exact datetime, but we expect that they release just one document per day
-        # keep years and days only (no days, no hours, no minutes, no seconds)
-        pd_dates = [pd.Timestamp(year=date.year, month=date.month, day=1)
-                    for date in pd_dates]
+        all_urls = self.get_all_db_urls()
 
         self._driver.get(self.get_base_url_years())
 
@@ -142,29 +137,32 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 month_word = line.split(':')[0].strip()
                 print(f"{month_word} {year}")
                 date = pd.to_datetime(f"{month_word} {year}", format='%B %Y')
-                if date in pd_dates:
-                    print("Skipping date:", f"{month_word} {year}")
-                    continue
+
 
                 pdf_url_path = self.get_pdf_links(line)
                 if pdf_url_path is None:
                     print("No PDF link found for date:",
                           f"{month_word} {year}")
                     continue
-                to_process.append(self.get_base_url() + pdf_url_path)
+                href = self.get_base_url() + pdf_url_path
+                if href in all_urls:
+                    print("Data already exists for: ", href)
+                    continue
+                to_process.append(href)
 
-        to_process_dates = []
+        output = []
 
         for href in to_process:
             print("Processing url:", href)
             text = self.download_and_read_pdf(href)
             exact_datetime = self.get_exact_date(text)
-            to_process_dates.append(
-                {"date_published": exact_datetime, "file_url": href,
-                    "full_extracted_text": text}
-            )
+            output.append({
+                    "file_url": href,
+                    "date_published": exact_datetime,
+                    "full_extracted_text": text,
+                })
 
-        df = pd.DataFrame(to_process_dates)
+        df = pd.DataFrame(output)
         df["country_code_alpha_3"] = FEDBankScrapper.COUNTRY_CODE_ALPHA_3
         df["country_name"] = FEDBankScrapper.COUNTRY_NAME
 

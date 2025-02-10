@@ -60,70 +60,55 @@ class JapanBankScrapper:
 
         return text
     
-    def get_all_dates_in_db_for_year(self, year: int):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_published 
+SELECT file_url 
 FROM {}
-WHERE date_published >= :start_date 
-AND date_published < :end_date
-AND country_code_alpha_3 = :country_code_alpha_3
+WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
         params = {
-            "start_date": f"{year}-01-01",
-            "end_date": f"{year + 1}-01-01",
             "country_code_alpha_3": JapanBankScrapper.COUNTRY_CODE_ALPHA_3,
-            "table_name": self.table_name
         }
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
             return [row[0] for row in rs.fetchall()]
-        
-
-    def convert_EST_to_JPN(self, date: pd.Timestamp):
-        return date + pd.Timedelta(hours=14)
-    
-
-    def convert_JPN_to_EST(self, date: pd.Timestamp):
-        return date - pd.Timedelta(hours=14)
     
 
     def process_year(self, year: int):
 
-        dates_scraped = self.get_all_dates_in_db_for_year(year)
-        jpn_dates = [self.convert_EST_to_JPN(date) for date in dates_scraped]
-
-
+        all_urls = self.get_all_db_urls()
         
         self._driver.get(self.get_base_url_for_year(year))
         table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
         #caption = table.find_element(By.XPATH, ".//caption").text
         tbody = table.find_element(By.XPATH, ".//tbody")
-        pre_processed = {}
+        to_process = []
         for row in tbody.find_elements(By.XPATH,".//tr"):
             tds = list(row.find_elements(By.XPATH,".//td"))
-            current_date_JPN = pd.to_datetime(tds[0].text)
-            if current_date_JPN in jpn_dates:
-                continue
+            date = pd.to_datetime(tds[0].text)
             link = tds[1].find_element(By.XPATH, ".//a")
             # parse link, get href and text
             href = link.get_attribute("href")
+            if href in all_urls:
+                print(f"Already processed: {href}")
+                continue
 
             # drop [PDF xxKB] from link text
-            link_text = link.text
+            #link_text = link.text
             # using regex
-            link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
+            #link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
 
-            pre_processed[current_date_JPN] = (link_text, href)
+            to_process.append((date, href))
 
 
         result = []
-        for current_date_JPN, (link_text, href) in pre_processed.items():
+        for date, href in to_process:
             if href.endswith("pdf"):
-                print("Downloading file:", link_text)
+                print("Downloading file:", href)
                 text = self.download_and_read_pdf(href)
             elif href.endswith("htm"):
-                print("Parsing HTML file:", link_text)
+                print("Parsing HTML file:", href)
                 text = self.read_html(href)
             else:
                 raise ValueError("Unknown file format")
@@ -131,7 +116,7 @@ AND country_code_alpha_3 = :country_code_alpha_3
             result.append({
                 "file_url": href,
                 "full_extracted_text": text,
-                "date_published": current_date_JPN,
+                "date_published": date,
             })
 
         df = pd.DataFrame(result)
@@ -139,8 +124,6 @@ AND country_code_alpha_3 = :country_code_alpha_3
         if df.empty:
             print(f"No new data found for year: {year}")
             return
-        
-        df["date_published"] = df["date_published"].apply(self.convert_JPN_to_EST)
         
         ipaddr, hostname = self.ip_hostname()
 

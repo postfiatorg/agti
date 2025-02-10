@@ -65,10 +65,10 @@ class SwedenBankScrapper:
 
         return text
     
-    def get_all_dates(self):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_published 
+SELECT file_url 
 FROM {} 
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -86,7 +86,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
     def process_year(self, year: int):
 
-        all_dates = self.get_all_dates()
+        all_urls = self.get_all_db_urls()
 
         self._driver.get(self.get_base_url_for_year(year))
         # get using xpath div with class="listing-block__body"
@@ -99,13 +99,14 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             # get span with class="label"
             span = a.find_element(By.TAG_NAME, 'span')# we take the first span
             date = pd.to_datetime(span.text, dayfirst=True)
-            to_process.append((date, a.get_attribute("href")))
+            href = a.get_attribute("href")
+            if href in all_urls:
+                print("Data already exists for: ", href)
+                continue
+            to_process.append((date, href))
         output = []
         for date, href in to_process:
-            print("Processing: ", date)
-            if date in all_dates:
-                print("Data already exists for: ", date)
-                continue
+            print("Processing: ", href)
             self._driver.get(href)
             pdf_href = None
             # find all a tags with class="button button--iconed"
@@ -125,11 +126,10 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 if temp_href.endswith(".pdf"):
                     pdf_href = temp_href
                     break
-            print("PDF: ", pdf_href)
             output.append({
                 "date_published": date,
                 "file_url": href,
-                "full_extracted_text": self.download_and_read_pdf(pdf_href) if pdf_href else "",
+                "full_extracted_text": self.download_and_read_pdf(pdf_href) if pdf_href else None,
             })
 
 
@@ -162,7 +162,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
     def process_archive(self):
-        all_dates = self.get_all_dates()
+        all_urls = self.get_all_db_urls()
         self._driver.get(self.get_archive_url())
         # get table tag
         table = self._driver.find_element(By.TAG_NAME, "table")
@@ -181,15 +181,14 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
         to_process = []
         for tr in trs:
-            href = None
             tag_time = tr.find_element(By.TAG_NAME, "time")
             date = pd.to_datetime(tag_time.text, dayfirst=True)
             # NOTE this is not the best because we have multiple documents for the same date
-            if date in all_dates:
-                print("Data already exists for: ", date)
-                continue
             a = tr.find_element(By.TAG_NAME, "a")
             href = a.get_attribute("href")
+            if href in all_urls:
+                print("Data already exists for: ", href)
+                continue
             to_process.append((date, href))
 
         output = []

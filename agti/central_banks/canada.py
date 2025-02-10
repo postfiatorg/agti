@@ -105,10 +105,6 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
 
-        
-
-    def process_all_years(self):
-        pass
 
     def find_avaible_pdf(self, divs):
         for div in divs:
@@ -127,7 +123,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         except:
             return None
 
-    def process_publications(self):
+    def process_all_years(self):
         wait = WebDriverWait(self._driver, 10)
 
         all_urls = self.get_all_db_urls()
