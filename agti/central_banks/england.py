@@ -65,10 +65,10 @@ class EnglandBankScrapper:
 
         return text
     
-    def get_all_dates(self):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_published 
+SELECT file_url 
 FROM {} 
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -244,17 +244,17 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
 
-        all_dates = self.get_all_dates()
+        all_urls = self.get_all_db_urls()
         output = []
         for tag, href, date in to_process:
-            if date in all_dates:
-                # NOTE: some data can have the same dates, so this not proper way to check
-                print("Skipping date:", date)
+            if href in all_urls:
+                print("Skipping href:", href)
                 continue
-            print("Processing date:", date)
+            print("Processing href:", href)
             if (data := self.find_text_and_pdfs(tag, href)) is not None:
                 text, pdf_links = data
                 total_text = text
+                # NOTE: handle mutiple data in different tables
                 for pdf_link in pdf_links:
                     print("Processing pdf link:", pdf_link)
                     pdf_text = self.download_and_read_pdf(pdf_link)
