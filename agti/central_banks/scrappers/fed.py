@@ -11,51 +11,18 @@ from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from ..utils import download_and_read_pdf
+from ..base_scrapper import BaseBankScraper
 import pdfplumber
-from sqlalchemy import text
 
 
-class FEDBankScrapper:
+class FEDBankScrapper(BaseBankScraper):
     """
     We use  "For use at" initial text to detect correct tolerances for pdfplumber.
     Plus, we use it for extracting exact datetime.
     """
     COUNTRY_CODE_ALPHA_3 = "USA"
     COUNTRY_NAME = "United States of America"
-
-    def __init__(self, pw_map, user_name, table_name):
-        self.pw_map = pw_map
-        self.user_name = user_name
-        self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
-        self.credential_manager = CredentialManager()
-        self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
-        self.table_name = table_name
-
-        self._driver = self._setup_driver()
-
-    def ip_hostname(self):
-        hostname = socket.gethostname()
-        IPAddr = socket.gethostbyname(hostname)
-        return IPAddr, hostname
-
-    def _setup_driver(self):
-        driver = webdriver.Firefox()
-        return driver
-
-    def get_all_dates_in_db_for_year(self):
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
-            user_name=self.user_name)
-        query = text("""
-SELECT date_published
-FROM {}
-WHERE country_code_alpha_3 = :country_code_alpha_3
-""".format(self.table_name))
-        params = {
-            "country_code_alpha_3": FEDBankScrapper.COUNTRY_CODE_ALPHA_3
-        }
-        with dbconnx.connect() as con:
-            rs = con.execute(query, params)
-            return [row[0] for row in rs.fetchall()]
 
     def get_pdf_links(self, text):
         pattern = r'<a\s+href="([^"]+)">([^<]+)</a>'
@@ -83,26 +50,8 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         # convert to pandas with clock
         return pd.to_datetime(f"{month} {day}, {year} {clock} {ampm}")
 
-    def download_and_read_pdf(self, url: str) -> str:
-        filename = os.path.basename(url)
-
-        r = requests.get(url)
-
-        with open(self.datadump_directory_path / filename, 'wb') as outfile:
-            outfile.write(r.content)
-        x_tol, y_tol = self.evaluate_tolerances(
-            self.datadump_directory_path / filename)
-        with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
-            text = ""
-            for page in pdf.pages:
-                text += page.extract_text(
-                    x_tolerance=x_tol, y_tolerance=y_tol)
-
-        os.remove(self.datadump_directory_path / filename)
-
-        return text
-
-    def evaluate_tolerances(self, pdf_path):
+    @staticmethod
+    def evaluate_tolerances(pdf_path):
         with pdfplumber.open(pdf_path) as pdf:
             page = pdf.pages[0]
             for x_tol in range(1, 10):
@@ -114,12 +63,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
         raise ValueError("No correct tolerances found")
 
     def process_all_years(self):
-        dates_scraped = self.get_all_dates_in_db_for_year()
-        pd_dates = [pd.to_datetime(date) for date in dates_scraped]
-        # this is not exact datetime, but we expect that they release just one document per day
-        # keep years and days only (no days, no hours, no minutes, no seconds)
-        pd_dates = [pd.Timestamp(year=date.year, month=date.month, day=1)
-                    for date in pd_dates]
+        all_urls = self.get_all_db_urls()
 
         self._driver.get(self.get_base_url_years())
 
@@ -142,43 +86,32 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 month_word = line.split(':')[0].strip()
                 print(f"{month_word} {year}")
                 date = pd.to_datetime(f"{month_word} {year}", format='%B %Y')
-                if date in pd_dates:
-                    print("Skipping date:", f"{month_word} {year}")
-                    continue
+
 
                 pdf_url_path = self.get_pdf_links(line)
                 if pdf_url_path is None:
                     print("No PDF link found for date:",
                           f"{month_word} {year}")
                     continue
-                to_process.append(self.get_base_url() + pdf_url_path)
+                href = self.get_base_url() + pdf_url_path
+                if href in all_urls:
+                    print("Data already exists for: ", href)
+                    continue
+                to_process.append(href)
 
-        to_process_dates = []
+        output = []
 
         for href in to_process:
             print("Processing url:", href)
-            text = self.download_and_read_pdf(href)
+            text = download_and_read_pdf(href, self.datadump_directory_path, evaluate_tolerances=self.evaluate_tolerances)
             exact_datetime = self.get_exact_date(text)
-            to_process_dates.append(
-                {"date_published": exact_datetime, "file_url": href,
-                    "full_extracted_text": text}
-            )
+            output.append({
+                    "file_url": href,
+                    "date_published": exact_datetime,
+                    "full_extracted_text": text,
+                })
 
-        df = pd.DataFrame(to_process_dates)
-        df["country_code_alpha_3"] = FEDBankScrapper.COUNTRY_CODE_ALPHA_3
-        df["country_name"] = FEDBankScrapper.COUNTRY_NAME
-
-        ipaddr, hostname = self.ip_hostname()
-        df["scraping_ip"] = ipaddr
-        df["scraping_machine"] = hostname
-
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(
-            user_name=self.user_name)
-        df.to_sql(self.table_name, con=dbconnx,
-                  if_exists="append", index=False)
-
-    def __del__(self):
-        self._driver.close()
+        self.add_to_db(output)
 
     def get_base_url(self):
         return "https://www.federalreserve.gov"

@@ -13,80 +13,18 @@ from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-import pdfplumber
-from sqlalchemy import text
+from ..base_scrapper import BaseBankScraper
+from ..utils import download_and_read_pdf
 
 
-class SwedenBankScrapper:
+class SwedenBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "SWE"
     COUNTRY_NAME = "Sweden"
-
-    def __init__(self, pw_map, user_name, table_name):
-        self.pw_map = pw_map
-        self.user_name = user_name
-        self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
-        self.credential_manager = CredentialManager()
-        self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
-        self.table_name = table_name
-
-        self._driver = self._setup_driver()
-
-    def ip_hostname(self):
-        hostname = socket.gethostname()
-        IPAddr = socket.gethostbyname(hostname)
-        return IPAddr, hostname
-
-
-    def _setup_driver(self):
-        driver = webdriver.Firefox()
-        return driver
-    
-    def download_and_read_pdf(self, url: str) -> str:
-        filename = os.path.basename(url)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0"
-        }
-        try:
-            r = requests.get(url, headers=headers)
-
-            with open(self.datadump_directory_path / filename, 'wb') as outfile:
-                outfile.write(r.content)
-        
-            with pdfplumber.open(self.datadump_directory_path / filename) as pdf:
-                text = ""
-                for page in pdf.pages:
-                    text += page.extract_text().replace('\x00','')
-        except Exception as e:
-            print("Error processing pdf from: ", url)
-            print("Error: ", e)
-            return ""
-
-        os.remove(self.datadump_directory_path / filename)
-
-        return text
-    
-    def get_all_dates(self):
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
-        query = text("""
-SELECT date_published 
-FROM {} 
-WHERE country_code_alpha_3 = :country_code_alpha_3
-""".format(self.table_name))
-        params = {
-            "country_code_alpha_3": SwedenBankScrapper.COUNTRY_CODE_ALPHA_3
-        }
-        with dbconnx.connect() as con:
-            rs = con.execute(query, params)
-            return [row[0] for row in rs.fetchall()]
-    
-
-    def __del__(self):
-        self._driver.close()
 
 
     def process_year(self, year: int):
 
-        all_dates = self.get_all_dates()
+        all_urls = self.get_all_db_urls()
 
         self._driver.get(self.get_base_url_for_year(year))
         # get using xpath div with class="listing-block__body"
@@ -99,13 +37,14 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             # get span with class="label"
             span = a.find_element(By.TAG_NAME, 'span')# we take the first span
             date = pd.to_datetime(span.text, dayfirst=True)
-            to_process.append((date, a.get_attribute("href")))
+            href = a.get_attribute("href")
+            if href in all_urls:
+                print("Data already exists for: ", href)
+                continue
+            to_process.append((date, href))
         output = []
         for date, href in to_process:
-            print("Processing: ", date)
-            if date in all_dates:
-                print("Data already exists for: ", date)
-                continue
+            print("Processing: ", href)
             self._driver.get(href)
             pdf_href = None
             # find all a tags with class="button button--iconed"
@@ -125,28 +64,14 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 if temp_href.endswith(".pdf"):
                     pdf_href = temp_href
                     break
-            print("PDF: ", pdf_href)
             output.append({
                 "date_published": date,
                 "file_url": href,
-                "full_extracted_text": self.download_and_read_pdf(pdf_href) if pdf_href else "",
+                "full_extracted_text": download_and_read_pdf(pdf_href, self.datadump_directory_path) if pdf_href else None,
             })
 
 
-        df = pd.DataFrame(output)
-        if df.empty:
-            print("No new data found")
-            return
-        
-        ipaddr, hostname = self.ip_hostname()
-
-        df["country_name"] = SwedenBankScrapper.COUNTRY_NAME
-        df["country_code_alpha_3"] = SwedenBankScrapper.COUNTRY_CODE_ALPHA_3
-        df["scraping_machine"] = hostname
-        df["scraping_ip"] = ipaddr
-
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
-        df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
+        self.add_to_db(output)
 
             
 
@@ -162,7 +87,7 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
     def process_archive(self):
-        all_dates = self.get_all_dates()
+        all_urls = self.get_all_db_urls()
         self._driver.get(self.get_archive_url())
         # get table tag
         table = self._driver.find_element(By.TAG_NAME, "table")
@@ -181,15 +106,14 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
         to_process = []
         for tr in trs:
-            href = None
             tag_time = tr.find_element(By.TAG_NAME, "time")
             date = pd.to_datetime(tag_time.text, dayfirst=True)
             # NOTE this is not the best because we have multiple documents for the same date
-            if date in all_dates:
-                print("Data already exists for: ", date)
-                continue
             a = tr.find_element(By.TAG_NAME, "a")
             href = a.get_attribute("href")
+            if href in all_urls:
+                print("Data already exists for: ", href)
+                continue
             to_process.append((date, href))
 
         output = []
@@ -204,23 +128,8 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
                 "full_extracted_text": text,
             })
 
-        df = pd.DataFrame(output)
-        if df.empty:
-            print("No new data found")
-            return
-        
-        ipaddr, hostname = self.ip_hostname()
-
-        df["country_name"] = SwedenBankScrapper.COUNTRY_NAME
-        df["country_code_alpha_3"] = SwedenBankScrapper.COUNTRY_CODE_ALPHA_3
-        df["scraping_machine"] = hostname
-        df["scraping_ip"] = ipaddr
-
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
-        df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
+        self.add_to_db(output)
                 
-
-
 
     def get_archive_url(self):
         return "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
