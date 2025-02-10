@@ -52,10 +52,10 @@ class ECBBankScrapper:
         driver = webdriver.Firefox()
         return driver
     
-    def get_all_dates_in_db_for_year(self):
+    def get_all_db_urls(self):
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(user_name=self.user_name)
         query = text("""
-SELECT date_published 
+SELECT file_url 
 FROM {} 
 WHERE country_code_alpha_3 = :country_code_alpha_3
 """.format(self.table_name))
@@ -91,14 +91,13 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
 
 
     def process_all_years(self):
-        dates_scraped = self.get_all_dates_in_db_for_year()
-        pd_dates = [pd.to_datetime(date) for date in dates_scraped]
+        all_urls = self.get_all_db_urls()
 
         self._driver.get(self.get_base_url_for_year())
         # scroll to the bottom of the page
         self.pageBottom()
         
-        to_process = {}
+        to_process = []
         
         # select dl by id lazyload-container
         dl = self._driver.find_element(By.ID, "lazyload-container")
@@ -115,27 +114,29 @@ WHERE country_code_alpha_3 = :country_code_alpha_3
             for dt, dd in zip(dts, dds):
                 isodate = dt.get_attribute("isodate")
                 pd_isodate = pd.to_datetime(isodate)
-                if pd_isodate in pd_dates:
-                    print("Skipping date:", isodate)
-                    continue 
-                print("isodate:", isodate)
                 a_element = dd.find_element(By.XPATH, "./div[@class='ecb-langSelector']/span/a")
                 lang = a_element.get_attribute("lang")
                 href = a_element.get_attribute("href")
                 if lang != "en":
                     warnings.warn(f"Language is not English: {lang} for date {isodate}")
 
-                to_process[isodate] = {
+                if href in all_urls:
+                    print("URL already in DB: ", href)
+                    continue
+
+                to_process.append((pd_isodate, href))
+
+        output = []
+        for date, href in to_process:
+            print("Processing href:", href)
+            text = self.parse_html(href)
+            output.append({
                     "file_url": href,
-                }
+                    "date_published": date,
+                    "full_extracted_text": text
+                })
 
-
-        for date, data in to_process.items():
-            print("Processing date:", date)
-            text = self.parse_html(data["file_url"])
-            to_process[date]["full_extracted_text"] = text
-
-        df = pd.DataFrame(to_process).T.reset_index(names=["date_published"])
+        df = pd.DataFrame(output)
         df["country_code_alpha_3"] = ECBBankScrapper.COUNTRY_CODE_ALPHA_3
         df["country_name"] = ECBBankScrapper.COUNTRY_NAME
 
