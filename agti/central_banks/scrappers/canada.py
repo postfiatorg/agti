@@ -17,6 +17,7 @@ from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 from sqlalchemy import text
 
+__all__ = ["CanadaBankScrapper"]
 
 class CanadaBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "CAN"

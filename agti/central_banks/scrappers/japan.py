@@ -16,7 +16,7 @@ from ..utils import download_and_read_pdf
 
 
 
-
+__all__ = ["JapanBankScrapper"]
 
 
 

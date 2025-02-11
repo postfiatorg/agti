@@ -16,6 +16,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
+__all__ = ["EnglandBankScrapper"]
 
 class EnglandBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "ENG"

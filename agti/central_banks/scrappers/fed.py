@@ -15,6 +15,7 @@ from ..utils import download_and_read_pdf
 from ..base_scrapper import BaseBankScraper
 import pdfplumber
 
+__all__ = ["FEDBankScrapper"]
 
 class FEDBankScrapper(BaseBankScraper):
     """

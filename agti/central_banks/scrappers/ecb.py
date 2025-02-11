@@ -9,7 +9,7 @@ from ..utils import pageBottom
 
 
 
-
+__all__ = ["ECBBankScrapper"]
 
 
 

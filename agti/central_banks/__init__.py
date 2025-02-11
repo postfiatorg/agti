@@ -7,3 +7,7 @@ from .scrappers.japan import *
 from .scrappers.norges import *
 from .scrappers.sweden import *
 from .scrappers.switzerland import *
+
+
+from .base_scrapper import *
+

@@ -19,7 +19,7 @@ from ..utils import download_and_read_pdf
 from sqlalchemy import text
 
 
-
+__all__ = ["AustraliaBankScrapper"]
 
 
 

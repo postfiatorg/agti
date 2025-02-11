@@ -16,6 +16,8 @@ from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
 
+__all__ = ["NorgesBankScrapper"]
+
 class NorgesBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "NOR"
     COUNTRY_NAME = "Norway"

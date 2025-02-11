@@ -1,21 +1,26 @@
-import os
 import socket
 import pandas as pd
-import requests
-import pdfplumber
-from selenium import webdriver
-from selenium.webdriver.common.by import By
 from sqlalchemy import text
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 
+
+__all__ = ["BaseBankScraper"]
+
 class BaseBankScraper:
     """Base class for bank scrapers with common functionality."""
 
+
+    registry = {}
+
     COUNTRY_CODE_ALPHA_3 = None  # Set in child classes
     COUNTRY_NAME = None  # Set in child classes
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Automatically register the subclass
+        BaseBankScraper.registry[cls.__name__] = cls
 
     def __init__(self,driver, pw_map, user_name, table_name):
         self.pw_map = pw_map
