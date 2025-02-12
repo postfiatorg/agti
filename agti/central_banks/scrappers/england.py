@@ -45,7 +45,7 @@ class EnglandBankScrapper(BaseBankScraper):
                     
         if not success:
             raise Exception("Can not click cookie banner")
-
+        
         wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
 
         def iterate_over_labels(filter_labels, filters_list, check_staleness):
@@ -179,7 +179,6 @@ class EnglandBankScrapper(BaseBankScraper):
                 date = pd.to_datetime(time_tag.get_attribute("datetime"))
                 to_process.append((tag, href, date))
                 year = min(year, date.year)
-            
             self.go_to_next_page()
 
 
@@ -197,7 +196,8 @@ class EnglandBankScrapper(BaseBankScraper):
                 # NOTE: handle mutiple data in different tables
                 for pdf_link in pdf_links:
                     pdf_text = download_and_read_pdf(pdf_link, self.datadump_directory_path)
-                    total_text += "\n######## PDF FILE START ########\n" + pdf_text + "\n######## PDF FILE END ########\n"
+                    if pdf_text is not None:
+                        total_text += "\n######## PDF FILE START ########\n" + pdf_text + "\n######## PDF FILE END ########\n"
 
             output.append({
                 "date_published": date,
@@ -224,12 +224,14 @@ class EnglandBankScrapper(BaseBankScraper):
     
 
     def go_to_next_page(self):
-        wait = WebDriverWait(self._driver, 10)
+        wait = WebDriverWait(self._driver, 30)
         current_page = self.get_current_page()
-        # find a href with data-page-link attribute = current_page + 1
+
         xpath = f"//a[@data-page-link='{current_page + 1}']"
         next_page = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-        next_page.click()
+        
+        self._driver.execute_script("arguments[0].click();", next_page)
+        
         # wait for finish loading class list-pagination ul
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
 

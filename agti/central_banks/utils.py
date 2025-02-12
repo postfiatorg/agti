@@ -12,7 +12,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     filepath = os.path.join(save_dir, filename)
     
     headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:134.0) Gecko/20100101 Firefox/134.0"
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.110 Safari/537.36"
         }
     
     text = None
