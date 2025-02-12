@@ -1,9 +1,5 @@
 
-import os
-import re
-import socket
-import time
-import warnings
+import logging
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -20,6 +16,9 @@ from sqlalchemy import text
 
 
 __all__ = ["AustraliaBankScrapper"]
+
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -68,7 +67,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         try:
             ul = self._driver.find_element(By.CLASS_NAME, "list-articles")
         except NoSuchElementException:
-            print(f"No data found for year: {year}")
+            logger.info(f"No data found for year: {year}")
             return
         # iterate over all li elements
         to_process = []
@@ -79,19 +78,19 @@ class AustraliaBankScrapper(BaseBankScraper):
             text = a.text
             date = pd.to_datetime(text)
             if href in all_urls:
-                print("Skipping href:", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
 
             to_process.append([date, href])
         result = []
         for date, href in to_process:
-            print("Processing date:", date)
+            logger.info(f"Processing: {href}")
             text = self.parse_html(href)
             result.append({
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
-                "full_extracted_text": text
+                "full_extracted_text": text if len(text) > 0 else None,
             })
 
         self.add_to_db(result)

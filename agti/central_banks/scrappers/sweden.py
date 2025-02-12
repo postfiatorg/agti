@@ -1,21 +1,11 @@
-
-import os
-import re
-import socket
-import time
+import logging
 import pandas as pd
-import requests
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-import urllib
-from agti.utilities.settings import CredentialManager
-from agti.utilities.settings import PasswordMapLoader
-from agti.utilities.db_manager import DBConnectionManager
-from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
+logger = logging.getLogger(__name__)
 __all__ = ["SwedenBankScrapper"]
 
 class SwedenBankScrapper(BaseBankScraper):
@@ -40,12 +30,12 @@ class SwedenBankScrapper(BaseBankScraper):
             date = pd.to_datetime(span.text, dayfirst=True)
             href = a.get_attribute("href")
             if href in all_urls:
-                print("Data already exists for: ", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
             to_process.append((date, href))
         output = []
         for date, href in to_process:
-            print("Processing: ", href)
+            logger.info(f"Processing: {href}")
             self._driver.get(href)
             pdf_href = None
             # find all a tags with class="button button--iconed"
@@ -114,14 +104,14 @@ class SwedenBankScrapper(BaseBankScraper):
             a = tr.find_element(By.TAG_NAME, "a")
             href = a.get_attribute("href")
             if href in all_urls:
-                print("Data already exists for: ", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
             to_process.append((date, href))
 
         output = []
         for date, href in to_process:
             text = None
-            print("Processing: ", href)
+            logger.info(f"Processing: {href}")
             if href.endswith(".pdf"):
                 text = download_and_read_pdf(href, self.datadump_directory_path)
             output.append({

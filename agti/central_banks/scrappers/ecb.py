@@ -1,4 +1,5 @@
 import warnings
+import logging
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -11,7 +12,7 @@ from ..utils import pageBottom
 
 __all__ = ["ECBBankScrapper"]
 
-
+logger = logging.getLogger(__name__)
 
 class ECBBankScrapper(BaseBankScraper):
     """
@@ -49,7 +50,7 @@ class ECBBankScrapper(BaseBankScraper):
         for div in dl.find_elements(By.XPATH, ".//div[@data-index]"):
             # find all sub divs with data-index attribute
             data_index = div.get_attribute("data-index")
-            print("Processing data-index:", data_index)
+            logger.debug(f"Processing data-index: {data_index}")
             # find dt with isodate attribute
             elements = div.find_elements(By.XPATH, "./*")
             dts = elements[::2]
@@ -62,17 +63,17 @@ class ECBBankScrapper(BaseBankScraper):
                 lang = a_element.get_attribute("lang")
                 href = a_element.get_attribute("href")
                 if lang != "en":
-                    warnings.warn(f"Language is not English: {lang} for date {isodate}")
+                    logger.warning(f"Language is not English: {lang} for date {isodate}")
 
                 if href in all_urls:
-                    print("URL already in DB: ", href)
+                    logger.info(f"Href is already in db: {href}")
                     continue
 
                 to_process.append((pd_isodate, href))
 
         output = []
         for date, href in to_process:
-            print("Processing href:", href)
+            logger.info(f"Processing: {href}")
             text = self.parse_html(href)
             output.append({
                     "file_url": href,

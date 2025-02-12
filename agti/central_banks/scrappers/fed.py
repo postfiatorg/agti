@@ -1,10 +1,7 @@
 
-import os
 import re
-import socket
 import pandas as pd
-import requests
-from selenium import webdriver
+import logging
 from selenium.webdriver.common.by import By
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
@@ -14,6 +11,8 @@ from selenium.webdriver.support import expected_conditions as EC
 from ..utils import download_and_read_pdf
 from ..base_scrapper import BaseBankScraper
 import pdfplumber
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["FEDBankScrapper"]
 
@@ -85,25 +84,22 @@ class FEDBankScrapper(BaseBankScraper):
             html_p = p.get_attribute("innerHTML")
             for line in html_p.split("<br>"):
                 month_word = line.split(':')[0].strip()
-                print(f"{month_word} {year}")
-                date = pd.to_datetime(f"{month_word} {year}", format='%B %Y')
-
-
+                logger.debug(f"Checking {month_word} {year}")
                 pdf_url_path = self.get_pdf_links(line)
                 if pdf_url_path is None:
-                    print("No PDF link found for date:",
+                    logger.warning("No PDF link found for date:",
                           f"{month_word} {year}")
                     continue
                 href = self.get_base_url() + pdf_url_path
                 if href in all_urls:
-                    print("Data already exists for: ", href)
+                    logger.info(f"Href is already in db: {href}")
                     continue
                 to_process.append(href)
 
         output = []
 
         for href in to_process:
-            print("Processing url:", href)
+            logger.info(f"Processing: {href}")
             text = download_and_read_pdf(href, self.datadump_directory_path, evaluate_tolerances=self.evaluate_tolerances)
             exact_datetime = self.get_exact_date(text)
             output.append({

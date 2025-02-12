@@ -1,23 +1,15 @@
 
-import os
-import re
-import socket
-import warnings
+import logging
 import pandas as pd
-import requests
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-import urllib
-from agti.utilities.settings import CredentialManager
-from agti.utilities.settings import PasswordMapLoader
-from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
-from sqlalchemy import text
 
 __all__ = ["CanadaBankScrapper"]
+
+logger = logging.getLogger(__name__)
 
 class CanadaBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "CAN"
@@ -68,7 +60,7 @@ class CanadaBankScrapper(BaseBankScraper):
                 a_tag = article.find_element(By.XPATH,".//div[@class='media-body']/h3/a")
                 href = a_tag.get_attribute("href")
                 if href in all_urls:
-                    print("Data already exists for: ", href)
+                    logger.info(f"Href is already in db: {href}")
                     continue
                 to_process.append((date, href))
             page += 1
@@ -76,7 +68,7 @@ class CanadaBankScrapper(BaseBankScraper):
 
         output = []
         for date, href in to_process:
-            print("processing: ", href)
+            logger.info(f"Processing: {href}")
             if href == self.SPECIAL_CASE_HREF:
                 self._driver.get(href)
                 # find a tag with "publication-actions__btn btn publication-actions__btn-primary" class
@@ -117,7 +109,7 @@ class CanadaBankScrapper(BaseBankScraper):
                         "full_extracted_text": text
                     })
                 else:
-                    print("No pdf or main content found for: ", href)
+                    logger.warning(f"No pdf or main content found for: {href}")
 
         self.add_to_db(output)        
             

@@ -1,7 +1,10 @@
 import os
+import logging
 import requests
 import pdfplumber
 import time
+
+logger = logging.getLogger(__name__)
 
 def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
@@ -34,9 +37,10 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
 
 
     except Exception as e:
-        print(f"Error processing PDF {url}: {e}")
-    
-    os.remove(filepath)
+        logger.exception("Error downloading and reading PDF", extra={"url": url, "filepath": filepath, "tolerances": evaluate_tolerances})
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
     return text
     
 
