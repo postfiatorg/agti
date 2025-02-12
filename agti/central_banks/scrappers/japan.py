@@ -1,11 +1,6 @@
-
-import os
-import re
-import socket
 import pandas as pd
-from selenium import webdriver
 from selenium.webdriver.common.by import By
-import urllib
+import logging
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -14,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
-
+logger = logging.getLogger(__name__)
 
 __all__ = ["JapanBankScrapper"]
 
@@ -42,7 +37,7 @@ class JapanBankScrapper(BaseBankScraper):
             # parse link, get href and text
             href = link.get_attribute("href")
             if href in all_urls:
-                print(f"Already processed: {href}")
+                logger.info(f"Href is already in db: {href}")
                 continue
 
             # drop [PDF xxKB] from link text
@@ -55,11 +50,10 @@ class JapanBankScrapper(BaseBankScraper):
 
         result = []
         for date, href in to_process:
+            logger.info(f"Processing: {href}")
             if href.endswith("pdf"):
-                print("Downloading file:", href)
                 text = download_and_read_pdf(href, self.datadump_directory_path)
             elif href.endswith("htm"):
-                print("Parsing HTML file:", href)
                 text = self.read_html(href)
             else:
                 raise ValueError("Unknown file format")

@@ -1,11 +1,5 @@
-
-import os
-import re
-import socket
-import warnings
 import pandas as pd
-import requests
-from selenium import webdriver
+import logging
 from selenium.webdriver.common.by import By
 import urllib
 from agti.utilities.settings import CredentialManager
@@ -16,6 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
+logger = logging.getLogger(__name__)
 __all__ = ["SwitzerlandBankScrapper"]
 
 class SwitzerlandBankScrapper(BaseBankScraper):
@@ -29,19 +24,18 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         span_date = self._driver.find_element(By.XPATH, "//span[@class='h-typo-tiny']")
         # December 18, 2024
         date = pd.to_datetime(span_date.text, format="%B %d, %Y")
-        print("Processing: ", url)
 
         # xpath to find a tag with span with text "Download"
         try:
             download_button = self._driver.find_element(By.XPATH, "//a[span[normalize-space(text())='Download']]")
         except:
-            print("No download button found, trying german or french")
+            logger.info("No download button found, trying german or french", extra={"url": url})
             # we can try to find german or french instead
             try:
                 # we find one. Sometime there are two, we take the first one
                 download_button = self._driver.find_element(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
             except:
-                print("No German or French download button found")
+                logger.error("No German or French download button found", extra={"url": url})
                 return {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
@@ -79,7 +73,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 # get a tag
                 href = a.get_attribute("href")
                 if href in all_db_urls:
-                    print("Data already exists for: ", href)
+                    logger.info(f"Href is already in db: {href}")
                     continue
                 to_process.append(href)
             page += 1
@@ -87,6 +81,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             raise ValueError("No data found")
         output = []
         for url in to_process:
+            logger.info(f"Processing: {url}")
             if url.endswith(".pdf"):
                 text = download_and_read_pdf(url, self.datadump_directory_path)
                 output.append({
@@ -111,7 +106,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         for a in a_tags:
             href = a.get_attribute("href")
             if href in all_db_urls:
-                print("Data already exists for: ", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
             to_process.append(href)
 
@@ -130,9 +125,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 for a in a_tags:
                     href = a.get_attribute("href")
                     if href in all_db_urls:
-                        print("Data already exists for: ", href)
+                        logger.info(f"Href is already in db: {href}")
                         continue
-                    print("Processing: ", href)
+                    logger.info(f"Processing: {href}")
                     text = download_and_read_pdf(href, self.datadump_directory_path)
                     output.append({
                         "date_published": None,
@@ -144,8 +139,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 a = self._driver.find_element(By.XPATH, "//a[.//span[contains(text(), 'Complete annual report')]]")
                 href2 = a.get_attribute("href")
                 if href2 in all_db_urls:
-                    print("Data already exists for: ", href2)
+                    logger.info(f"Href is already in db: {href2}")
                     continue
+                logger.info(f"Processing: {href2}")
                 output.append(self.find_and_download_pdf(href2))
         if len(output) == 0:
             return      
@@ -158,20 +154,20 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         # based on https://www.snb.ch/en/news-publications and
         # https://www.snb.ch/en/news-publications/order-publications
         
-        print("Process Annual Report")
+        logger.info("Processing Annual Report")
         self.process_annual_report()
 
-        print("Processing Quarterly Bulletin")
+        logger.info("Processing Quarterly Bulletin")
         self.process_teasor_list(self.get_url_quarterly_bulletin)
-        print("Processing Business Cycle Signals")
+        logger.info("Processing Business Cycle Signals")
         self.process_teasor_list(self.get_url_business_cycle_signals)
 
-        print("Processing Financial Stability Report")
+        logger.info("Processing Financial Stability Report")
         self.process_teasor_list(self.get_url_financial_stability_report)
 
-        print("Processing SNB Economic Studies")
+        logger.info("Processing Economic Studies")
         self.process_teasor_list(self.get_url_SNB_economic_studies)
-        print("Processing SNB Working Papers")
+        logger.info("Processing SNB Working Papers")
         self.process_teasor_list(self.get_url_SNB_working_papers)
 
         # we skip monthly statistical bulletin
@@ -182,9 +178,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
 
         # additional staff we fetch
-        print("Processing SNB Quarterly Bulletin Studies")
+        logger.info("Processing SNB Quarterly Bulletin Studies")
         self.process_teasor_list(self.get_url_SNB_quarterly_bulletin_studies)
-        print("Processing Speeches")
+        logger.info("Processing Speeches")
         self.process_teasor_list(self.get_url_speeches)
 
         

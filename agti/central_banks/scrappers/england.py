@@ -1,13 +1,8 @@
-
-import os
-import re
-import socket
 import time
 import pandas as pd
-import requests
+import logging
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-import urllib
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -15,6 +10,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
+
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["EnglandBankScrapper"]
 
@@ -29,7 +27,8 @@ class EnglandBankScrapper(BaseBankScraper):
         xpath = "//button[@class='cookie__button btn btn-default btn-neutral']"
 
         success = False
-        for _ in range(3):
+        repeat = 3
+        for i in range(repeat):
             try:
                 cookie_btn = wait.until(
                     EC.element_to_be_clickable((By.XPATH, xpath))
@@ -39,8 +38,11 @@ class EnglandBankScrapper(BaseBankScraper):
                 success = True
                 break
             except Exception as e:
-                print(f"Retrying click due to: {e}")
-        
+                if repeat != (repeat - 1):
+                    logger.warning(f"Could not click cookie banner repeating", exc_info=True)
+                else:
+                    logger.exception(f"Could not click cookie banner", exc_info=True)
+                    
         if not success:
             raise Exception("Can not click cookie banner")
 
@@ -111,7 +113,7 @@ class EnglandBankScrapper(BaseBankScraper):
                 if href == "https://www.bankofengland.co.uk/inflation-report/2017/november-2017-visual-summary":
                     pdf_links = ["https://www.bankofengland.co.uk/-/media/boe/files/inflation-report/2017/nov.pdf?la=en&hash=950B4B1481D081CA035FC076CF9FFFFB08F658A6"]
                     return all_text, pdf_links
-                print("Cant not find pdf link: ", tag, href)
+                logger.warning(f"Can not find pdf link: {tag} {href}")
                 return None
                     
         try:
@@ -132,7 +134,7 @@ class EnglandBankScrapper(BaseBankScraper):
                 container = self._driver.find_element(By.XPATH, "//div[@class='container container-has-navigation']/div[@class='container-publication']")
                 all_text = container.text
                 if len(all_text) < 300:
-                    print("No text find on container-publication")
+                    logger.warning(f"Text is too short: {tag} {href}")
                     return None
                 return all_text, pdf_links
                 
@@ -146,12 +148,12 @@ class EnglandBankScrapper(BaseBankScraper):
                     time.sleep(0.01)
                     pdf_links.append(a_tag.get_attribute("href"))
                 if len(a_tags) == 0:
-                    print("Missing content and publish date and pdf files: ", tag, href)
+                    logger.warning(f"Missing content and publish date and pdf files: {tag} {href}")
                     return None
                 return all_text, pdf_links
         except:
             pass
-        print("Not working: ", tag, href)
+        logger.warning(f"Can not find content: {tag} {href}")
         return None
 
 
@@ -186,15 +188,14 @@ class EnglandBankScrapper(BaseBankScraper):
         output = []
         for tag, href, date in to_process:
             if href in all_urls:
-                print("Skipping href:", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
-            print("Processing href:", href)
+            logger.info(f"Processing: {href}")
             if (data := self.find_text_and_pdfs(tag, href)) is not None:
                 text, pdf_links = data
                 total_text = text
                 # NOTE: handle mutiple data in different tables
                 for pdf_link in pdf_links:
-                    print("Processing pdf link:", pdf_link)
                     pdf_text = download_and_read_pdf(pdf_link, self.datadump_directory_path)
                     total_text += "\n######## PDF FILE START ########\n" + pdf_text + "\n######## PDF FILE END ########\n"
 

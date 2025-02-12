@@ -1,4 +1,5 @@
 import socket
+import logging
 import pandas as pd
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
@@ -7,6 +8,8 @@ from agti.utilities.db_manager import DBConnectionManager
 
 
 __all__ = ["BaseBankScraper"]
+
+logger = logging.getLogger(__name__)
 
 class BaseBankScraper:
     """Base class for bank scrapers with common functionality."""

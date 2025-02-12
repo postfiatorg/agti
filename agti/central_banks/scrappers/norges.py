@@ -1,9 +1,5 @@
-import os
-import socket
+import logging
 import pandas as pd
-import pdfplumber
-import requests
-
 from agti.utilities.db_manager import DBConnectionManager
 from agti.utilities.settings import CredentialManager
 from selenium.webdriver.common.action_chains import ActionChains
@@ -15,6 +11,8 @@ from selenium import webdriver
 from ..base_scrapper import BaseBankScraper
 from ..utils import download_and_read_pdf
 
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["NorgesBankScrapper"]
 
@@ -52,13 +50,14 @@ class NorgesBankScrapper(BaseBankScraper):
             h3_element = article.find_element(By.TAG_NAME, "h3")
             href = h3_element.find_element(By.TAG_NAME, "a").get_attribute("href")
             if href in all_urls:
-                print("Skipping", href)
+                logger.info(f"Href is already in db: {href}")
                 continue
             subsites.append(href)
 
         # process links
         output = []
         for href in subsites:
+            logger.info(f"Processing: {href}")
             self._driver.get(href)
             # extract timestamp
             # locate div meta-container
@@ -68,7 +67,6 @@ class NorgesBankScrapper(BaseBankScraper):
             # drop "published " from text 
             timestamp_text = meta.text[10:]
             timestamp = pd.to_datetime(timestamp_text)
-            print(timestamp_text)
 
             # get link to pdf
             pdf_link = None
@@ -78,11 +76,11 @@ class NorgesBankScrapper(BaseBankScraper):
                 links = self._driver.find_elements(By.CLASS_NAME, "publication-start__body")
 
             if len(links) == 0:
-                print("No links found")
+                logger.debug("No links found")
                 continue
-            print("Number of links found:", len(links))
+            # NOTE:  we should other links as well
+            #print("Number of links found:", len(links))
             pdf_link = links[0].find_element(By.TAG_NAME, "a").get_attribute("href")
-            print("PDF link:", pdf_link)
 
             text = download_and_read_pdf(pdf_link, self.datadump_directory_path)
             output.append(
