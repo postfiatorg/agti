@@ -30,7 +30,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
             text = ""
             for page in pdf.pages:
                 # pass x_tol and y_tol to extract_text method if they are not None
-                text += page.extract_text(**extract_kwargs)
+                text += page.extract_text(**extract_kwargs).replace('\x00','')
 
 
     except Exception as e:
