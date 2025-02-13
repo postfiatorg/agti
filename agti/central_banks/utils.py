@@ -12,17 +12,31 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     filepath = os.path.join(save_dir, filename)
     
     headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.110 Safari/537.36"
-        }
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.110 Safari/537.36",
+        "Accept": "application/pdf",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "TE": "Trailers",
+        "Cache-Control": "max-age=0",
+        "Pragma": "no-cache",
+        "DNT": "1",  # Do Not Track
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Sec-GPC": "1"  # Global Privacy Control
+    }
     
     text = None
     
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        with open(filepath, "wb") as f:
-            f.write(response.content)
-
+        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
+            r.raise_for_status()
+            with open(filepath, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
         extract_kwargs = {}
         if evaluate_tolerances:
             x_tol, y_tol = evaluate_tolerances(filepath)
