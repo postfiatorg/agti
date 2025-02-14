@@ -61,5 +61,35 @@ class BaseBankScraper:
         df["scraping_machine"] = hostname
         df["scraping_ip"] = ipaddr
 
+        # check for uniques of URLS of file_url
+        duplicated = df["file_url"].duplicated()
+        # log each duplicated file_url with date published
+        for _, row in df[duplicated].iterrows():
+            url = row["file_url"]
+            date_published = row["date_published"]
+            count_duplicates = df[df["file_url"] == url].shape[0]
+            logger.warning(f"Duplicate file_url found: {url} with {count_duplicates} entries",
+                           extra={
+                                "date_published": date_published,
+                                "url": url,
+                                "count_duplicates": count_duplicates
+                           })
+        # drop duplicates on file_url
+        df = df.drop_duplicates(subset=["file_url"])
+
+        # verify if all file_url are not already in the database
+        db_urls = self.get_all_db_urls()
+        # all should be new otherwise raise warning for each not new url
+        for _, row in df.iterrows():
+            url = row["file_url"]
+            date_published = row["date_published"]
+            if url in db_urls:
+                logger.warning(f"URL already in database: {url}", extra={
+                    "date_published": date_published,
+                    "url": url})
+
+        # drop all urls in database on file_url
+        df = df[~df["file_url"].isin(db_urls)] 
+
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
