@@ -57,9 +57,9 @@ class BaseBankScraper:
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         # query select all from categories table, which joined with self.table_name over file_url has country_code_alpha_3
         table_name = self.get_category_table_name()
-        query = text(f"SELECT {table_name}.file_url {table_name}.category_name FROM {table_name} " +  \
-                    "INNER JOIN {self.table_name} ON {table_name}.file_url = {self.table_name}.file_url " + \
-                    "WHERE {self.table_name}.country_code_alpha_3 = :country_code_alpha_3")
+        query = text(f"SELECT {table_name}.file_url, {table_name}.category_name FROM {table_name} " +  \
+                    f"INNER JOIN {self.table_name} ON {table_name}.file_url = {self.table_name}.file_url " + \
+                    f"WHERE {self.table_name}.country_code_alpha_3 = :country_code_alpha_3")
         params = {"country_code_alpha_3": self.COUNTRY_CODE_ALPHA_3}
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
@@ -108,7 +108,7 @@ class BaseBankScraper:
 
         # drop all urls in database on file_url
         df = df[~df["file_url"].isin(db_urls)] 
-
+        logger.info(f"Adding {df.shape[0]} new entries to the database.")
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
 
@@ -148,7 +148,7 @@ class BaseBankScraper:
         df = df[~df[["file_url", "category_name"]].isin(db_categories).all(axis=1)]
 
 
-
+        logger.info(f"Adding {df.shape[0]} new entries to the categories table.")
         dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         table_name = self.get_category_table_name()
         df.to_sql(table_name, con=dbconnx, if_exists="append", index=False)

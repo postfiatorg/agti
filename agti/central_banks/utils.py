@@ -3,6 +3,19 @@ import logging
 import requests
 import pdfplumber
 import time
+import enum
+
+class Categories(enum.Enum):
+    INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
+    MONETARY_POLICY = "Monetary Policy"
+    FINANCIAL_STABILITY_AND_REGULATION = "Financial Stability & Regulation"
+    RESEARCH_AND_DATA = "Research & Data"
+    MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS = "Market Operations & Payment Systems"
+    CURRENCY_AND_FINANCIAL_INSTRUMENTS = "Currency & Financial Instruments"
+    NEWS_AND_EVENTS = "News & events"
+    OTHER = "Other"
+
+
 
 logger = logging.getLogger(__name__)
 
