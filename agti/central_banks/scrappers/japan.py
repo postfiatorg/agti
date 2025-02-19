@@ -1,4 +1,5 @@
 import pandas as pd
+import selenium
 from selenium.webdriver.common.by import By
 import logging
 from agti.utilities.settings import CredentialManager
@@ -24,149 +25,162 @@ class JapanBankScrapper(BaseBankScraper):
     COUNTRY_NAME = "Japan"
 
 
+
     ##########################
     # Monetery Policy processing
     ##########################
+
+    def process_outline_of_monetary_policy(self):
+        # NOTE we can ignore Outline of Monetary Policy
+        # "https://www.boj.or.jp/en/mopo/outline/index.htm"
+        pass
+
+
     def process_monetery_policy_meeting(self):
         # Monetary Policy Meeting
-        pass
+        
+        ##########################
+        ## Summary of Opinions
+        ##########################
+        logger.info("Processing MP meeting summary of opinions")
+        for to_process in self.find_hrefs_tab_table_iter(
+                "https://www.boj.or.jp/en/mopo/mpmsche_minu/opinion_{}/index.htm", 
+                2016,
+                2
+            ):
+            self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
+
+        ##########################
+        ## Minutes
+        ##########################
+        logger.info("Processing MP meeting minutes")
+        for to_process in self.find_hrefs_tab_table_iter(
+                "https://www.boj.or.jp/en/mopo/mpmsche_minu/minu_{}/index.htm",
+                1998,
+                2
+            ):
+            self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
+
+        ##########################
+        ## Others
+        ##########################
+        logger.info("Processing MP meeting others")
+        self._driver.get("https://www.boj.or.jp/en/mopo/mpmsche_minu/m_ref/index.htm")
+        to_process = self.process_href_table(self.get_all_db_urls(), 2)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
+
+        
 
     def process_monetery_policy_releases(self):
         # Monetary Policy Releases
         logger.info("Processing monetary policy releases")
-        all_urls = self.get_all_db_urls()
-        this_year = pd.Timestamp.now().year
-        for year in range(1998, this_year + 1):
-            logger.info(f"Processing year: {year}")
-            self._driver.get(f"https://www.boj.or.jp/en/mopo/mpmdeci/mpr_{year}/index.htm")
-            table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
-            #caption = table.find_element(By.XPATH, ".//caption").text
-            tbody = table.find_element(By.XPATH, ".//tbody")
-            to_process = []
-            for row in tbody.find_elements(By.XPATH,".//tr"):
-                tds = list(row.find_elements(By.XPATH,".//td"))
-                date = pd.to_datetime(tds[0].text)
-                link = tds[1].find_element(By.XPATH, ".//a")
-                # parse link, get href and text
-                href = link.get_attribute("href")
-                if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
-                    continue
-                to_process.append((date, href))
-            
-            self.process_raw_data(to_process, [Categories.MONETARY_POLICY.value])
+        for to_process in self.find_hrefs_tab_table_iter(
+                "https://www.boj.or.jp/en/mopo/mpmdeci/mpr_{}/index.htm", 
+                1998,
+                2
+            ):
+            self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
 
     def process_monetery_policy_measures(self):
-        # Monetary Policy Measures
-        pass
+        # NOTE: we can ignore
+        # based on our check everything is in the releases
+        # https://www.boj.or.jp/en/mopo/measures/index.htms
+        pass 
 
     def process_monetery_policy_outlook(self):
         # Outlook for Economic Activity and Prices
-        pass
+        all_urls = self.get_all_db_urls()
+        # we can ignore boxes, because they are part of outlooks
+        # we can ignore higlihts, because they are part of outlooks
+
+        ##########################
+        # Outlook for Economic Activity and Prices
+        ##########################
+        # they are 2 tables, we let the first one to be parsed by process_href_table
+        # and the second one we parse it here
+        logger.info("Processing outlook for economic activity and prices")
+        self._driver.get("https://www.boj.or.jp/en/mopo/outlook/index.htm")
+        to_process = self.process_href_table(self.get_all_db_urls(), 2)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
+
+        # find the second table
+        tables = self._driver.find_elements(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")
+        if len(tables) != 2:
+            raise ValueError("Expected 2 tables in outlook Japan bank")
+        
+        to_process = []
+        table = tables[1]
+        tbody = table.find_element(By.XPATH, ".//tbody")
+        table_rows = tbody.find_elements(By.XPATH,".//tr")
+        for row in table_rows:
+            tds = list(row.find_elements(By.XPATH,".//td"))
+            date = pd.to_datetime(tds[0].text)
+            # try tds[2], if text is empty, try tds[1]
+            if tds[2].text == "":
+                link = tds[1].find_element(By.XPATH, ".//a")
+            else:
+                link = tds[2].find_element(By.XPATH, ".//a")
+            href = link.get_attribute("href")
+            if href in all_urls:
+                logger.info(f"Href is already in db: {href}")
+                continue
+
+            to_process.append((date, href))
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
+
+        ##########################
+        # Monthly Report of Recent Economic and Financial Developments
+        ##########################
+        logger.info("Processing monthly report of recent economic and financial developments")
+        for to_process in self.find_hrefs_tab_table_iter(
+            "https://www.boj.or.jp/en/mopo/gp_{}/index.htm",
+            1998,
+            2
+        ):
+            self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
+        
 
     def process_monetery_policy_diet(self):
-        # Reports to the Diet
-        pass
+        
+        ##########################
+        # Semiannual Report on Currency and Monetary Control
+        ##########################
+        self._driver.get("https://www.boj.or.jp/en/mopo/diet/d_report/index.htm")
+        to_process = self.process_href_table(self.get_all_db_urls(), 2)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
+
+        ##########################
+        # Statement concerning the Report to the Diet
+        ##########################
+        self._driver.get("https://www.boj.or.jp/en/mopo/diet/d_state/index.htm")
+        to_process = self.process_href_table(self.get_all_db_urls(), 2)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
 
     def process_monetery_policy_research_speech_statement(self):
         # Research Papers, Reports, Speeches and Statements Related to Monetary Policy
         all_urls = self.get_all_db_urls()
-
 
         ##########################
         ## Statements
         ##########################
         logger.info("Processing MP statements")
         self._driver.get("https://www.boj.or.jp/en/mopo/r_menu_dan/index.htm")
-        table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
-        #caption = table.find_element(By.XPATH, ".//caption").text
-        tbody = table.find_element(By.XPATH, ".//tbody")
-        to_process = []
-        for row in tbody.find_elements(By.XPATH,".//tr"):
-            tds = list(row.find_elements(By.XPATH,".//td"))
-            date = pd.to_datetime(tds[0].text)
-            link = tds[1].find_element(By.XPATH, ".//a")
-            # parse link, get href and text
-            href = link.get_attribute("href")
-            if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
-                continue
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
 
-            # drop [PDF xxKB] from link text
-            #link_text = link.text
-            # using regex
-            #link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
-
-            to_process.append((date, href))
-        
-        self.process_raw_data(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
-
-
+        ##########################
         ## Reserach Papers
+        ##########################
         logger.info("Processing MP research papers")
-        i = 0
-        to_process = []
-        while True:
-            self._driver.get(f"https://www.boj.or.jp/en/mopo/r_menu_ron/index.htm?mylist={i*50 +1}")
-            table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
-            #caption = table.find_element(By.XPATH, ".//caption").text
-            tbody = table.find_element(By.XPATH, ".//tbody")
-            table_rows = tbody.find_elements(By.XPATH,".//tr")
-            if len(table_rows) == 0:
-                break
-            for row in table_rows:
-                tds = list(row.find_elements(By.XPATH,".//td"))
-                date = pd.to_datetime(tds[0].text)
-                link = tds[1].find_element(By.XPATH, ".//a")
-                # parse link, get href and text
-                href = link.get_attribute("href")
-                if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
-                    continue
+        to_process = self.find_hrefs_mylist_table("https://www.boj.or.jp/en/mopo/r_menu_ken/index.htm?mylist=", 2)
 
-                # drop [PDF xxKB] from link text
-                #link_text = link.text
-                # using regex
-                #link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
-
-                to_process.append((date, href))
-            i += 1
-
-        self.process_raw_data(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
-            
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
+        ##########################
         ## Speeches
+        ##########################
         logger.info("Processing MP speeches")
-        i = 0
-        to_process = []
-        while True:
-            self._driver.get(f"https://www.boj.or.jp/en/mopo/r_menu_koen/index.htm?mylist={i*50 +1}")
-            table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl']")
-            #caption = table.find_element(By.XPATH, ".//caption").text
-            tbody = table.find_element(By.XPATH, ".//tbody")
-            table_rows = tbody.find_elements(By.XPATH,".//tr")
-            if len(table_rows) == 0:
-                break
-            for row in table_rows:
-                tds = list(row.find_elements(By.XPATH,".//td"))
-                date = pd.to_datetime(tds[0].text)
-                # NOTE speaches has 3 columns
-                # tds[1] is Speaker
-                link = tds[2].find_element(By.XPATH, ".//a")
-                # parse link, get href and text
-                href = link.get_attribute("href")
-                if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
-                    continue
-
-                # drop [PDF xxKB] from link text
-                #link_text = link.text
-                # using regex
-                #link_text = re.sub(r"\[PDF (\d+,)*\d+KB\]", "", link.text)
-
-                to_process.append((date, href))
-            i += 1
-
-        self.process_raw_data(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value, Categories.NEWS_AND_EVENTS.value])
+        to_process = self.find_hrefs_mylist_table("https://www.boj.or.jp/en/mopo/r_menu_kou/index.htm?mylist=", 3)
+        self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value, Categories.NEWS_AND_EVENTS.value])
 
 
 
@@ -210,6 +224,8 @@ class JapanBankScrapper(BaseBankScraper):
         links_output = []
         for link in links:
             link_href = link.get_attribute("href")
+            if link_href is None:
+                continue
             link_href_parsed = urlparse(link_href)
             link_text = None
             if link_href_parsed.fragment != '':
@@ -228,7 +244,7 @@ class JapanBankScrapper(BaseBankScraper):
             })
         return text, links_output
     
-    def process_raw_data(self, to_process, tags):
+    def extract_data_update_tables(self, to_process, tags):
         result = []
         total_tags = []
         total_links = []
@@ -255,8 +271,62 @@ class JapanBankScrapper(BaseBankScraper):
                 } for tag in tags]
             )
         self.add_all_atomic(result,total_tags,total_links)
+
+    def find_hrefs_tab_table_iter(self, f_url, init_year, table_size):
+        # Monetary Policy Releases
+        all_urls = self.get_all_db_urls()
+        this_year = pd.Timestamp.now().year
+        for year in range(init_year, this_year + 1):
+            logger.info(f"Processing year: {year}")
+            self._driver.get(f_url.format(year))
+            to_process = self.process_href_table(all_urls, table_size)
+            yield to_process
+
+    def find_hrefs_mylist_table(self, url, table_size):
+        all_urls = self.get_all_db_urls()
+        i = 0
+        to_process = []
+        while True:
+            logger.info(f"Processing mylist: {i*50 +1}")
+            self._driver.get(f"{url}{i*50 +1}")
+            temp = self.process_href_table(all_urls, table_size)
+            if len(temp) == 0:
+                break
+            to_process.extend(temp)
+            i += 1
+        return to_process
+    
+
+    def process_href_table(self,all_urls,table_size):
+        to_process = []
+        try:
+            table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")
+        except selenium.common.exceptions.NoSuchElementException:
+            logger.warning(f"No table found for {self._driver.current_url}")
+            return []
+        #caption = table.find_element(By.XPATH, ".//caption").text
+        tbody = table.find_element(By.XPATH, ".//tbody")
+        table_rows = tbody.find_elements(By.XPATH,".//tr")
+        if len(table_rows) == 0:
+            return []
+        for row in table_rows:
+            tds = list(row.find_elements(By.XPATH,".//td"))
+            date = pd.to_datetime(tds[0].text)
+            link = tds[table_size-1].find_element(By.XPATH, ".//a")
+            href = link.get_attribute("href")
+            if href in all_urls:
+                logger.info(f"Href is already in db: {href}")
+                continue
+
+            to_process.append((date, href))
+        return to_process
+
+
     
     def process_all_years(self):
+        self.process_monetery_policy_outlook()
+        self.process_monetery_policy_diet()
+        self.process_monetery_policy_meeting()
         self.process_monetery_policy_releases()
         self.process_monetery_policy_research_speech_statement()
     
