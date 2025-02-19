@@ -41,6 +41,9 @@ class BaseBankScraper:
     
     def get_category_table_name(self):
         return f"{self.table_name}_categories"
+    
+    def get_links_table_name(self):
+        return f"{self.table_name}_links"
 
     def get_all_db_urls(self):
         """Retrieve all URLs already stored in the database."""
@@ -65,8 +68,22 @@ class BaseBankScraper:
             rs = con.execute(query, params)
             output =  [row for row in rs.fetchall()]
         return output
+    
+    def get_all_db_links(self):
+        """Retrieve all links already stored in the database."""
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        links_table_name = self.get_links_table_name()
+        query = text(f"SELECT {links_table_name}.file_url, {links_table_name}.link_url FROM {links_table_name} " +  \
+            f"INNER JOIN {self.table_name} ON {links_table_name}.file_url = {self.table_name}.file_url " + \
+            f"WHERE {self.table_name}.country_code_alpha_3 = :country_code_alpha_3")
+        params = {"country_code_alpha_3": self.COUNTRY_CODE_ALPHA_3}
+        with dbconnx.connect() as con:
+            rs = con.execute(query, params)
+            output =  [row for row in rs.fetchall()]
+        return output
+    
 
-    def add_to_db(self, data):
+    def add_to_db(self, data, dbconnx=None):
         """Store scraped data into the database."""
         df = pd.DataFrame(data)
         if df.empty:
@@ -109,10 +126,11 @@ class BaseBankScraper:
         # drop all urls in database on file_url
         df = df[~df["file_url"].isin(db_urls)] 
         logger.info(f"Adding {df.shape[0]} new entries to the database.")
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        if dbconnx is None:
+            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
 
-    def add_to_categories(self, data):
+    def add_to_categories(self, data, dbconnx=None):
         """Store scraped data into categories table."""
         df = pd.DataFrame(data)
         if df.empty:
@@ -149,6 +167,61 @@ class BaseBankScraper:
 
 
         logger.info(f"Adding {df.shape[0]} new entries to the categories table.")
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        if dbconnx is None:
+            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
         table_name = self.get_category_table_name()
         df.to_sql(table_name, con=dbconnx, if_exists="append", index=False)
+
+
+    def add_to_links(self, data, dbconnx=None):
+        """Store scraped data into links table."""
+        df = pd.DataFrame(data)
+        if df.empty:
+            logger.info("No new data found for links.")
+            return
+        
+        # we require UNIQUE (file_url, link_url) pairs only from the df
+        # duplicated file_url and link_url
+        duplicated = df.duplicated(subset=["file_url", "link_url"])
+        # log each duplicated file_url with date published
+        for _, row in df[duplicated].iterrows():
+            url = row["file_url"]
+            link_url = row["link_url"]
+            logger.warning(f"Duplicate file_url and link_url found: {url} - {link_url}",
+                           extra={
+                                "url": url,
+                                "link_url": link_url
+                           })
+        # drop duplicates on file_url and link_url
+        df = df.drop_duplicates(subset=["file_url", "link_url"])
+
+        # verify unique over whole table
+        db_links = self.get_all_db_links()
+        # all should be new otherwise raise warning for each not new url
+        for _, row in df.iterrows():
+            url = row["file_url"]
+            link_url = row["link_url"]
+            if (url, link_url) in db_links:
+                logger.warning(f"URL and link_url already in database: {url} - {link_url}", extra={
+                    "url": url,
+                    "link_url": link_url})
+            
+        # drop all urls in database on file_url
+        df = df[~df[["file_url", "link_url"]].isin(db_links).all(axis=1)]
+
+        logger.info(f"Adding {df.shape[0]} new entries to the links table.")
+        if dbconnx is None:
+            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        table_name = self.get_links_table_name()
+        df.to_sql(table_name, con=dbconnx, if_exists="append", index=False)
+
+
+
+    def add_all_atomic(self, data, tags, links):
+        """Store scraped data into the database."""
+        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        with dbconnx.begin() as connection:
+            self.add_to_db(data,dbconnx=connection)
+            self.add_to_categories(tags,dbconnx=connection)
+            self.add_to_links(links,dbconnx=connection)
+        
