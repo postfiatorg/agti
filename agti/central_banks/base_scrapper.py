@@ -153,6 +153,7 @@ class BaseBankScraper:
 
         # verify unique over whole table
         db_categories = self.get_all_db_categories()
+        db_categories = [(url, category_name) for url, category_name in db_categories]
         # all should be new otherwise raise warning for each not new url
         for _, row in df.iterrows():
             url = row["file_url"]
@@ -197,6 +198,7 @@ class BaseBankScraper:
 
         # verify unique over whole table
         db_links = self.get_all_db_links()
+        db_links = [(url, link_url) for url, link_url in db_links]
         # all should be new otherwise raise warning for each not new url
         for _, row in df.iterrows():
             url = row["file_url"]

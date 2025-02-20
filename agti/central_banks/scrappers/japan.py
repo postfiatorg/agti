@@ -30,13 +30,12 @@ class JapanBankScrapper(BaseBankScraper):
     # Monetery Policy processing
     ##########################
 
-    def process_outline_of_monetary_policy(self):
+    def process_monetery_policy(self):
         # NOTE we can ignore Outline of Monetary Policy
         # "https://www.boj.or.jp/en/mopo/outline/index.htm"
-        pass
 
 
-    def process_monetery_policy_meeting(self):
+
         # Monetary Policy Meeting
         
         ##########################
@@ -70,8 +69,6 @@ class JapanBankScrapper(BaseBankScraper):
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
 
         
-
-    def process_monetery_policy_releases(self):
         # Monetary Policy Releases
         logger.info("Processing monetary policy releases")
         for to_process in self.find_hrefs_tab_table_iter(
@@ -81,13 +78,11 @@ class JapanBankScrapper(BaseBankScraper):
             ):
             self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
 
-    def process_monetery_policy_measures(self):
+        # process_monetery_policy_measures
         # NOTE: we can ignore
         # based on our check everything is in the releases
         # https://www.boj.or.jp/en/mopo/measures/index.htms
-        pass 
 
-    def process_monetery_policy_outlook(self):
         # Outlook for Economic Activity and Prices
         all_urls = self.get_all_db_urls()
         # we can ignore boxes, because they are part of outlooks
@@ -139,8 +134,6 @@ class JapanBankScrapper(BaseBankScraper):
         ):
             self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
         
-
-    def process_monetery_policy_diet(self):
         
         ##########################
         # Semiannual Report on Currency and Monetary Control
@@ -156,7 +149,6 @@ class JapanBankScrapper(BaseBankScraper):
         to_process = self.process_href_table(self.get_all_db_urls(), 2)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
 
-    def process_monetery_policy_research_speech_statement(self):
         # Research Papers, Reports, Speeches and Statements Related to Monetary Policy
         all_urls = self.get_all_db_urls()
 
@@ -268,13 +260,192 @@ class JapanBankScrapper(BaseBankScraper):
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.NEWS_AND_EVENTS.value])
         
 
-
-
-
-
     ##########################
     # Payments and Markets
     ########################## 
+
+
+    def process_payment_and_settlement_systems(self):
+        
+        ##########################
+        # Outline of Payment and Settlement Systems
+        all_urls = self.get_all_db_urls()
+
+        # Payment and Settlement Systems and the Bank
+        self._driver.get("https://www.boj.or.jp/en/paym/outline/pay_boj/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # oversight
+        self._driver.get("https://www.boj.or.jp/en/paym/outline/pay_os/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
+
+        # forums
+        self._driver.get("https://www.boj.or.jp/en/paym/outline/pay_forum/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
+
+        # Payment and Settlement Systems Operated by the Private Sector
+        self._driver.get("https://www.boj.or.jp/en/paym/outline/pay_ps/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        ##########################
+        # Operation of BOJ-NET
+
+        # The Next-Generation RTGS Project
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/next_rtgs/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # RTGS (Real-Time Gross Settlement)
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/rtgs/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # New BOJ-NET
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/new_net/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # Forum Towards Making Effective Use of the BOJ-NET
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/net_forum/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
+
+        # Cross-border DVP Link
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/crossborder/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # Others
+        self._driver.get("https://www.boj.or.jp/en/paym/bojnet/other/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        ##########################
+        # JGB Book-Entry System
+        self._driver.get("https://www.boj.or.jp/en/paym/jgb_bes/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        ##########################
+        # FinTech Center
+        self._driver.get("https://www.boj.or.jp/en/paym/fintech/index.htm")
+        to_process = self.process_href_table(all_urls, 2,num_tables=2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        ##########################
+        # Central Bank Digital Currency
+        self._driver.get("https://www.boj.or.jp/en/paym/digital/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=4)
+        # parse separately the last table
+        table = self._driver.find_elements(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")[-1]
+        tbody = table.find_element(By.XPATH, ".//tbody")
+        table_rows = tbody.find_elements(By.XPATH,".//tr")
+        for row in table_rows:
+            tds = list(row.find_elements(By.XPATH,".//td"))
+            date = pd.to_datetime(tds[0].text)
+            link = tds[2].find_element(By.XPATH, ".//a")
+            href = link.get_attribute("href")
+            if href in all_urls:
+                logger.info(f"Href is already in db: {href}")
+                continue
+
+            to_process.append((date, href))
+        self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value])
+
+        # CBDC Forum
+        self._driver.get("https://www.boj.or.jp/en/paym/digital/d_forum/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.NEWS_AND_EVENTS.value]) 
+
+        ##########################
+        # Money Market
+        self._driver.get("https://www.boj.or.jp/en/paym/market/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=4)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+        # ignore Cross-Industry Forum on Interest Rate Benchmarks
+        # ignore Repo Market Forum
+
+        # Cross-Industry Committee on Japanese Yen Interest Rate Benchmarks
+        self._driver.get("https://www.boj.or.jp/en/paym/market/jpy_cmte/index.htm")
+        # we could theoretically ignore the first table one
+        to_process = self.process_href_table(all_urls, 2, num_tables=3)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+
+
+        ##########################
+        # Bond Market
+
+        self._driver.get("https://www.boj.or.jp/en/paym/bond/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=3)
+        self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value])
+
+        # Bond Market Survey
+        self._driver.get("https://www.boj.or.jp/en/paym/bond/bond_list/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.RESEARCH_AND_DATA.value])
+
+        # Bond Market Group
+        self._driver.get("https://www.boj.or.jp/en/paym/bond/mbond_list/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.NEWS_AND_EVENTS.value])
+
+        ##########################
+        # ignore: Credit Market
+
+        ##########################
+        # Forums and Conferences
+        self._driver.get("https://www.boj.or.jp/en/paym/forum/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
+
+
+        ##########################
+        # Research Papers, Reports, Speeches and Statements Related to Payment and Markets
+
+        # Payment and Settlement Systems Report
+        self._driver.get("https://www.boj.or.jp/en/research/brp/psr/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
+
+        # Market Operations in Each Fiscal Year
+        self._driver.get("https://www.boj.or.jp/en/research/brp/mor/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
+
+        # Market Functioning Survey concerning Climate Change
+        self._driver.get("https://www.boj.or.jp/en/paym/m-climate/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=3)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
+
+        # List of Research Papers Related to Payment and Markets
+        to_process = self.find_hrefs_mylist_table("https://www.boj.or.jp/en/paym/r_menu_ron/index.htm?mylist=", 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
+
+        # List of Speeches Related to Payment and Markets
+        to_process = self.find_hrefs_mylist_table("https://www.boj.or.jp/en/paym/r_menu_koen/index.htm?mylist=", 3)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value, Categories.NEWS_AND_EVENTS.value])
+
+        # List of Statements Related to Payment and Markets
+        to_process = self.find_hrefs_mylist_table("https://www.boj.or.jp/en/paym/r_menu_dan/index.htm?mylist=", 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
+
+
+
+
+        ##########################
+        # Other Releases Related to Payment and Markets
+        self._driver.get("https://www.boj.or.jp/en/paym/release/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
+
+
+
+
 
     ##########################
     # Banknotes, The Bank's Treasury Funds and JGS Services
@@ -339,7 +510,7 @@ class JapanBankScrapper(BaseBankScraper):
                 text, links_output = self.read_html(href)
                 total_links.extend(links_output)
             else:
-                raise ValueError("Unknown file format")
+                text = None
             
             result.append({
                 "file_url": href,
@@ -409,11 +580,7 @@ class JapanBankScrapper(BaseBankScraper):
 
     
     def process_all_years(self):
+        self.process_payment_and_settlement_systems()
         self.process_financial_system_reports()
-        # MONETARY POLICY
-        self.process_monetery_policy_outlook()
-        self.process_monetery_policy_diet()
-        self.process_monetery_policy_meeting()
-        self.process_monetery_policy_releases()
-        self.process_monetery_policy_research_speech_statement()
+        self.process_monetery_policy()
     
