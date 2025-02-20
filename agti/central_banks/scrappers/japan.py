@@ -189,6 +189,89 @@ class JapanBankScrapper(BaseBankScraper):
     # Financial system processing
     ##########################
 
+   
+    
+    def process_financial_system_reports(self):
+        
+        all_urls = self.get_all_db_urls()
+        # on -site
+        # https://www.boj.or.jp/en/finsys/exam_monit/exampolicy/index.htm
+        self._driver.get("https://www.boj.or.jp/en/finsys/exam_monit/exampolicy/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
+
+        # financial reports (https://www.boj.or.jp/en/finsys/fsr/index.htm)
+        # TODO: it is better to fetch it from: (Home>Research and Studies>BOJ Reports & Research Papers>Financial System Report)
+        # https://www.boj.or.jp/en/research/brp/fsr/index.htm#p02
+        # old markets reports
+        self._driver.get("https://www.boj.or.jp/en/research/brp/fmr/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value, Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
+        # new system reports and Annex series
+        self._driver.get("https://www.boj.or.jp/en/research/brp/fsr/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
+
+        # policy
+        # https://www.boj.or.jp/en/finsys/fs_policy/index.htm (table)
+        # https://www.boj.or.jp/en/finsys/msfs/index.htm
+        # https://www.boj.or.jp/en/finsys/spp/index.htm
+        # https://www.boj.or.jp/en/finsys/rfs/index.htm
+        self._driver.get("https://www.boj.or.jp/en/finsys/fs_policy/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
+
+        self._driver.get("https://www.boj.or.jp/en/finsys/msfs/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
+
+        self._driver.get("https://www.boj.or.jp/en/finsys/spp/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value,Categories.INSTITUTIONAL_AND_GOVERNANCE.value])
+
+        self._driver.get("https://www.boj.or.jp/en/finsys/rfs/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
+
+        # coorination
+        # https://www.boj.or.jp/en/finsys/macpru/index.htm
+        # https://www.boj.or.jp/en/finsys/cofsa/index.htm (all tables)
+
+        self._driver.get("https://www.boj.or.jp/en/finsys/macpru/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.NEWS_AND_EVENTS.value])
+
+        self._driver.get("https://www.boj.or.jp/en/finsys/cofsa/index.htm")
+        to_process = self.process_href_table(all_urls, 2, num_tables=3)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
+
+        # seminars Not important ommited
+        # https://www.boj.or.jp/en/finsys/c_aft/index.htm (maybe not importnant)
+        
+
+        # research papers
+        to_process = self.find_hrefs_mylist_table(
+            "https://www.boj.or.jp/en/finsys/r_menu_ron/index.htm?mylist=",
+            2
+        )
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
+        # speeches
+        to_process = self.find_hrefs_mylist_table(
+            "https://www.boj.or.jp/en/finsys/r_menu_koen/index.htm?mylist=",
+            3
+        )
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value, Categories.NEWS_AND_EVENTS.value])
+        
+        # statements
+        self._driver.get("https://www.boj.or.jp/en/finsys/r_menu_dan/index.htm")
+        to_process = self.process_href_table(all_urls, 2)
+        self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.NEWS_AND_EVENTS.value])
+        
+
+
+
+
+
     ##########################
     # Payments and Markets
     ########################## 
@@ -297,33 +380,37 @@ class JapanBankScrapper(BaseBankScraper):
         return to_process
     
 
-    def process_href_table(self,all_urls,table_size):
+    def process_href_table(self,all_urls,table_size, num_tables=1):
         to_process = []
-        try:
-            table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")
-        except selenium.common.exceptions.NoSuchElementException:
-            logger.warning(f"No table found for {self._driver.current_url}")
-            return []
-        #caption = table.find_element(By.XPATH, ".//caption").text
-        tbody = table.find_element(By.XPATH, ".//tbody")
-        table_rows = tbody.find_elements(By.XPATH,".//tr")
-        if len(table_rows) == 0:
-            return []
-        for row in table_rows:
-            tds = list(row.find_elements(By.XPATH,".//td"))
-            date = pd.to_datetime(tds[0].text)
-            link = tds[table_size-1].find_element(By.XPATH, ".//a")
-            href = link.get_attribute("href")
-            if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
-                continue
+        # while it can find
+        for table_id in range(num_tables):
+            try:
+                table = self._driver.find_element(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")
+            except selenium.common.exceptions.NoSuchElementException:
+                logger.warning(f"No table found for {self._driver.current_url}, table_id: {table_id}")
+                return to_process
+            #caption = table.find_element(By.XPATH, ".//caption").text
+            tbody = table.find_element(By.XPATH, ".//tbody")
+            table_rows = tbody.find_elements(By.XPATH,".//tr")
+            if len(table_rows) == 0:
+                return to_process
+            for row in table_rows:
+                tds = list(row.find_elements(By.XPATH,".//td"))
+                date = pd.to_datetime(tds[0].text)
+                link = tds[table_size-1].find_element(By.XPATH, ".//a")
+                href = link.get_attribute("href")
+                if href in all_urls:
+                    logger.info(f"Href is already in db: {href}")
+                    continue
 
-            to_process.append((date, href))
+                to_process.append((date, href))
         return to_process
 
 
     
     def process_all_years(self):
+        self.process_financial_system_reports()
+        # MONETARY POLICY
         self.process_monetery_policy_outlook()
         self.process_monetery_policy_diet()
         self.process_monetery_policy_meeting()

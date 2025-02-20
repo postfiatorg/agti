@@ -163,7 +163,7 @@ class BaseBankScraper:
                     "category_name": category_name})
         
         # drop all urls in database on file_url
-        df = df[~df[["file_url", "category_name"]].isin(db_categories).all(axis=1)]
+        df = df[~df[["file_url", "category_name"]].apply(list,axis=1).isin(db_categories)]
 
 
         logger.info(f"Adding {df.shape[0]} new entries to the categories table.")
@@ -207,7 +207,7 @@ class BaseBankScraper:
                     "link_url": link_url})
             
         # drop all urls in database on file_url
-        df = df[~df[["file_url", "link_url"]].isin(db_links).all(axis=1)]
+        df = df[~df[["file_url", "link_url"]].apply(list,axis=1).isin(db_links)]
 
         logger.info(f"Adding {df.shape[0]} new entries to the links table.")
         if dbconnx is None:
