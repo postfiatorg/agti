@@ -580,7 +580,7 @@ class JapanBankScrapper(BaseBankScraper):
         # Bank of Japan Working Paper Series, Review Series, and Research Laboratory Series
         logger.info("Processing bank of japan working paper series, review series and research laboratory series")
         self._driver.get("https://www.boj.or.jp/en/research/wps_rev/index.htm")
-        to_process = self.process_href_table(all_urls, num_tables="ALL")
+        to_process = self.process_href_table(all_urls, date_col=1, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
 
@@ -594,17 +594,46 @@ class JapanBankScrapper(BaseBankScraper):
         # Monetary and Economic Studies
         logger.info("Processing monetary and economic studies")
         for year in range(1997,current_year + 1):
-            short_year = str(year % 100)
+            short_year = str(year)[-2:]
             self._driver.get(f"https://www.boj.or.jp/en/research/imes/mes/mes{short_year}.htm")
-            to_process = self.process_href_table(all_urls, num_tables="ALL")
+            to_process = []
+            tables = self._driver.find_elements(By.XPATH, "//table")
+            for table in tables:
+                table_rows = list(table.find_elements(By.XPATH,".//tr"))
+                if len(table_rows) <=1:
+                    break
+                for row in table_rows[1:]:
+                    tds = list(row.find_elements(By.XPATH,".//td"))
+                    a = tds[-1].find_element(By.XPATH, ".//a")
+                    href = a.get_attribute("href")
+                    if href in all_urls:
+                        logger.info(f"Href is already in db: {href}")
+                        continue
+                    to_process.append((None, href))
+
             self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
         # IMES Discussion Paper E-Series
         logger.info("Processing IMES discussion paper E-series")
         for year in range(1997,current_year + 1):
-            short_year = str(year % 100)
+            short_year = str(year)[-2:]
             self._driver.get(f"https://www.boj.or.jp/en/research/imes/dps/dps{short_year}.htm")
-            to_process = self.process_href_table(all_urls, num_tables="ALL")
+            to_process = []
+            tables = self._driver.find_elements(By.XPATH, "//table")
+            for table in tables:
+                table_rows = list(table.find_elements(By.XPATH,".//tr"))
+                if len(table_rows) <=1:
+                    break
+                for row in table_rows[1:]:
+                    tds = list(row.find_elements(By.XPATH,".//td"))
+                    a = tds[-1].find_element(By.XPATH, ".//a")
+                    href = a.get_attribute("href")
+                    date = pd.to_datetime(tds[-2].text.split('\n')[0].replace(",",", "))
+                    if href in all_urls:
+                        logger.info(f"Href is already in db: {href}")
+                        continue
+                    to_process.append((date, href))
+
             self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
         # Conferences
@@ -818,7 +847,6 @@ class JapanBankScrapper(BaseBankScraper):
         self.process_research_and_studies()
         self.process_international_finance()
         self.process_payment_and_settlement_systems()
-        return
         self.process_financial_system_reports()
         self.process_monetery_policy()
     
