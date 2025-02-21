@@ -18,6 +18,7 @@ class Categories(enum.Enum):
 
 
 logger = logging.getLogger(__name__)
+logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
 def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
@@ -47,9 +48,12 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     try:
         with requests.get(url, headers=headers, stream=True, timeout=10) as r:
             r.raise_for_status()
-            with open(filepath, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
+            try:
+                with open(filepath, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            except Exception as stream_error:
+                raise stream_error
         extract_kwargs = {}
         if evaluate_tolerances:
             x_tol, y_tol = evaluate_tolerances(filepath)
@@ -65,6 +69,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
 
     except Exception as e:
         logger.exception("Error downloading and reading PDF", extra={"url": url, "filepath": filepath, "tolerances": evaluate_tolerances})
+        return None
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
