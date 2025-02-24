@@ -22,6 +22,12 @@ logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
 def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
+
+    # NOTE: This is a temporary fix to disable PDF processing for quick local testing
+    if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
+        return "Processing pdf disabled"
+
+
     filename = os.path.basename(url)
     filepath = os.path.join(save_dir, filename)
     

@@ -115,7 +115,7 @@ class JapanBankScrapper(BaseBankScraper):
                 link = tds[2].find_element(By.XPATH, ".//a")
             href = link.get_attribute("href")
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
 
             to_process.append((date, href))
@@ -366,7 +366,7 @@ class JapanBankScrapper(BaseBankScraper):
             link = tds[2].find_element(By.XPATH, ".//a")
             href = link.get_attribute("href")
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
 
             to_process.append((date, href))
@@ -607,7 +607,7 @@ class JapanBankScrapper(BaseBankScraper):
                     a = tds[-1].find_element(By.XPATH, ".//a")
                     href = a.get_attribute("href")
                     if href in all_urls:
-                        logger.info(f"Href is already in db: {href}")
+                        logger.debug(f"Href is already in db: {href}")
                         continue
                     to_process.append((None, href))
 
@@ -630,7 +630,7 @@ class JapanBankScrapper(BaseBankScraper):
                     href = a.get_attribute("href")
                     date = pd.to_datetime(tds[-2].text.split('\n')[0].replace(",",", "))
                     if href in all_urls:
-                        logger.info(f"Href is already in db: {href}")
+                        logger.debug(f"Href is already in db: {href}")
                         continue
                     to_process.append((date, href))
 
@@ -834,7 +834,7 @@ class JapanBankScrapper(BaseBankScraper):
                 link = tds[link_col].find_element(By.XPATH, ".//a")
                 href = link.get_attribute("href")
                 if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
+                    logger.debug(f"Href is already in db: {href}")
                     continue
 
                 to_process.append((date, href))

@@ -50,7 +50,7 @@ class NorgesBankScrapper(BaseBankScraper):
             h3_element = article.find_element(By.TAG_NAME, "h3")
             href = h3_element.find_element(By.TAG_NAME, "a").get_attribute("href")
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
             subsites.append(href)
 

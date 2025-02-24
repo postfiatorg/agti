@@ -66,7 +66,7 @@ class ECBBankScrapper(BaseBankScraper):
                     logger.warning(f"Language is not English: {lang} for date {isodate}")
 
                 if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
+                    logger.debug(f"Href is already in db: {href}")
                     continue
 
                 to_process.append((pd_isodate, href))
