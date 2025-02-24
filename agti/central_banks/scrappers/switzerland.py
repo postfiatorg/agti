@@ -73,7 +73,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 # get a tag
                 href = a.get_attribute("href")
                 if href in all_db_urls:
-                    logger.info(f"Href is already in db: {href}")
+                    logger.debug(f"Href is already in db: {href}")
                     continue
                 to_process.append(href)
             page += 1
@@ -106,7 +106,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         for a in a_tags:
             href = a.get_attribute("href")
             if href in all_db_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
             to_process.append(href)
 
@@ -125,7 +125,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 for a in a_tags:
                     href = a.get_attribute("href")
                     if href in all_db_urls:
-                        logger.info(f"Href is already in db: {href}")
+                        logger.debug(f"Href is already in db: {href}")
                         continue
                     logger.info(f"Processing: {href}")
                     text = download_and_read_pdf(href, self.datadump_directory_path)

@@ -187,7 +187,7 @@ class EnglandBankScrapper(BaseBankScraper):
         output = []
         for tag, href, date in to_process:
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
             logger.info(f"Processing: {href}")
             if (data := self.find_text_and_pdfs(tag, href)) is not None:

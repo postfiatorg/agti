@@ -30,7 +30,7 @@ class SwedenBankScrapper(BaseBankScraper):
             date = pd.to_datetime(span.text, dayfirst=True)
             href = a.get_attribute("href")
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
             to_process.append((date, href))
         output = []
@@ -104,7 +104,7 @@ class SwedenBankScrapper(BaseBankScraper):
             a = tr.find_element(By.TAG_NAME, "a")
             href = a.get_attribute("href")
             if href in all_urls:
-                logger.info(f"Href is already in db: {href}")
+                logger.debug(f"Href is already in db: {href}")
                 continue
             to_process.append((date, href))
 

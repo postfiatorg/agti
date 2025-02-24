@@ -60,7 +60,7 @@ class CanadaBankScrapper(BaseBankScraper):
                 a_tag = article.find_element(By.XPATH,".//div[@class='media-body']/h3/a")
                 href = a_tag.get_attribute("href")
                 if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
+                    logger.debug(f"Href is already in db: {href}")
                     continue
                 to_process.append((date, href))
             page += 1

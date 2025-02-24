@@ -92,7 +92,7 @@ class FEDBankScrapper(BaseBankScraper):
                     continue
                 href = self.get_base_url() + pdf_url_path
                 if href in all_urls:
-                    logger.info(f"Href is already in db: {href}")
+                    logger.debug(f"Href is already in db: {href}")
                     continue
                 to_process.append(href)
 

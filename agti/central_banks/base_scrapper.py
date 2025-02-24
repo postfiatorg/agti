@@ -103,7 +103,7 @@ class BaseBankScraper:
             url = row["file_url"]
             date_published = row["date_published"]
             count_duplicates = df[df["file_url"] == url].shape[0]
-            logger.warning(f"Duplicate file_url found: {url} with {count_duplicates} entries",
+            logger.debug(f"Duplicate file_url found: {url} with {count_duplicates} entries",
                            extra={
                                 "date_published": date_published,
                                 "url": url,
@@ -119,7 +119,7 @@ class BaseBankScraper:
             url = row["file_url"]
             date_published = row["date_published"]
             if url in db_urls:
-                logger.warning(f"URL already in database: {url}", extra={
+                logger.debug(f"URL already in database: {url}", extra={
                     "date_published": date_published,
                     "url": url})
 
@@ -143,7 +143,7 @@ class BaseBankScraper:
         for _, row in df[duplicated].iterrows():
             url = row["file_url"]
             category_name = row["category_name"]
-            logger.warning(f"Duplicate file_url and category_name found: {url} - {category_name}",
+            logger.debug(f"Duplicate file_url and category_name found: {url} - {category_name}",
                            extra={
                                 "url": url,
                                 "category_name": category_name
@@ -159,7 +159,7 @@ class BaseBankScraper:
             url = row["file_url"]
             category_name = row["category_name"]
             if (url, category_name) in db_categories:
-                logger.warning(f"URL and category_name already in database: {url} - {category_name}", extra={
+                logger.debug(f"URL and category_name already in database: {url} - {category_name}", extra={
                     "url": url,
                     "category_name": category_name})
         
@@ -188,7 +188,7 @@ class BaseBankScraper:
         for _, row in df[duplicated].iterrows():
             url = row["file_url"]
             link_url = row["link_url"]
-            logger.warning(f"Duplicate file_url and link_url found: {url} - {link_url}",
+            logger.debug(f"Duplicate file_url and link_url found: {url} - {link_url}",
                            extra={
                                 "url": url,
                                 "link_url": link_url
@@ -204,7 +204,7 @@ class BaseBankScraper:
             url = row["file_url"]
             link_url = row["link_url"]
             if (url, link_url) in db_links:
-                logger.warning(f"URL and link_url already in database: {url} - {link_url}", extra={
+                logger.debug(f"URL and link_url already in database: {url} - {link_url}", extra={
                     "url": url,
                     "link_url": link_url})
             
