@@ -25,6 +25,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
 
     # NOTE: This is a temporary fix to disable PDF processing for quick local testing
     if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
+        time.sleep(0.1) # Simulate processing
         return "Processing pdf disabled"
 
 
