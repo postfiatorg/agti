@@ -25,7 +25,6 @@ class CanadaBankScrapper(BaseBankScraper):
 
         all_urls = self.get_all_db_urls()
         all_categories = self.get_all_db_categories()
-        """
         page = 1
         to_process = []
         while True:
@@ -95,13 +94,6 @@ class CanadaBankScrapper(BaseBankScraper):
                 to_process.append((date, file_url, article_categories))
             page += 1
 
-        import pickle
-        with open("to_process.pkl", "wb") as f:
-            pickle.dump(to_process, f)
-        """
-        import pickle
-        with open("to_process.pkl", "rb") as f:
-            to_process = pickle.load(f)
         result = []
         total_categories = []
         total_links = []
