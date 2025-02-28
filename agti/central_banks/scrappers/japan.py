@@ -708,7 +708,11 @@ class JapanBankScrapper(BaseBankScraper):
     def read_html(self, url: str):
         self._driver.get(url)
         url_parsed = urlparse(url)
-        element = self._driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app']")
+        try:
+            element = self._driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container']")
+        except selenium.common.exceptions.NoSuchElementException:
+            logger.warning(f"No content found in {url}")
+            return None, []
         text = element.text
         if len(text) == 0:
             raise ValueError("No text found in HTML file")
