@@ -88,7 +88,7 @@ class CanadaBankScrapper(BaseBankScraper):
                         if (file_url, category.value) not in all_categories
                     ]
                     if len(article_categories) > 0:
-                        self.add_to_db_categories(article_categories) 
+                        self.add_to_categories(article_categories) 
                     continue
 
                 to_process.append((date, file_url, article_categories))
