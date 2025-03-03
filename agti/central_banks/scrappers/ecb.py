@@ -72,6 +72,10 @@ const callback = arguments[0];
     def parse_html(self, url: str):
         url_parsed = urlparse(url)
         self._driver.get(url)
+        current_url_parsed = urlparse(self._driver.current_url)
+        # check if it is pdf
+        if current_url_parsed.path.endswith("pdf"):
+            return download_and_read_pdf(url, self.datadump_directory_path), []
         # select all text from dev with class section
         main = self._driver.find_element(By.XPATH, "//main")
         text = main.text
@@ -134,12 +138,6 @@ const callback = arguments[0];
             }
             if len(document_types_urls) == 0:
                 continue
-            total_categories.extend(
-                [
-                    x.value
-                    for x in categories
-                ]
-            )
             if "pdf" in document_types_urls:
                 temp_url = document_types_urls["pdf"]
                 if temp_url in all_urls:
@@ -181,6 +179,15 @@ const callback = arguments[0];
                     "scraping_time": pd.Timestamp.now(),
                     "full_extracted_text": None
                 })
+            total_categories.extend(
+                [
+                    {
+                        "file_url": temp_url,
+                        "category_name": x.value
+                    }
+                    for x in categories
+                ]
+            )
 
         self.add_all_atomic(result, total_categories, total_links)
 

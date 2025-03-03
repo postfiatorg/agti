@@ -835,7 +835,11 @@ class JapanBankScrapper(BaseBankScraper):
                 # get pos of ',' and replace it with ', '
                 date_text = date_text.replace(",", ", ")
                 date = pd.to_datetime(date_text, format=date_format)
-                link = tds[link_col].find_element(By.XPATH, ".//a")
+                try:
+                    link = tds[link_col].find_element(By.XPATH, ".//a")
+                except selenium.common.exceptions.NoSuchElementException:
+                    logger.warning(f"No link found in url: {self._driver.current_url} and row {row.text}", extra={"url": self._driver.current_url})
+                    continue
                 href = link.get_attribute("href")
                 if href in all_urls:
                     logger.debug(f"Href is already in db: {href}")

@@ -4,6 +4,7 @@ from urllib.parse import urlparse
 import pandas as pd
 import logging
 import copy
+import selenium
 from selenium.webdriver.common.by import By
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
@@ -67,14 +68,13 @@ class EnglandBankScrapper(BaseBankScraper):
                     label.click()
                     filters_list.remove(name)
                     return True
-            return False
+            raise ValueError(f"Any topics from {topics} not found in {[x.text for x in filter_labels]}")
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
 
         type_filters_to_check = set(["Research blog", "Event", "News", "Publication", "Speech", "Statistics"])
         xpath = "//div[@class='sidebar-filters type-filters']"
         while len(type_filters_to_check) > 0:
-            if not iterate_over_labels(xpath, type_filters_to_check):
-                raise Exception(f"Filter {type_filters_to_check} not checked")
+            iterate_over_labels(xpath, type_filters_to_check)
             
         topics = set([topic])
         xpath = "//div[@class='sidebar-filters taxonomy-filters']"
@@ -82,8 +82,7 @@ class EnglandBankScrapper(BaseBankScraper):
             lambda driver: driver.find_element(By.ID, "SearchResults").get_dom_attribute("style") in (None, "")
         )
         while len(topics) > 0:
-            if not iterate_over_labels(xpath, topics):
-                raise Exception(f"Filter {topics} not checked")
+            iterate_over_labels(xpath, topics)
 
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
         wait.until(
