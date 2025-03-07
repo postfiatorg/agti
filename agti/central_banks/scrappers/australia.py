@@ -638,7 +638,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         # Publications
         ## statement on MP
-        """
+        
         logger.info("Processing Statement on Monetary Policy")
         main_url = "https://www.rba.gov.au/publications/smp/{}/"
         current_year = pd.Timestamp.now().year
@@ -791,6 +791,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 to_process.append((date_txt, url))
             result = []
             total_links = []
+            total_categories = []
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 extracted_text, links_output = self.parse_html(url)
@@ -802,7 +803,11 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "full_extracted_text": extracted_text,
                 })
-            self.add_all_atomic(result, [], total_links)
+                total_categories.append({
+                    "file_url": url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                })
+            self.add_all_atomic(result, total_categories, total_links)
         
             
         # 1985 -> 2009
@@ -825,6 +830,7 @@ class AustraliaBankScrapper(BaseBankScraper):
 
             result = []
             total_links = []
+            total_categories = []
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 extracted_text, links_output = self.parse_html(url)
@@ -836,7 +842,11 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "full_extracted_text": extracted_text,
                 })
-            self.add_all_atomic(result, [], total_links)
+                total_categories.append({
+                    "file_url": url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                })
+            self.add_all_atomic(result, total_categories, total_links)
         
         # Reserach
         ## Research Discussion Papers
@@ -962,6 +972,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 
         result = []
         total_links = []
+        total_categories = []
         for date, url in to_process:
             logger.info(f"Processing: {url}")
             url_parsed = urlparse(url)
@@ -990,7 +1001,11 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "file_url": url,
                 "full_extracted_text": extracted_text,
             })
-        self.add_all_atomic(result, [], total_links)
+            total_categories.append({
+                "file_url": url,
+                "category_name": Categories.RESEARCH_AND_DATA.value
+            })
+        self.add_all_atomic(result, total_categories, total_links)
         
         ## Workshops
         worskshop_url = "https://www.rba.gov.au/publications/workshops/research/{}/"
@@ -1044,6 +1059,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         current_year = pd.Timestamp.now().year
         result = []
         total_links = []
+        total_categories = []
         for year in range(1960, current_year + 1):
             date_txt = f"{year}"
             url = rba_ar_url.format(year)
@@ -1090,6 +1106,10 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "full_extracted_text": extracted_text,
                 })
+                total_categories.append({
+                    "file_url": url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                })
                 for a_url, a_text in links_to_process:
                     a_url_parsed = urlparse(a_url)
                     if a_url_parsed.path.endswith("pdf"):
@@ -1103,15 +1123,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                         "link_name": a_text,
                         "full_extracted_text": link_extracted_text,
                     })
-        self.add_all_atomic(result, [], total_links)
+        self.add_all_atomic(result, total_categories, total_links)
 
 
 
-        """
+        
         ## PSB Annual Report
         psb_ar_url = "https://www.rba.gov.au/publications/annual-reports/psb/{}/"
         current_year = pd.Timestamp.now().year
         result = []
+        total_categories = []
         for year in range(1999,current_year + 1):
             self._driver.get(psb_ar_url.format(year))
             a_tags = self._driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report']")
@@ -1138,7 +1159,15 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "file_url": url,
                 "full_extracted_text": extracted_text,
             })
-        self.add_to_db(result)
+            total_categories.append({
+                "file_url": url,
+                "category_name": Categories.RESEARCH_AND_DATA.value
+            })
+            total_categories.append({
+                "file_url": url,
+                "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value
+            })
+        self.add_all_atomic(result, total_categories, [])
             
 
     
