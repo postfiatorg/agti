@@ -132,7 +132,7 @@ class EnglandBankScrapper(BaseBankScraper):
         self._driver.get(self.get_base_url())
         self.cookie_click()
         all_urls = self.get_all_db_urls()
-        all_categories = db_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         topics = [
             "Quarterly Bulletin",
             "News release",
