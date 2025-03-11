@@ -943,8 +943,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     if len(links) == 0:
                         continue
                     current_url = links[0].get_attribute("href")
-                if url in all_urls:
-                    logger.debug(f"Href is already in db: {url}")
+                if current_url in all_urls:
+                    logger.debug(f"Href is already in db: {current_url}")
                     return
                 to_process.append((date, current_url))
 

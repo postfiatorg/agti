@@ -68,7 +68,8 @@ class EnglandBankScrapper(BaseBankScraper):
                     label.click()
                     filters_list.remove(name)
                     return True
-            raise ValueError(f"Any topics from {topics} not found in {[x.text for x in filter_labels]}")
+            logger.warning(f"Could not find any of {filters_list} in {[x.text for x in filter_labels]}")
+            return False
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
 
         type_filters_to_check = set(["Research blog", "Event", "News", "Publication", "Speech", "Statistics"])
@@ -81,8 +82,12 @@ class EnglandBankScrapper(BaseBankScraper):
         wait.until(
             lambda driver: driver.find_element(By.ID, "SearchResults").get_dom_attribute("style") in (None, "")
         )
-        while len(topics) > 0:
-            iterate_over_labels(xpath, topics)
+        max_repeats = 3
+        while len(topics) > 0 and max_repeats > 0:
+            if not iterate_over_labels(xpath, topics):
+                max_repeats -= 1
+        if max_repeats == 0:
+            raise ValueError(f"Could not apply filters for topic: {topic}")
 
         wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
         wait.until(
