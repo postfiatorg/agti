@@ -579,8 +579,87 @@ class FEDBankScrapper(BaseBankScraper):
         self.add_all_atomic(result, total_categories, total_links)
 
 
+    def process_supervision_and_regulation(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+
+        self._driver.get("https://www.federalreserve.gov/publications/supervision-and-regulation-report.htm")
+        xpath = "//div[@id='article']/div/*"
+        elements = self._driver.find_elements(By.XPATH, xpath)[2:]
+        # assert that the first is h4 tag
+        assert elements[0].tag_name == "h4"
+        year = int(elements[0].text)
+        to_process = []
+        links_to_process = {}
+        for element in elements:
+            if element.tag_name == "h4":
+                year = int(element.text)
+                continue
+            if element.tag_name == "p":
+                month = element.text.split(":")[0].strip()
+                lines = element.text.split('\n')
+                count_hlines = lines[1].count('|')
+                links_count = count_hlines + 1
+                name1 = lines[1].split(':')[0].strip()
+                a_tags = [(a.text,a.get_attribute("href")) for a in element.find_elements(By.XPATH, ".//a")]
+                parsed_links = {
+                    name1: dict(a_tags[:links_count]),
+                }
+                if len(lines) > 2:
+                    name2 = lines[2].split(':')[0].strip()
+                    parsed_links[name2] = dict(a_tags[links_count:])
+                url = parsed_links.get("Testimony", parsed_links.get("Report"))["HTML"]
+                if url in all_urls:
+                    logger.debug(f"Url is already in db: {url}")
+                    total_categories = [
+                        {"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}
+                    ]
+                    if (url, Categories.FINANCIAL_STABILITY_AND_REGULATION.value) not in all_categories:
+                        self.add_to_categories(total_categories)
+                    continue
+                date_txt = f"{month} {year}"
+                to_process.append((url, date_txt))
+                links_to_process[url] = []
+                for cat, d in parsed_links.items():
+                    links_to_process[url].extend(
+                        [
+                            (f"{cat}_{name}", link)
+                            for name, link in d.items()
+                        ]
+                    )
+        
+        result = []
+        total_categories = []
+        total_links = []
+        for url, date_txt in to_process:
+            logger.info(f"Processing: {url}")
+            text, links = self.read_html(url)
+            total_links.extend(links)
+            if url in links_to_process:
+                for (link_name, link_url) in links_to_process[url]:
+                    link_text = None
+                    if link_url.endswith(".pdf"):
+                        link_text = download_and_read_pdf(link_url, self.datadump_directory_path)
+                    total_links.append({
+                        "file_url": url,
+                        "link_url": link_url,
+                        "link_name": link_name,
+                        "full_extracted_text": link_text
+                    })
+            total_categories.append({"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
+            result.append({
+                "file_url": url,
+                "date_published_str": date_txt,
+                "date_published": None,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+        self.add_all_atomic(result, total_categories, total_links)
+
+
     def process_financial_stability(self):
-        pass
+        self._driver.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
+
 
 
 
@@ -671,4 +750,5 @@ class FEDBankScrapper(BaseBankScraper):
     def process_all_years(self):
         #self.process_FOMC()
         #self.process_news_events()
-        self.process_monetary_policy()
+        #self.process_monetary_policy()
+        self.process_supervision_and_regulation()
