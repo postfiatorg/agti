@@ -130,7 +130,7 @@ const callback = arguments[0];
             publication_name = d["type"]["publication_name"]
             taxonomy_list = d["Taxonomy"]
             taxonnomies = taxonomy_list.split("|") if taxonomy_list is not None else []
-            timestamp = pd.to_datetime(d["pub_timestamp"])
+            timestamp = pd.to_datetime(d["pub_timestamp"], unit='s')
             categories = self.get_categories(taxonnomies, publication_name)
             document_types_urls = {
                 os.path.splitext(urlparse(self.get_base_url() + url["id"]).path)[1][1:]: self.get_base_url() + url["id"]
