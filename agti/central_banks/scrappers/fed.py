@@ -1,10 +1,12 @@
 
+import io
 import re
 from urllib.parse import urljoin, urlparse
 import pandas as pd
 import logging
 import requests
 import re
+import selenium
 from selenium.webdriver.common.by import By
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
@@ -624,7 +626,7 @@ class FEDBankScrapper(BaseBankScraper):
                     links_to_process[url].extend(
                         [
                             (f"{cat}_{name}", link)
-                            for name, link in d.items()
+                            for name, link in d.items() if link != url
                         ]
                     )
         
@@ -658,7 +660,417 @@ class FEDBankScrapper(BaseBankScraper):
 
 
     def process_financial_stability(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         self._driver.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
+        xpath = "//div[@id='article']/div/*"
+        elements = self._driver.find_elements(By.XPATH, xpath)[3:]
+        # assert that the first is h4 tag
+        assert elements[0].tag_name == "h4"
+        year = int(elements[0].text)
+        to_process = []
+        links_to_process = {}
+        for element in elements:
+            if element.tag_name == "h4":
+                year = int(element.text)
+                continue
+            if element.tag_name == "p":
+                month = element.text.split(":")[0].strip()
+                a_tags = dict([(a.text,a.get_attribute("href")) for a in element.find_elements(By.XPATH, ".//a")])
+                url = a_tags["HTML"]
+                if url in all_urls:
+                    logger.debug(f"Url is already in db: {url}")
+                    total_categories = [
+                        {"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}
+                    ]
+                    if (url, Categories.FINANCIAL_STABILITY_AND_REGULATION.value) not in all_categories:
+                        self.add_to_categories(total_categories)
+                    continue
+                date_txt = f"{month} {year}"
+                to_process.append((url, date_txt))
+                links_to_process[url] = [
+                    (a_name, a_link)
+                    for a_name, a_link in a_tags.items() if a_link != url
+                ]
+        
+        result = []
+        total_categories = []
+        total_links = []
+        for url, date_txt in to_process:
+            logger.info(f"Processing: {url}")
+            text, links = self.read_html(url)
+            total_links.extend(links)
+            if url in links_to_process:
+                for (link_name, link_url) in links_to_process[url]:
+                    link_text = None
+                    if link_url.endswith(".pdf"):
+                        link_text = download_and_read_pdf(link_url, self.datadump_directory_path)
+                    total_links.append({
+                        "file_url": url,
+                        "link_url": link_url,
+                        "link_name": link_name,
+                        "full_extracted_text": link_text
+                    })
+            total_categories.append({"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
+            result.append({
+                "file_url": url,
+                "date_published_str": date_txt,
+                "date_published": None,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+        self.add_all_atomic(result, total_categories, total_links)
+
+
+    def process_payments_system(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+
+        # Federal Reserve Payments Study (FRPS)
+        self._driver.get("https://www.federalreserve.gov/paymentsystems/frps_previous.htm")
+        xpath = "//div[@id='article']/*"
+        elements = self._driver.find_elements(By.XPATH, xpath)[2:]
+
+
+        to_process = []
+        links_to_process = {}
+        date_txt = None
+        for element in elements:
+            if element.tag_name == "p" and "Released" in element.text:
+                date_txt = element.text.split("Released ")[1]
+                continue
+            elif element.tag_name == "ul":
+                a_tags = sorted([ (a.text, a.get_attribute("href")) for a in element.find_elements(By.XPATH, ".//a")], key=lambda x: x[0])
+                url = None
+                for (name, href) in a_tags:
+                    if name == "HTML":
+                        url = href
+                        break
+                    if name == "PDF":
+                        url = href
+                if url is None:
+                    raise ValueError("No HTML link found")
+                if url in all_urls:
+                    logger.debug(f"Url is already in db: {url}")
+                    total_categories = [
+                        {"file_url": url, "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value}
+                    ]
+                    if (url, Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value) not in all_categories:
+                        self.add_to_categories(total_categories)
+                    continue
+
+                to_process.append((url, date_txt))
+                links_to_process[url] = [
+                    (name, href)
+                    for name, href in a_tags if href != url
+                ]
+
+        result = []
+        total_categories = []
+        total_links = []
+        for url, date_txt in to_process:
+            logger.info(f"Processing: {url}")
+            if url.endswith(".pdf"):
+                text = download_and_read_pdf(url, self.datadump_directory_path)
+                links = []
+            else:
+                text, links = self.read_html(url)
+            total_links.extend(links)
+            if url in links_to_process:
+                for (link_name, link_url) in links_to_process[url]:
+                    link_text = None
+                    if link_url.endswith(".pdf"):
+                        link_text = download_and_read_pdf(link_url, self.datadump_directory_path)
+                    total_links.append({
+                        "file_url": url,
+                        "link_url": link_url,
+                        "link_name": link_name,
+                        "full_extracted_text": link_text
+                    })
+            total_categories.append({"file_url": url, "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value})
+            result.append({
+                "file_url": url,
+                "date_published_str": date_txt,
+                "date_published": None,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+        self.add_all_atomic(result, total_categories, total_links)
+
+
+    def process_economic_reserach(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+
+        # Finance and Economics Discussion Series (FEDS)
+        # https://www.federalreserve.gov/econres/feds/index.htm
+        main_url = "https://www.federalreserve.gov/econres/feds/{}.htm"
+        current_year = pd.Timestamp.now().year
+        xpath = "//div[@id='article']/div"
+        cat = [
+            Categories.RESEARCH_AND_DATA.value
+        ]
+        for year in range(1996, current_year + 1):
+            to_process = []
+            self._driver.get(main_url.format(year))
+            papers = self._driver.find_elements(By.XPATH, xpath)[1:]
+            for paper in papers:
+                tag_times = paper.find_elements(By.XPATH, ".//time")
+                if len(tag_times) == 0:
+                    continue
+                date_txt = pd.to_datetime(tag_times[0].get_attribute("datetime"))
+                href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_categories = [
+                        {
+                            "file_url": href,
+                            "category_name": category
+                        } for category in cat if (href, category) not in all_categories
+                    ]
+                    if len(total_categories) > 0:
+                        self.add_to_categories(total_categories)
+                    continue
+                to_process.append((href, date_txt))
+            result = []
+            total_links = []
+            for url, date_txt in to_process:
+                logger.info(f"Processing: {url}")
+                text, links = self.read_html(url)
+                total_links.extend(links)
+                
+                total_categories = [
+                    {
+                        "file_url": url,
+                        "category_name": category
+                    } for category in cat
+                ]
+                
+                result.append({
+                    "file_url": url,
+                    "date_published_str": date_txt,
+                    "date_published": None,
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": text,
+                })
+            self.add_all_atomic(result, total_categories, total_links)
+
+
+        # FEDS Notes
+        # https://www.federalreserve.gov/econres/notes/feds-notes/default.htm
+        main_url = "https://www.federalreserve.gov/econres/notes/feds-notes/{}-index.htm"
+        current_year = pd.Timestamp.now().year
+        xpath = "//div[@id='article']/div"
+        cat = [
+            Categories.RESEARCH_AND_DATA.value
+        ]
+        for year in range(2013, current_year + 1):
+            to_process = []
+            self._driver.get(main_url.format(year))
+            papers = self._driver.find_elements(By.XPATH, xpath)[1:]
+            for paper in papers:
+                tag_times = paper.find_elements(By.XPATH, ".//time")
+                if len(tag_times) == 0:
+                    continue
+                date = pd.to_datetime(tag_times[0].get_attribute("datetime"))
+                href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_categories = [
+                        {
+                            "file_url": href,
+                            "category_name": category
+                        } for category in cat if (href, category) not in all_categories
+                    ]
+                    if len(total_categories) > 0:
+                        self.add_to_categories(total_categories)
+                    continue
+                to_process.append((href, date))
+            result = []
+            total_links = []
+            for url, date in to_process:
+                logger.info(f"Processing: {url}")
+                text, links = self.read_html(url)
+                total_links.extend(links)
+                
+                total_categories = [
+                    {
+                        "file_url": url,
+                        "category_name": category
+                    } for category in cat
+                ]
+                result.append({
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": text,
+                })
+            self.add_all_atomic(result, total_categories, total_links)
+
+        
+        #International Finance Discussion Papers (IFDP)
+        # https://www.federalreserve.gov/econres/ifdp/index.htm
+        main_url = "https://www.federalreserve.gov/econres/ifdp/{}.htm"
+        current_year = pd.Timestamp.now().year
+        xpath = "//div[@id='article']/div"
+        cat = [
+            Categories.RESEARCH_AND_DATA.value
+        ]
+        for year in range(1971, current_year + 1):
+            to_process = []
+            self._driver.get(main_url.format(year))
+            papers = self._driver.find_elements(By.XPATH, xpath)[1:]
+            for paper in papers:
+                tag_times = paper.find_elements(By.XPATH, ".//time")
+                if len(tag_times) == 0:
+                    continue
+                date = pd.to_datetime(tag_times[0].get_attribute("datetime"))
+                href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_categories = [
+                        {
+                            "file_url": href,
+                            "category_name": category
+                        } for category in cat if (href, category) not in all_categories
+                    ]
+                    if len(total_categories) > 0:
+                        self.add_to_categories(total_categories)
+                    continue
+                to_process.append((href, date))
+            result = []
+            total_links = []
+            for url, date in to_process:
+                logger.info(f"Processing: {url}")
+                text, links = self.read_html(url)
+                total_links.extend(links)
+                
+                total_categories = [
+                    {
+                        "file_url": url,
+                        "category_name": category
+                    } for category in cat
+                ]
+                result.append({
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": text,
+                })
+            self.add_all_atomic(result, total_categories, total_links)
+
+
+
+
+    def process_consumers_and_communities(self):
+        # Consumer Affairs Letters
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+        
+        main_url = "https://www.federalreserve.gov/supervisionreg/caletters/{}.htm"
+        current_year = pd.Timestamp.now().year
+        xpath = "//div[@id='article']/div[@class='row']"
+        for year in range(1997, current_year + 1):
+            to_process = []
+            self._driver.get(main_url.format(year))
+            cas = self._driver.find_elements(By.XPATH, xpath)
+            for ca in cas[1:]:
+                try:
+                    a_tag = ca.find_element(By.XPATH, ".//a")
+                except selenium.common.exceptions.NoSuchElementException:
+                    logger.warning(f"This ca has no link for {year}")
+                    continue
+
+                href = a_tag.get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    if (href, Categories.FINANCIAL_STABILITY_AND_REGULATION.value) not in all_categories:
+                        self.add_to_categories([
+                        {"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}
+                    ])
+                    continue
+                to_process.append(href)
+            result = []
+            total_links = []
+            total_categories = []
+            for href in to_process:
+                logger.info(f"Processing: {href}")
+                # get date
+                self._driver.get(href)
+                # try p with class "date"
+                
+                if len(p_dates := self._driver.find_elements(By.XPATH, "//p[@class='date']")) == 1:
+                    date_txt = p_dates[0].text
+                elif len(div_dates := self._driver.find_elements(By.XPATH, "//div[@class='date_text']")) == 1:
+                    date_txt = div_dates[0].text
+                elif '--' in self._driver.title:
+                    date_txt = self._driver.title.split('--')[1].strip()
+                elif len(p_center := self._driver.find_elements(By.XPATH, "//p[@align='center']")) == 1:
+                    date_txt = p_center[0].text
+                elif len(div_col := self._driver.find_elements(By.XPATH, "//div[@id='article']/div/div[@class='col-xs-12 col-sm-4']/strong")) >= 2:
+                    date_txt = div_col[1].text
+                else:
+                    raise ValueError("No date found")
+                if '\n' in date_txt:
+                    date_txt = date_txt.split('\n')[0]
+                date = pd.to_datetime(date_txt)
+
+                text, links = self.read_html(href, load_page=False)
+                total_links.extend(links)
+                total_categories.append({"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
+                result.append({
+                    "file_url": href,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": text,
+                })
+            self.add_all_atomic(result, total_categories, total_links)
+        
+        # Enforcement Actions & Legal Developments
+        # download csv to pandas Dataframe from "https://www.federalreserve.gov/supervisionreg/files/enforcementactions.csv"
+        csv_url = "https://www.federalreserve.gov/supervisionreg/files/enforcementactions.csv"
+        ret = requests.get(csv_url)
+        if ret.status_code != 200:
+            raise ValueError(f"Error downloading csv from {csv_url}")
+        df = pd.read_csv(io.StringIO(ret.text))
+        df["Effective Date"] = pd.to_datetime(df["Effective Date"])
+        # drop NaN urls
+        df = df.dropna(subset=["URL"])
+        result = []
+        total_links = []
+        total_categories = []
+        for idx, row in df.iterrows():
+            href = urljoin("https://www.federalreserve.gov", row["URL"])
+            if href in all_urls:
+                logger.debug(f"Url is already in db: {href}")
+                if (href, Categories.FINANCIAL_STABILITY_AND_REGULATION.value) not in all_categories:
+                    self.add_to_categories([
+                    {"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}
+                ])
+                continue
+            logger.info(f"Processing: {href}")
+            if href.endswith(".pdf"):
+                text = download_and_read_pdf(href, self.datadump_directory_path)
+                links = []
+            else:
+                text, links = self.read_html(href)
+            total_links.extend(links)
+            total_categories.append({"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
+            result.append({
+                "file_url": href,
+                "date_published": row["Effective Date"],
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+        self.add_all_atomic(result, total_categories, total_links)
+
+        
+            
+
+
+
+
+
 
 
 
@@ -708,8 +1120,9 @@ class FEDBankScrapper(BaseBankScraper):
                         return x_tol, y_tol
         raise ValueError("No correct tolerances found")
     
-    def read_html(self, url: str):
-        self._driver.get(url)
+    def read_html(self, url: str, load_page=True):
+        if load_page:
+            self._driver.get(url)
         url_parsed = urlparse(url)
         
         elements = self._driver.find_elements(By.XPATH, "//*[@id='content']")
@@ -748,7 +1161,11 @@ class FEDBankScrapper(BaseBankScraper):
         return text, links_output
     
     def process_all_years(self):
-        #self.process_FOMC()
-        #self.process_news_events()
-        #self.process_monetary_policy()
+        self.process_FOMC()
+        self.process_news_events()
+        self.process_monetary_policy()
         self.process_supervision_and_regulation()
+        self.process_financial_stability()
+        self.process_payments_system()
+        self.process_economic_reserach()
+        self.process_consumers_and_communities()
