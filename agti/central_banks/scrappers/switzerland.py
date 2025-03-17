@@ -1,3 +1,4 @@
+import re
 import pandas as pd
 import logging
 from selenium.webdriver.common.by import By
@@ -8,7 +9,7 @@ from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import download_and_read_pdf
+from ..utils import Categories, download_and_read_pdf
 
 logger = logging.getLogger(__name__)
 __all__ = ["SwitzerlandBankScrapper"]
@@ -36,21 +37,11 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 download_button = self._driver.find_element(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
             except:
                 logger.error("No German or French download button found", extra={"url": url})
-                return {
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_url": url,
-                    "full_extracted_text": "",
-                }
+                date, None
 
         pdf_href = download_button.get_attribute("href")
         text = download_and_read_pdf(pdf_href,self.datadump_directory_path)
-        return {
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "file_url": url,
-                "full_extracted_text": text,
-            }
+        return date, text
     
 
     def process_teasor_list(self, func_target_url):
@@ -148,12 +139,78 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         self.add_to_db(output)
 
 
+    def process_monetary_policy_decisions(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+
+        self._driver.get("https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/decisions")
+        x_path_path = "//div[@class='container']//div[starts-with(@id, 'collapse')]"
+        xpath = f"{x_path_path}//a[@class='m-mixed-list-item h-typo-body'] | {x_path_path}//div[@class='m-mixed-list-list__subtitle']"
+        tags = self._driver.find_elements(By.XPATH, xpath)
+        to_process = []
+        links_to_process = {}
+        current_url = None
+        for tag in tags:
+            if tag.tag_name == "div":
+                current_url = None
+            elif tag.tag_name == "a":
+                span = tag.find_element(By.XPATH, ".//span")
+                if current_url is None:
+                    current_url = tag.get_attribute("href")
+                    if current_url in all_urls:
+                        logger.debug(f"URL already in db: {current_url}")
+                        if (current_url, Categories.MONETARY_POLICY.value) not in all_categories:
+                            self.add_to_categories([{
+                                "file_url": current_url,
+                                "category_name": Categories.MONETARY_POLICY.value,
+                            }])
+                        continue
+                    links_to_process[current_url] = []
+                    to_process.append(current_url)
+                else:
+                    # other are links
+                    link_url = tag.get_attribute("href")
+                    link_name = span.get_attribute("innerText").strip()
+                    links_to_process[current_url].append((link_url, link_name))
+            else:
+                raise ValueError("Unknown tag")
+            
+        result = []
+        total_categories = []
+        total_links = []
+        for url in to_process:
+            logger.info(f"Processing: {url}")
+            date, text = self.find_and_download_pdf(url)
+            result.append({
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_url": url,
+                "full_extracted_text": text,
+            })
+            for link_url, link_name in links_to_process[url]:
+                _, text = self.find_and_download_pdf(link_url)
+                total_links.append({
+                    "file_url": url,
+                    "link_url": link_url,
+                    "link_name": link_name,
+                    "full_extracted_text": text,
+                })
+            total_categories.append({
+                "file_url": url,
+                "category_name": Categories.MONETARY_POLICY.value,
+            })
+        self.add_all_atomic(result, total_categories, total_links)
+
+
+
+
         
 
     def process_all_years(self):
         # based on https://www.snb.ch/en/news-publications and
         # https://www.snb.ch/en/news-publications/order-publications
-        
+        self.process_monetary_policy_decisions()
+        return
         logger.info("Processing Annual Report")
         self.process_annual_report()
 
