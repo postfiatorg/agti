@@ -225,6 +225,58 @@ class SwedenBankScrapper(BaseBankScraper):
             )
         self.add_all_atomic(result, total_categories, total_links)
 
+        # Account MP
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/account-of-monetary-policy/?&page={}"
+        ul_xpath = "//div[@class='listing-block__body']//ul"
+        to_process = []
+        page = 1
+        while True:
+            self._driver.get(main_url.format(page))
+            ul = self._driver.find_element(By.XPATH, ul_xpath)
+            a_tags = ul.find_elements(By.XPATH,"./li/a")
+            if len(a_tags) == 0:
+                break
+            for a_tag in a_tags:
+                date_txt = a_tag.find_element(By.XPATH,"./span[@class='label']").text
+                date = pd.to_datetime(date_txt, dayfirst=True)
+                href = a_tag.get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_missing_cat = [
+                        {
+                            "file_url": href,
+                            "category_name": category.value,
+                        } for category in [Categories.MONETARY_POLICY] if (href, category.value) not in all_categories
+                    ]
+                    if len(total_missing_cat) > 0:
+                        self.add_to_categories(total_missing_cat)
+                    continue
+                to_process.append((date, href))
+            page += 1
+
+        result = []
+        total_categories = []
+        total_links = []
+        for (date, href) in to_process:
+            text = None
+            if href.endswith(".pdf"):
+                text = download_and_read_pdf(href, self.datadump_directory_path)
+            
+            result.append({
+                "file_url": href,
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+            
+            total_categories.append(
+                {
+                    "file_url": href,
+                    "category_name": Categories.MONETARY_POLICY.value
+                }
+            )
+        self.add_all_atomic(result, total_categories, total_links)
+
         
 
             
