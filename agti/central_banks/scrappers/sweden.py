@@ -1,9 +1,11 @@
+from collections import defaultdict
 import logging
 import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import download_and_read_pdf
+from ..utils import Categories, download_and_read_pdf
+from selenium.common.exceptions import NoSuchElementException
 
 logger = logging.getLogger(__name__)
 __all__ = ["SwedenBankScrapper"]
@@ -13,121 +15,242 @@ class SwedenBankScrapper(BaseBankScraper):
     COUNTRY_NAME = "Sweden"
 
 
-    def process_year(self, year: int):
 
+    def process_monetary_policy(self):
         all_urls = self.get_all_db_urls()
-
-        self._driver.get(self.get_base_url_for_year(year))
-        # get using xpath div with class="listing-block__body"
-        div = self._driver.find_element(By.XPATH, "//div[@class='listing-block__body']")
-        # get all a tags
-        a_tags = div.find_elements(By.TAG_NAME, "a")
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+        
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-monetary-policy/?&page={}"
+        ul_xpath = "//div[@class='listing-block__body']//ul"
         to_process = []
-
-        for a in a_tags:
-            # get span with class="label"
-            span = a.find_element(By.TAG_NAME, 'span')# we take the first span
-            date = pd.to_datetime(span.text, dayfirst=True)
-            href = a.get_attribute("href")
-            if href in all_urls:
-                logger.debug(f"Href is already in db: {href}")
-                continue
-            to_process.append((date, href))
-        output = []
-        for date, href in to_process:
-            logger.info(f"Processing: {href}")
-            self._driver.get(href)
-            pdf_href = None
-            # find all a tags with class="button button--iconed"
-            a_tags = self._driver.find_elements(By.XPATH, "//a[@class='button button--iconed']")
+        page = 1
+        while True:
+            self._driver.get(main_url.format(page))
+            ul = self._driver.find_element(By.XPATH, ul_xpath)
+            a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
-                # find h2 with text "Documents"
-                h2 = self._driver.find_element(By.XPATH, "//h2[normalize-space(text())='Documents']")
-                # get grandparent div
-                div = h2.find_element(By.XPATH, "//ancestor::div[@class='linklist-block']")
-                
-                # find all a tags
-                a_tags = div.find_elements(By.TAG_NAME, "a")
-                # filter wil text "Monetary Policy Report"
-                a_tags = [a for a in a_tags if "Monetary Policy Report".lower() in a.text.lower()]
-            for a in a_tags:
-                temp_href = a.get_attribute("href")
-                if temp_href.endswith(".pdf"):
-                    pdf_href = temp_href
-                    break
-            output.append({
+                break
+            for a_tag in a_tags:
+                date_categories_txt = a_tag.find_element(By.XPATH,"./span[@class='date-and-category']").text.split(" ",1)
+                date = pd.to_datetime(date_categories_txt[0], dayfirst=True)
+                categories = text_to_categories(date_categories_txt[1].split(", "))
+                categories.add(Categories.MONETARY_POLICY)
+                href = a_tag.get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_missing_cat = [
+                        {
+                            "file_url": href,
+                            "category_name": category.value,
+                        } for category in categories if (href, category.value) not in all_categories
+                    ]
+                    if len(total_missing_cat) > 0:
+                        self.add_to_categories(total_missing_cat)
+                    continue
+                to_process.append((date, href, categories))
+            
+            page += 1
+
+        result = []
+        total_categories = []
+        total_links = []
+        for date, href, categories in to_process:
+            self._driver.get(href)
+            articles = self._driver.find_elements(By.XPATH, "//article")
+            if len(articles) > 1:
+                raise Exception("More than one article found")
+            article = articles[0]
+            text = article.text
+
+            links = article.find_elements(By.XPATH, ".//a")
+            
+            for link in links:
+                link_href = link.get_attribute("href")
+                link_text = None
+                if link_href.endswith(".pdf"):
+                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                total_links.append({
+                    "file_url": href,
+                    "link_url": link_href,
+                    "link_name": link.text,
+                    "full_extracted_text": link_text,
+                })
+
+
+            total_categories.extend(
+                [
+                    {
+                        "file_url": href,
+                        "category_name": category.value,
+                    } for category in categories
+                ]
+            )
+            result.append({
+                "file_url": href,
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
-                "file_url": href,
-                "full_extracted_text": download_and_read_pdf(pdf_href, self.datadump_directory_path) if pdf_href else None,
+                "full_extracted_text": text,
             })
+        self.add_all_atomic(result, total_categories, total_links)
 
+        
+        # process archive reports
+        main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
+        self._driver.get(main_url)
+        trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
+        to_process = defaultdict(list)
+        omit_dates = []
+        for tr in trs:
+            tds = tr.find_elements(By.XPATH, "./td")
+            date = pd.to_datetime(tds[0].text, dayfirst=True)
+            a_tag = tds[1].find_element(By.XPATH, ".//a")
+            href = a_tag.get_attribute("href")
+            href_text = a_tag.text
+            if href in all_urls:
+                logger.debug(f"Url is already in db: {href}")
+                categories = [Categories.MONETARY_POLICY]
+                total_missing_cat = [
+                    {
+                        "file_url": href,
+                        "category_name": category.value,
+                    } for category in categories if (href, category.value) not in all_categories
+                ]
+                if len(total_missing_cat) > 0:
+                    self.add_to_categories(total_missing_cat)
+                omit_dates.append(date)
+                continue
 
-        self.add_to_db(output)
+            to_process[date].append((href, href_text))
+
+        for date in omit_dates:
+            if date in to_process:
+                del to_process[date]
+
+        result = []
+        total_categories = []
+        total_links = []
+        # we need to group by date, same date == same release
+        for date, values in to_process.items():
+            def my_filter(value):
+                return "slides" not in value[1].lower() and value[0].endswith(".pdf")
+            main_reports = list(filter(my_filter, values))
+            if len(main_reports) == 0:
+                main_reports = list(filter(lambda x: x[0].endswith(".pdf"), values))
+            main_report = main_reports[0]
+
+            links = list(filter(lambda x: x[0] != main_report[0], values))
+            text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+            result.append({
+                "file_url": main_report[0],
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+            total_categories.append(
+                {
+                    "file_url": main_report[0],
+                    "category_name": Categories.MONETARY_POLICY.value
+                }
+            )
+            for (link_href, link_tag_text) in links:
+                link_text = None
+                if link_href.endswith(".pdf"):
+                    link_text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+                total_links.append({
+                    "file_url": main_report[0],
+                    "link_url": link_href,
+                    "link_name": link_tag_text,
+                    "full_extracted_text": link_text,
+                })
+
+        self.add_all_atomic(result, total_categories, total_links)
+            
+
+        
+        # process minutes
+        main_url = "https://archive.riksbank.se/en/Web-archive/Published/Minutes-of-the-Executive-Boards-monetary-policy-meetings/index.html@all=1.html"
+        self._driver.get(main_url)
+        trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
+        to_process = []
+
+        for tr in trs:
+            tds = tr.find_elements(By.XPATH, "./td")
+            date = pd.to_datetime(tds[0].text, dayfirst=True)
+            a_tag = tds[1].find_element(By.XPATH, ".//a")
+            href = a_tag.get_attribute("href")
+            if href in all_urls:
+                logger.debug(f"Url is already in db: {href}")
+                categories = [Categories.MONETARY_POLICY]
+                total_missing_cat = [
+                    {
+                        "file_url": href,
+                        "category_name": category.value,
+                    } for category in categories if (href, category.value) not in all_categories
+                ]
+                if len(total_missing_cat) > 0:
+                    self.add_to_categories(total_missing_cat)
+                continue
+            to_process.append((date, href))
+
+        result = []
+        total_categories = []
+        total_links = []
+        for (date, href) in to_process:
+            self._driver.get(href)
+            main_div = self._driver.find_element(By.XPATH, "//div[@id='main']")
+            text = main_div.text
+            links = main_div.find_elements(By.XPATH, "./parent::div//a")
+            for link in links:
+                link_text = None
+                link_href = link.get_attribute("href")
+                if link_href.endswith(".pdf"):
+                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                total_links.append({
+                    "file_url": href,
+                    "link_url": link_href,
+                    "link_name": link.text,
+                    "full_extracted_text": link_text,
+                })
+            result.append({
+                "file_url": href,
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+            total_categories.append(
+                {
+                    "file_url": href,
+                    "category_name": Categories.MONETARY_POLICY.value
+                }
+            )
+        self.add_all_atomic(result, total_categories, total_links)
+
+        
 
             
 
-
     def process_all_years(self):
-        # process new years
-        current_year = pd.Timestamp.now().year
-        for year in range(2017, current_year + 1):
-            self.process_year(year)
-
-        # process archive
-        self.process_archive()
+        self.process_monetary_policy()
 
 
-    def process_archive(self):
-        all_urls = self.get_all_db_urls()
-        self._driver.get(self.get_archive_url())
-        # get table tag
-        table = self._driver.find_element(By.TAG_NAME, "table")
-        # get all tr tags
-        trs = list(table.find_elements(By.TAG_NAME, "tr"))
-        header_row = trs.pop(0)
-        # verify should ahave th Date and th Header
-        ths = header_row.find_elements(By.TAG_NAME, "th")
-        if len(ths) != 2:
-            raise ValueError("Header row does not have 2 columns")
-        if ths[0].text.strip() != "Date":
-            raise ValueError("First column should be Date")
-        if ths[1].text.strip() != "Header":
-            raise ValueError("Second column should be Header")
-        
 
-        to_process = []
-        for tr in trs:
-            tag_time = tr.find_element(By.TAG_NAME, "time")
-            date = pd.to_datetime(tag_time.text, dayfirst=True)
-            # NOTE this is not the best because we have multiple documents for the same date
-            a = tr.find_element(By.TAG_NAME, "a")
-            href = a.get_attribute("href")
-            if href in all_urls:
-                logger.debug(f"Href is already in db: {href}")
-                continue
-            to_process.append((date, href))
+CATEGORY_MAP = {
+    'CONSULTATION RESPONSES': Categories.FINANCIAL_STABILITY_AND_REGULATION,
+    'MINUTES': Categories.MONETARY_POLICY,
+    'ECONOMIC COMMENTARIES': Categories.RESEARCH_AND_DATA,
+    'NEWS': Categories.NEWS_AND_EVENTS,
+    'STAFF MEMO': Categories.RESEARCH_AND_DATA,
+    'RIKSBANK STUDIES': Categories.RESEARCH_AND_DATA,
+    'TERMS AND CONDITIONS': Categories.OTHER,
+    'SPEECHES': Categories.NEWS_AND_EVENTS,
+    'PRESS RELEASE': Categories.NEWS_AND_EVENTS,
+    'MINUTES APPENDIX': Categories.MONETARY_POLICY,
+    'PRESENTATION': Categories.NEWS_AND_EVENTS,
+    'CONFERENCE': Categories.RESEARCH_AND_DATA,
+    'RIKSBANKEN PLAY': Categories.NEWS_AND_EVENTS
+} 
 
-        output = []
-        for date, href in to_process:
-            text = None
-            logger.info(f"Processing: {href}")
-            if href.endswith(".pdf"):
-                text = download_and_read_pdf(href, self.datadump_directory_path)
-            output.append({
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "file_url": href,
-                "full_extracted_text": text,
-            })
 
-        self.add_to_db(output)
-                
-
-    def get_archive_url(self):
-        return "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
-
-    def get_base_url_for_year(self, year:int) -> str:
-        if year < 2017:
-            raise ValueError("No data available for year before 2017")
-        return f"https://www.riksbank.se/en-gb/monetary-policy/monetary-policy-report/?year={year}"
+def text_to_categories(texts):
+    return set(CATEGORY_MAP[text] for text in texts)
+    

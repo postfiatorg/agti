@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: agti
 Version: 0.1.0
 Summary: Post Fiat Finance focused node
@@ -29,6 +29,16 @@ Requires-Dist: lxml
 Requires-Dist: gspread_dataframe
 Requires-Dist: gspread
 Requires-Dist: oauth2client
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
 
 # agti_inc
 
