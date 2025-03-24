@@ -22,15 +22,15 @@ class SwedenBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-monetary-policy/?&page={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-monetary-policy/"
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.MONETARY_POLICY])
 
         # Account MP
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/account-of-monetary-policy/?&page={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/account-of-monetary-policy/"
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.MONETARY_POLICY])
 
         # Minutes MP
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/minutes-of-the-executive-boards-monetary-policy-meetings/?&page={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/minutes-of-the-executive-boards-monetary-policy-meetings/"
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.MONETARY_POLICY])
 
         
@@ -170,7 +170,7 @@ class SwedenBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-financial-stability/?&page={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-financial-stability/"
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         
@@ -321,9 +321,237 @@ class SwedenBankScrapper(BaseBankScraper):
 
 
     def process_payments_cash(self):
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-payments-and-cash/?&page={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-payments-and-cash/"
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS])
 
+
+    def process_news(self):
+        # news about the bank
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-the-riksbank/"
+        self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS, Categories.OTHER])
+        # News about markets
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-markets/"
+        self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS])
+
+    def prcoess_speeches_presentations(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+        main_url= "https://www.riksbank.se/en-gb/press-and-published/speeches-and-presentations/"
+        ul_xpath = "//div[@class='listing-block__body']//ul"
+        page = 1
+        to_process = []
+        while True:
+            self._driver.get(main_url.format(page))
+            ul = self._driver.find_element(By.XPATH, ul_xpath)
+            a_tags = ul.find_elements(By.XPATH,"./li/a")
+            if len(a_tags) == 0:
+                break
+            for a_tag in a_tags:
+                date_txt = a_tag.find_elements(By.XPATH,"./p/span")[1].text
+                date = pd.to_datetime(date_txt, dayfirst=True)
+                href = a_tag.get_attribute("href")
+                categories = [Categories.NEWS_AND_EVENTS]
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_missing_cat = [
+                        {
+                            "file_url": href,
+                            "category_name": category.value,
+                        } for category in categories if (href, category.value) not in all_categories
+                    ]
+                    if len(total_missing_cat) > 0:
+                        self.add_to_categories(total_missing_cat)
+                    continue
+                to_process.append((date, href, categories))
+            page += 1
+        
+        result = []
+        total_categories = []
+        total_links = []
+        for date, href, categories in to_process:
+            logger.info(f"Processing {href}")
+            self._driver.get(href)
+            articles = self._driver.find_elements(By.XPATH, "//article")
+            if len(articles) > 1:
+                raise Exception("More than one article found")
+            article = articles[0]
+            text = article.text
+
+            links = article.find_elements(By.XPATH, ".//a")
+            for link in links:
+                link_href = link.get_attribute("href")
+                link_text = None
+                if link_href.endswith(".pdf"):
+                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                total_links.append({
+                    "file_url": href,
+                    "link_url": link_href,
+                    "link_name": link.text,
+                    "full_extracted_text": link_text,
+                })
+
+            result.append({
+                "file_url": href,
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "full_extracted_text": text,
+            })
+            total_categories.extend(
+                [
+                    {
+                        "file_url": href,
+                        "category_name": category.value,
+                    } for category in categories
+                ]
+            )
+        self.add_all_atomic(result, total_categories, total_links)
+
+    def process_publications(self):
+        
+        all_urls = self.get_all_db_urls()
+        # account-of-monetary-policy process by MP
+        
+        # annual report
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/annual-report/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # climate report
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/climate-report/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Economic Commentaries
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/economic-commentaries/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Economic Review
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/economic-review/articles-in-the-economic-review/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # E-krona
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/e-krona-reports/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA, Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS])
+
+        # Financial markets survey
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/financial-markets-survey/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # financial stability reports done in financial stability
+        # Monetary Policy Reports and Updates done in monetary policy
+
+        ##################################
+        ### Other former publications
+
+        # EMU-related information
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/emu-related-information/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Financial Infrastructure Report
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/financial-infrastructure-report/?year=Show+all"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+        # archive
+        single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
+        if single_url not in all_urls:
+            text = download_and_read_pdf(single_url, self.datadump_directory_path)
+            result = [
+                {
+                    "file_url":single_url,
+                    "date_published": pd.to_datetime("2016-04-26"),
+                    "scraping_time": pd.Timestamp.now(),
+                    "full_extracted_text": text,
+                }
+            ]
+            total_categories = [
+                {
+                    "file_url": single_url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                }
+            ]
+            self.add_all_atomic(result, total_categories, [])
+        
+        # Monetary policy in Sweden - publication from 2010
+        # skip empty
+
+        # The Riksbank and Financial stability
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/the-riksbank-and-financial-stability/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Brochures on notes & coins
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/brochures-on-notes--coins/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE, Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS])
+        
+
+        # Risk Survey
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/risk-survey/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+        # add archive as well
+        archive_urls = ["https://archive.riksbank.se/Documents/Rapporter/Riskenkat/2016/rap_riskenkat_161116_eng.pdf",
+                        "https://archive.riksbank.se/Documents/Rapporter/Riskenkat/2016/rap_riskenkat_160525_uppdaterad2_eng.pdf"]
+        result = []
+        total_categories = []
+        for single_url in archive_urls:
+            if single_url not in all_urls:
+                text = download_and_read_pdf(single_url, self.datadump_directory_path)
+                result.append(
+                    {
+                        "file_url":single_url,
+                        "date_published": pd.to_datetime("2016-11-16"),
+                        "scraping_time": pd.Timestamp.now(),
+                        "full_extracted_text": text,
+                    }
+                )
+                total_categories.append(
+                    {
+                        "file_url": single_url,
+                        "category_name": Categories.RESEARCH_AND_DATA.value
+                    }
+                )
+        self.add_all_atomic(result, total_categories, [])
+        
+
+        # Payments Report
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/payments-in-sweden/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS])
+        
+
+        # Riksbank studies
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/riksbank-studies/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Staff memos
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/staff-memos/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+        
+
+        # The Riksbank’s Statute Book
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/statute-book/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])
+
+        # The Riksbank's Business Survey
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/the-riksbanks-business-survey/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA, Categories.INSTITUTIONAL_AND_GOVERNANCE])
+
+        # The Swedish Financial Market
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/the-swedish-financial-market/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])"
+        
+        
+
+        # Working Paper Series
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/working-paper-series/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+
+        # Occasional Paper Series
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/working-paper-series/occasional-paper-series/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
+        
+
+        # Conferences
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/conferences/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.NEWS_AND_EVENTS])
+
+        # The Riksbank's cybersecurity competition
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/cybersecurity-competition/"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.NEWS_AND_EVENTS])
 
 
     def simple_process(self, main_url, has_categories=False, additional_cat = []):
@@ -332,11 +560,26 @@ class SwedenBankScrapper(BaseBankScraper):
 
 
         ul_xpath = "//div[@class='listing-block__body']//ul"
-        page = 1
+        page_number = 1
+        one_page = False
         to_process = []
 
+        self._driver.get(main_url)
+        # find "pagination__link" class
+        all_pagitation_links = self._driver.find_elements(By.XPATH, "//a[contains(@class, 'pagination__link')]")
+        if len(all_pagitation_links) == 0:
+            one_page = True
+
+
+
         while True:
-            self._driver.get(main_url.format(page))
+            if one_page and page_number > 1:
+                break
+            if not one_page:
+                page_url = main_url + "?&page={}".format(page_number)
+            else:
+                page_url = main_url
+            self._driver.get(page_url)
             ul = self._driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
@@ -366,7 +609,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_missing_cat)
                     continue
                 to_process.append((date, href, categories))
-            page += 1
+            page_number += 1
 
         result = []
         total_categories = []
@@ -377,15 +620,28 @@ class SwedenBankScrapper(BaseBankScraper):
             text = None
             if href_prased.path.endswith(".pdf"):
                 text = download_and_read_pdf(href, self.datadump_directory_path)
-            elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm"):
+            elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm") or href_prased.path.endswith("/"):
                 self._driver.get(href)
                 articles = self._driver.find_elements(By.XPATH, "//article")
                 if len(articles) > 1:
                     raise Exception("More than one article found")
-                article = articles[0]
-                text = article.text
-
-                links = article.find_elements(By.XPATH, ".//a")
+                elif len(articles) == 0:
+                    if "archive" in href_prased.path:
+                        # find div id="main"
+                        main_div = self._driver.find_element(By.XPATH, "//div[@id='main']")
+                        text = main_div.text
+                        links = main_div.find_elements(By.XPATH, ".//a")
+                    else:
+                        # try to find text Download PDF
+                        # or we could parse the page, the issue is, it dynamically loads the content
+                        pdf_xpath = "//a[contains(text(), 'Download PDF')] | //a[@class='report-page__download']"
+                        pdf_href = self._driver.find_element(By.XPATH, pdf_xpath).get_attribute("href")
+                        text = download_and_read_pdf(pdf_href, self.datadump_directory_path)
+                        links = []
+                else:
+                    main_text = articles[0]
+                    text = main_text.text
+                    links = main_text.find_elements(By.XPATH, ".//a")
                 
                 for link in links:
                     link_href = link.get_attribute("href")
@@ -417,14 +673,18 @@ class SwedenBankScrapper(BaseBankScraper):
                 "scraping_time": pd.Timestamp.now(),
                 "full_extracted_text": text,
             })
-        self.add_all_atomic(result, total_categories, total_links)        
+        self.add_all_atomic(result, total_categories, total_links)
+                
 
             
 
     def process_all_years(self):
-        self.process_monetary_policy()
-        self.process_financial_stability()
-        self.process_payments_cash()
+        #self.process_monetary_policy()
+        #self.process_financial_stability()
+        #self.process_payments_cash()
+        #self.process_news()
+        #self.prcoess_speeches_presentations()
+        self.process_publications()
 
 
 
