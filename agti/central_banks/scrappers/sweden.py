@@ -80,6 +80,7 @@ class SwedenBankScrapper(BaseBankScraper):
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
             text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+            logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
                 "date_published": date,
@@ -136,6 +137,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_categories = []
         total_links = []
         for (date, href) in to_process:
+            logger.info(f"Processing {href}")
             self._driver.get(href)
             main_div = self._driver.find_element(By.XPATH, "//div[@id='main']")
             text = main_div.text
@@ -295,6 +297,7 @@ class SwedenBankScrapper(BaseBankScraper):
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
             text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+            logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
                 "date_published": date,
@@ -532,7 +535,7 @@ class SwedenBankScrapper(BaseBankScraper):
 
         # The Swedish Financial Market
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/the-swedish-financial-market/"
-        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])"
+        self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])
         
         
 
@@ -552,6 +555,20 @@ class SwedenBankScrapper(BaseBankScraper):
         # The Riksbank's cybersecurity competition
         main_url = "https://www.riksbank.se/en-gb/press-and-published/cybersecurity-competition/"
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.NEWS_AND_EVENTS])
+
+
+    def process_consultation_responses(self):
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/the-riksbanks-domestic-consultation-responses/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
+
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/the-riksbanks-international-consultation-responses/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
+
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/general-council-consultation-responses/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
+
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/other-consultations-responses/"
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
 
     def simple_process(self, main_url, has_categories=False, additional_cat = []):
@@ -679,12 +696,13 @@ class SwedenBankScrapper(BaseBankScraper):
             
 
     def process_all_years(self):
-        #self.process_monetary_policy()
-        #self.process_financial_stability()
-        #self.process_payments_cash()
-        #self.process_news()
-        #self.prcoess_speeches_presentations()
+        self.process_monetary_policy()
+        self.process_financial_stability()
+        self.process_payments_cash()
+        self.process_news()
+        self.prcoess_speeches_presentations()
         self.process_publications()
+        self.process_consultation_responses()
 
 
 
