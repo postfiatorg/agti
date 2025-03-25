@@ -344,7 +344,7 @@ class SwedenBankScrapper(BaseBankScraper):
         page = 1
         to_process = []
         while True:
-            self._driver.get(main_url.format(page))
+            self._driver.get(main_url + "?&page={}".format(page))
             ul = self._driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
