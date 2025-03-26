@@ -177,82 +177,16 @@ class SwedenBankScrapper(BaseBankScraper):
     def process_financial_stability(self):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
-        
+
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-financial-stability/"
         logger.info(f"Processing Financial Stability News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         
         # financial stability reports
-        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/financial-stability-report/?year={}"
+        main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/financial-stability-report/?year=Show+all"
         logger.info(f"Processing Financial Stability Reports")
-        current_year = pd.Timestamp.now().year
-        ul_xpath = "//div[@class='listing-block__body']//ul"
-        to_process = []
-        for year in range(2017, current_year+1):
-            self._driver.get(main_url.format(year))
-            # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
-            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
-                EC.presence_of_element_located((By.XPATH, ul_xpath))
-            )
-            ul = self._driver.find_element(By.XPATH, ul_xpath)
-            a_tags = ul.find_elements(By.XPATH,"./li/a")
-            for a_tag in a_tags:
-                date_txt = a_tag.find_element(By.XPATH,"./span[@class='label']").text
-                date = pd.to_datetime(date_txt, dayfirst=True)
-                href = a_tag.get_attribute("href")
-                if href in all_urls:
-                    logger.debug(f"Url is already in db: {href}")
-                    total_missing_cat = [
-                        {
-                            "file_url": href,
-                            "category_name": category.value,
-                        } for category in [Categories.FINANCIAL_STABILITY_AND_REGULATION] if (href, category.value) not in all_categories
-                    ]
-                    if len(total_missing_cat) > 0:
-                        self.add_to_categories(total_missing_cat)
-                    continue
-                to_process.append((date, href))
-
-        result = []
-        total_categories = []
-        total_links = []
-        for (date, href) in to_process:
-            self._driver.get(href)
-
-            articles = self._driver.find_elements(By.XPATH, "//article")
-            if len(articles) > 1:
-                raise Exception("More than one article found")
-            article = articles[0]
-            text = article.text
-
-            links = article.find_elements(By.XPATH, ".//a")
-            for link in links:
-                link_href = link.get_attribute("href")
-                link_text = None
-                if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
-                total_links.append({
-                    "file_url": href,
-                    "link_url": link_href,
-                    "link_name": link.text,
-                    "full_extracted_text": link_text,
-                })
-
-            result.append({
-                "file_url": href,
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-            total_categories.append(
-                {
-                    "file_url": href,
-                    "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
-                }
-            )
-        self.add_all_atomic(result, total_categories, total_links)
-        
+        self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         # archive
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Financial-stability/Financial-Stability-Report/index.html@all=1.html"
