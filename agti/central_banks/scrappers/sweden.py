@@ -23,19 +23,23 @@ class SwedenBankScrapper(BaseBankScraper):
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-monetary-policy/"
+        logger.info(f"Processing Monetary Policy News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.MONETARY_POLICY])
 
         # Account MP
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/account-of-monetary-policy/"
+        logger.info(f"Processing Monetary Policy Account")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.MONETARY_POLICY])
 
         # Minutes MP
         main_url = "https://www.riksbank.se/en-gb/press-and-published/minutes-of-the-executive-boards-monetary-policy-meetings/"
+        logger.info(f"Processing Monetary Policy Minutes")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.MONETARY_POLICY])
 
         
         # process archive reports
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
+        logger.info(f"Processing Monetary Policy Reports Archive")
         self._driver.get(main_url)
         trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
@@ -110,6 +114,7 @@ class SwedenBankScrapper(BaseBankScraper):
         
         # process minutes
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Minutes-of-the-Executive-Boards-monetary-policy-meetings/index.html@all=1.html"
+        logger.info(f"Processing Monetary Policy Minutes Archive")
         self._driver.get(main_url)
         trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = []
@@ -173,11 +178,13 @@ class SwedenBankScrapper(BaseBankScraper):
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-financial-stability/"
+        logger.info(f"Processing Financial Stability News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         
         # financial stability reports
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/financial-stability-report/?year={}"
+        logger.info(f"Processing Financial Stability Reports")
         current_year = pd.Timestamp.now().year
         ul_xpath = "//div[@class='listing-block__body']//ul"
         to_process = []
@@ -244,6 +251,7 @@ class SwedenBankScrapper(BaseBankScraper):
 
         # archive
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Financial-stability/Financial-Stability-Report/index.html@all=1.html"
+        logger.info(f"Processing Financial Stability Reports Archive")
         self._driver.get(main_url)
         trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
@@ -325,21 +333,25 @@ class SwedenBankScrapper(BaseBankScraper):
 
     def process_payments_cash(self):
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-payments-and-cash/"
+        logger.info(f"Processing Payments and Cash News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS])
 
 
     def process_news(self):
         # news about the bank
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-the-riksbank/"
+        logger.info(f"Processing Riksbank News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS, Categories.OTHER])
         # News about markets
         main_url = "https://www.riksbank.se/en-gb/press-and-published/notices-and-press-releases/news-about-markets/"
+        logger.info(f"Processing Markets News")
         self.simple_process(main_url, has_categories=True, additional_cat=[Categories.NEWS_AND_EVENTS])
 
     def prcoess_speeches_presentations(self):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         main_url= "https://www.riksbank.se/en-gb/press-and-published/speeches-and-presentations/"
+        logger.info(f"Processing Speeches and Presentations")
         ul_xpath = "//div[@class='listing-block__body']//ul"
         page = 1
         to_process = []
@@ -416,26 +428,32 @@ class SwedenBankScrapper(BaseBankScraper):
         
         # annual report
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/annual-report/"
+        logger.info(f"Processing Annual Reports")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # climate report
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/climate-report/"
+        logger.info(f"Processing Climate Reports")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Economic Commentaries
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/economic-commentaries/"
+        logger.info(f"Processing Economic Commentaries")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Economic Review
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/economic-review/articles-in-the-economic-review/"
+        logger.info(f"Processing Economic Review")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # E-krona
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/e-krona-reports/"
+        logger.info(f"Processing E-krona Reports")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA, Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS])
 
         # Financial markets survey
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/financial-markets-survey/"
+        logger.info(f"Processing Financial Markets Survey")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # financial stability reports done in financial stability
@@ -446,10 +464,12 @@ class SwedenBankScrapper(BaseBankScraper):
 
         # EMU-related information
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/emu-related-information/"
+        logger.info(f"Processing EMU Information")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Financial Infrastructure Report
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/financial-infrastructure-report/?year=Show+all"
+        logger.info(f"Processing Financial Infrastructure Reports")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
         # archive
         single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
@@ -476,15 +496,18 @@ class SwedenBankScrapper(BaseBankScraper):
 
         # The Riksbank and Financial stability
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/the-riksbank-and-financial-stability/"
+        logger.info(f"Processing Riksbank Financial Stability Publications")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Brochures on notes & coins
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/brochures-on-notes--coins/"
+        logger.info(f"Processing Notes and Coins Brochures")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE, Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS])
         
 
         # Risk Survey
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/other-former-publications/risk-survey/"
+        logger.info(f"Processing Risk Survey")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
         # add archive as well
         archive_urls = ["https://archive.riksbank.se/Documents/Rapporter/Riskenkat/2016/rap_riskenkat_161116_eng.pdf",
@@ -513,61 +536,75 @@ class SwedenBankScrapper(BaseBankScraper):
 
         # Payments Report
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/payments-in-sweden/"
+        logger.info(f"Processing Payments Reports")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS])
         
 
         # Riksbank studies
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/riksbank-studies/"
+        logger.info(f"Processing Riksbank Studies")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Staff memos
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/staff-memos/"
+        logger.info(f"Processing Staff Memos")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
         
 
         # The Riksbank’s Statute Book
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/statute-book/"
+        logger.info(f"Processing Statute Book")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])
 
         # The Riksbank's Business Survey
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/the-riksbanks-business-survey/"
+        logger.info(f"Processing Business Survey")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA, Categories.INSTITUTIONAL_AND_GOVERNANCE])
 
         # The Swedish Financial Market
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/the-swedish-financial-market/"
+        logger.info(f"Processing Swedish Financial Market")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.INSTITUTIONAL_AND_GOVERNANCE])
         
         
 
         # Working Paper Series
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/working-paper-series/"
+        logger.info(f"Processing Working Papers")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
 
         # Occasional Paper Series
         main_url = "https://www.riksbank.se/en-gb/press-and-published/publications/working-paper-series/occasional-paper-series/"
+        logger.info(f"Processing Occasional Papers")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.RESEARCH_AND_DATA])
         
 
         # Conferences
         main_url = "https://www.riksbank.se/en-gb/press-and-published/conferences/"
+        logger.info(f"Processing Conferences")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.NEWS_AND_EVENTS])
 
         # The Riksbank's cybersecurity competition
         main_url = "https://www.riksbank.se/en-gb/press-and-published/cybersecurity-competition/"
+        logger.info(f"Processing Cybersecurity Competition")
         self.simple_process(main_url , has_categories=False, additional_cat=[Categories.NEWS_AND_EVENTS])
 
 
     def process_consultation_responses(self):
         main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/the-riksbanks-domestic-consultation-responses/"
+        logger.info(f"Processing Domestic Consultation Responses")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/the-riksbanks-international-consultation-responses/"
+        logger.info(f"Processing International Consultation Responses")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/general-council-consultation-responses/"
+        logger.info(f"Processing General Council Consultation Responses")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
         main_url = "https://www.riksbank.se/en-gb/press-and-published/consultations-responses/other-consultations-responses/"
+        logger.info(f"Processing Other Consultation Responses")
         self.simple_process(main_url, has_categories=False, additional_cat=[Categories.FINANCIAL_STABILITY_AND_REGULATION])
 
 
