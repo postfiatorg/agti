@@ -678,6 +678,13 @@ class SwedenBankScrapper(BaseBankScraper):
             
 
     def process_all_years(self):
+        # accept cokkies
+        self._driver.get("https://www.riksbank.se/en-gb/")
+        # find button with class having "js-accept-cookies"
+        wait = WebDriverWait(self._driver, 10, 0.1)
+        wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
+        ).click()
         self.process_monetary_policy()
         self.process_financial_stability()
         self.process_payments_cash()
