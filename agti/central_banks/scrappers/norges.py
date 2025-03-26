@@ -82,7 +82,7 @@ class NorgesBankScrapper(BaseBankScraper):
             #print("Number of links found:", len(links))
             pdf_link = links[0].find_element(By.TAG_NAME, "a").get_attribute("href")
 
-            text = download_and_read_pdf(pdf_link, self.datadump_directory_path)
+            text = download_and_read_pdf(pdf_link,self.datadump_directory_path, self._driver)
             output.append(
                 {
                     "date_published": timestamp,

@@ -143,7 +143,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     # if it is pdf
                     extracted_text = None
                     if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link, self.datadump_directory_path)
+                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self._driver)
                     links_output.append({
                         "file_url": url,
                         "link_url": main_link,
@@ -198,7 +198,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             extracted_text = None
             if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             else:
                 extracted_text, links_output = self.parse_html(url)
                 total_links.extend(links_output)
@@ -299,7 +299,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     # if it is pdf
                     extracted_text = None
                     if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link, self.datadump_directory_path)
+                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self._driver)
                     links_output.append({
                         "file_url": url,
                         "link_url": main_link,
@@ -358,7 +358,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             extracted_text = None
             if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             else:
                 extracted_text, links_output = self.parse_html(url)
                 total_links.extend(links_output)
@@ -437,7 +437,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             extracted_text = None
             if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             else:
                 extracted_text, links_output = self.parse_html(url)
                 total_links.extend(links_output)
@@ -495,7 +495,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     # if it is pdf
                     extracted_text = None
                     if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link, self.datadump_directory_path)
+                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self._driver)
                     links_output.append({
                         "file_url": url,
                         "link_url": main_link,
@@ -610,7 +610,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                         # if it is pdf
                         extracted_text = None
                         if parsed_link.path.endswith("pdf"):
-                            extracted_text = download_and_read_pdf(main_link, self.datadump_directory_path)
+                            extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self._driver)
                         links_output.append({
                             "file_url": url,
                             "link_url": main_link,
@@ -978,7 +978,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             links_output = []
             if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             else:
                 extracted_text, links_output = self.parse_html(url)
             if url in to_process_links:
@@ -987,7 +987,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     # if it is pdf
                     extracted_text = None
                     if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(link_url, self.datadump_directory_path)
+                        extracted_text = download_and_read_pdf(link_url,self.datadump_directory_path, self._driver)
                     links_output.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -1038,7 +1038,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             links_output = []
             if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             else:
                 extracted_text, links_output = self.parse_html(url)
             total_links.extend(links_output)
@@ -1079,7 +1079,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 logger.info(f"Processing: {url}")
-                extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
                 result.append({
                     "date_published": None,
                     "date_published_str": date_txt,
@@ -1113,7 +1113,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 for a_url, a_text in links_to_process:
                     a_url_parsed = urlparse(a_url)
                     if a_url_parsed.path.endswith("pdf"):
-                        link_extracted_text = download_and_read_pdf(a_url, self.datadump_directory_path)
+                        link_extracted_text = download_and_read_pdf(a_url,self.datadump_directory_path, self._driver)
                     else:
                         link_extracted_text, _ = self.parse_html(a_url)
                     #total_links.extend(link_total_sublinks)
@@ -1151,7 +1151,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 logger.debug(f"Href is already in db: {url}")
                 continue
             logger.info(f"Processing: {url}")
-            extracted_text = download_and_read_pdf(url, self.datadump_directory_path)
+            extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self._driver)
             result.append({
                 "date_published": None,
                 "date_published_str": f"{year}",
@@ -1188,7 +1188,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,

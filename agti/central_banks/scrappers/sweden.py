@@ -84,7 +84,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -101,7 +101,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -152,7 +152,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 link_text = None
                 link_href = link.get_attribute("href")
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -243,7 +243,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -260,7 +260,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0], self.datadump_directory_path)
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -340,7 +340,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 link_href = link.get_attribute("href")
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -417,7 +417,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
         if single_url not in all_urls:
-            text = download_and_read_pdf(single_url, self.datadump_directory_path)
+            text = download_and_read_pdf(single_url,self.datadump_directory_path, self._driver)
             result = [
                 {
                     "file_url":single_url,
@@ -459,7 +459,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_categories = []
         for single_url in archive_urls:
             if single_url not in all_urls:
-                text = download_and_read_pdf(single_url, self.datadump_directory_path)
+                text = download_and_read_pdf(single_url,self.datadump_directory_path, self._driver)
                 result.append(
                     {
                         "file_url":single_url,
@@ -618,7 +618,7 @@ class SwedenBankScrapper(BaseBankScraper):
             href_prased = urlparse(href)
             text = None
             if href_prased.path.endswith(".pdf"):
-                text = download_and_read_pdf(href, self.datadump_directory_path)
+                text = download_and_read_pdf(href,self.datadump_directory_path, self._driver)
             elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm") or href_prased.path.endswith("/"):
                 self._driver.get(href)
                 articles = self._driver.find_elements(By.XPATH, "//article")
@@ -635,7 +635,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         # or we could parse the page, the issue is, it dynamically loads the content
                         pdf_xpath = "//a[contains(text(), 'Download PDF')] | //a[@class='report-page__download']"
                         pdf_href = self._driver.find_element(By.XPATH, pdf_xpath).get_attribute("href")
-                        text = download_and_read_pdf(pdf_href, self.datadump_directory_path)
+                        text = download_and_read_pdf(pdf_href,self.datadump_directory_path, self._driver)
                         links = []
                 else:
                     main_text = articles[0]
@@ -646,7 +646,7 @@ class SwedenBankScrapper(BaseBankScraper):
                     link_href = link.get_attribute("href")
                     link_text = None
                     if link_href.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
                     total_links.append({
                         "file_url": href,
                         "link_url": link_href,
@@ -678,20 +678,57 @@ class SwedenBankScrapper(BaseBankScraper):
             
 
     def process_all_years(self):
-        # accept cokkies
+        import os
+        import time
+        from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+        
+        # Create debug directory if it doesn't exist
+        debug_dir = os.path.join(self.datadump_directory_path, "debug", "sweden")
+        os.makedirs(debug_dir, exist_ok=True)
+        # accept cookies
         self._driver.get("https://www.riksbank.se/en-gb/")
         # find button with class having "js-accept-cookies"
         wait = WebDriverWait(self._driver, 10, 0.1)
         wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
         ).click()
-        self.process_monetary_policy()
-        self.process_financial_stability()
-        self.process_payments_cash()
-        self.process_news()
-        self.prcoess_speeches_presentations()
-        self.process_publications()
-        self.process_consultation_responses()
+        # Process each section with error handling
+        sections = [
+            ("monetary_policy", self.process_monetary_policy),
+            ("financial_stability", self.process_financial_stability),
+            ("payments_cash", self.process_payments_cash),
+            ("news", self.process_news),
+            ("speeches_presentations", self.prcoess_speeches_presentations),
+            ("publications", self.process_publications),
+            ("consultation_responses", self.process_consultation_responses)
+        ]
+        
+        for section_name, section_func in sections:
+            try:
+                section_func()
+            except (TimeoutException, NoSuchElementException, WebDriverException) as e:
+                # Capture error information
+                timestamp = int(time.time())
+                error_name = type(e).__name__
+                
+                # Save screenshot
+                screenshot_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.png")
+                self._driver.save_screenshot(screenshot_path)
+                
+                # Save HTML source
+                html_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.html")
+                with open(html_path, "w", encoding="utf-8") as f:
+                    f.write(self._driver.page_source)
+                
+                # Log the error
+                logger.error(
+                    f"Error in {section_name}: {error_name} - {str(e)}. "
+                    f"Debug files saved to {screenshot_path} and {html_path}",
+                    exc_info=True
+                )
+                
+                # Continue with next section
+                raise
 
 
 

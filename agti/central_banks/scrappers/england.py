@@ -120,7 +120,7 @@ class EnglandBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,

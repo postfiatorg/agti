@@ -4,6 +4,7 @@ import requests
 import pdfplumber
 import time
 import enum
+import re
 
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
@@ -20,7 +21,7 @@ class Categories(enum.Enum):
 logger = logging.getLogger(__name__)
 logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
-def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
+def download_and_read_pdf(url, save_dir, driver,  evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
 
     # NOTE: This is a temporary fix to disable PDF processing for quick local testing
@@ -32,6 +33,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     filename = os.path.basename(url)
     filepath = os.path.join(save_dir, filename)
     
+    """
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.110 Safari/537.36",
         "Accept": "application/pdf",
@@ -49,11 +51,13 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
         "Sec-Fetch-User": "?1",
         "Sec-GPC": "1"  # Global Privacy Control
     }
+    """
+    cookies, headers = get_cookies_headers(driver)
     
     text = None
     
     try:
-        with requests.get(url, headers=headers, stream=True, timeout=60) as r:
+        with requests.get(url, headers=headers, cookies=cookies, stream=True, timeout=100) as r:
             r.raise_for_status()
             try:
                 with open(filepath, "wb") as f:
@@ -82,7 +86,25 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
             os.remove(filepath)
     return text
     
-
+def get_cookies_headers(driver):
+    # Get cookies from browser & unpack into a dictionary.
+    #    
+    cookies = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies()}
+    # Use a synchronous request to retrieve response headers.
+    #
+    script = """
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', window.location.href, false);
+    xhr.send(null);
+    return xhr.getAllResponseHeaders();
+    """
+    headers = driver.execute_script(script)
+    
+    # Unpack headers into dictionary.
+    #
+    headers = headers.splitlines()
+    headers = dict([re.split(": +", header, maxsplit=1) for header in headers])
+    return cookies, headers
 
 def pageBottom(driver):
     bottom=False
