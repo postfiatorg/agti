@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import pandas as pd
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from ..base_scrapper import BaseBankScraper
 from ..utils import Categories, download_and_read_pdf
 from selenium.common.exceptions import NoSuchElementException
@@ -190,6 +191,10 @@ class SwedenBankScrapper(BaseBankScraper):
         to_process = []
         for year in range(2017, current_year+1):
             self._driver.get(main_url.format(year))
+            # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
+            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
+                EC.presence_of_element_located((By.XPATH, ul_xpath))
+            )
             ul = self._driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             for a_tag in a_tags:
@@ -357,6 +362,10 @@ class SwedenBankScrapper(BaseBankScraper):
         to_process = []
         while True:
             self._driver.get(main_url + "?&page={}".format(page))
+            # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
+            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
+                EC.presence_of_element_located((By.XPATH, ul_xpath))
+            )
             ul = self._driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
@@ -612,7 +621,6 @@ class SwedenBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
-
         ul_xpath = "//div[@class='listing-block__body']//ul"
         page_number = 1
         one_page = False
@@ -624,8 +632,6 @@ class SwedenBankScrapper(BaseBankScraper):
         if len(all_pagitation_links) == 0:
             one_page = True
 
-
-
         while True:
             if one_page and page_number > 1:
                 break
@@ -634,6 +640,11 @@ class SwedenBankScrapper(BaseBankScraper):
             else:
                 page_url = main_url
             self._driver.get(page_url)
+            
+            # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
+            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
+                EC.presence_of_element_located((By.XPATH, ul_xpath))
+            )
             ul = self._driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:

@@ -53,7 +53,7 @@ def download_and_read_pdf(url, save_dir, evaluate_tolerances=None):
     text = None
     
     try:
-        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
+        with requests.get(url, headers=headers, stream=True, timeout=60) as r:
             r.raise_for_status()
             try:
                 with open(filepath, "wb") as f:
