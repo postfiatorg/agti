@@ -24,9 +24,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         logger.info("Processing Annual Report")
         all_db_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
-        self..driver_manager.driver.get("https://www.snb.ch/en/news-publications/annual-report-overview")
+        self.driver_manager.driver.get("https://www.snb.ch/en/news-publications/annual-report-overview")
         # xpath get all as from ul tag with class="sitemap-linklist"
-        a_tags = self..driver_manager.driver.find_elements(By.XPATH, "//ul[@class='sitemap-linklist']//a")
+        a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[@class='sitemap-linklist']//a")
         if len(a_tags) == 0:
             raise ValueError("No data found for annual report")
         to_process = []
@@ -47,7 +47,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         total_categories = []
         total_links = []
         for href in to_process:
-            self..driver_manager.driver.get(href)
+            self.driver_manager.driver.get(href)
             if href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1996-2017":
                 def f_url(page: int) -> str:
                     if page == 1:
@@ -56,7 +56,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 self.process_teasor_list(f_url)
                 
             elif href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1907-1995":
-                a_tags = self..driver_manager.driver.find_elements(By.XPATH, "//ul[@class='link-teaser-list']//a")
+                a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[@class='link-teaser-list']//a")
                 for a in a_tags:
                     href = a.get_attribute("href")
                     if href in all_db_urls:
@@ -81,7 +81,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                         "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value,
                     })
             else:
-                a = self..driver_manager.driver.find_element(By.XPATH, "//a[.//span[contains(text(), 'Complete annual report')]]")
+                a = self.driver_manager.driver.find_element(By.XPATH, "//a[.//span[contains(text(), 'Complete annual report')]]")
                 href2 = a.get_attribute("href")
                 if href2 in all_db_urls:
                     logger.info(f"Href is already in db: {href2}")
@@ -113,10 +113,10 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
-        self..driver_manager.driver.get("https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/decisions")
+        self.driver_manager.driver.get("https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/decisions")
         x_path_path = "//div[@class='container']//div[starts-with(@id, 'collapse')]"
         xpath = f"{x_path_path}//a[@class='m-mixed-list-item h-typo-body'] | {x_path_path}//div[@class='m-mixed-list-list__subtitle']"
-        tags = self..driver_manager.driver.find_elements(By.XPATH, xpath)
+        tags = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
         links_to_process = {}
         current_url = None
@@ -247,16 +247,16 @@ class SwitzerlandBankScrapper(BaseBankScraper):
     
 
     def extract_date_text_or_pdf(self, url: str) -> dict:
-        self..driver_manager.driver.get(url)
+        self.driver_manager.driver.get(url)
         try:
             # span with class="h-typo-tiny"
-            span_date = self..driver_manager.driver.find_element(By.XPATH, "//span[@class='h-typo-tiny']")
+            span_date = self.driver_manager.driver.find_element(By.XPATH, "//span[@class='h-typo-tiny']")
             # December 18, 2024
             date = pd.to_datetime(span_date.text, format="%B %d, %Y")
         except:
             date = None
 
-        download_buttons = self..driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='Download']]")
+        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='Download']]")
         if len(download_buttons) > 1:
             raise ValueError("More than one download button found")
         if len(download_buttons) == 1:
@@ -265,7 +265,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             return date, text, []
         
         # try to find german or french
-        download_buttons = self..driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
+        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
         if len(download_buttons) > 2:
             raise ValueError("More than two download button found for german or french")
         if len(download_buttons) > 0:
@@ -274,11 +274,11 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             return date, text, []
         xpath = "//main//article"
         try:
-            text = self..driver_manager.driver.find_element(By.XPATH, xpath).text
+            text = self.driver_manager.driver.find_element(By.XPATH, xpath).text
         except:
             return date, None, []
         # add links
-        a_tags = self..driver_manager.driver.find_elements(By.XPATH, f"{xpath}//a")
+        a_tags = self.driver_manager.driver.find_elements(By.XPATH, f"{xpath}//a")
         links = []
         for a in a_tags:
             link = a.get_attribute("href")
@@ -308,9 +308,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             url = func_target_url(page)
             if url is None:
                 break
-            self..driver_manager.driver.get(url)
+            self.driver_manager.driver.get(url)
             # get "link-teaser-list" ul tag
-            a_tags = self..driver_manager.driver.find_elements(By.XPATH, "//ul[contains(@class, 'link-teaser-list') or contains(@class, 'publication-link-list')]//a")
+            a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[contains(@class, 'link-teaser-list') or contains(@class, 'publication-link-list')]//a")
             if len(a_tags) < 3:
                 break
             else:

@@ -65,19 +65,19 @@ const callback = arguments[0];
 """
 
     def fetch_all_data(self):
-        self..driver_manager.driver.get(self.get_serach_url())
-        return self..driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
+        self.driver_manager.driver.get(self.get_serach_url())
+        return self.driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
 
 
     def parse_html(self, url: str):
         url_parsed = urlparse(url)
-        self..driver_manager.driver.get(url)
-        current_url_parsed = urlparse(self..driver_manager.driver.current_url)
+        self.driver_manager.driver.get(url)
+        current_url_parsed = urlparse(self.driver_manager.driver.current_url)
         # check if it is pdf
         if current_url_parsed.path.endswith("pdf"):
             return download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies()), []
         # select all text from dev with class section
-        main = self..driver_manager.driver.find_element(By.XPATH, "//main")
+        main = self.driver_manager.driver.find_element(By.XPATH, "//main")
         text = main.text
         # find all links and process them
         links = main.find_elements(By.XPATH, ".//a")

@@ -369,11 +369,11 @@ class FEDBankScrapper(BaseBankScraper):
         A_REGEX = r'<a\s+href="([^"]+)">([^<]+)</a>'
 
 
-        self..driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/mpr_default.htm")
+        self.driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/mpr_default.htm")
         to_process = []
         links_to_process = {}
         # select div by id lazyload-container
-        div = self..driver_manager.driver.find_element(
+        div = self.driver_manager.driver.find_element(
             By.XPATH, "//div[@id='article']/div/div[@class='row']/div")
         # iterate over all divs inside dl
         elements = list(div.find_elements(By.XPATH, "./*"))
@@ -455,8 +455,8 @@ class FEDBankScrapper(BaseBankScraper):
         to_process = []
         links_to_process = {}
         for year, main_url in urls.items():
-            self..driver_manager.driver.get(main_url)
-            table = self..driver_manager.driver.find_element(By.XPATH, "//table/tbody")
+            self.driver_manager.driver.get(main_url)
+            table = self.driver_manager.driver.find_element(By.XPATH, "//table/tbody")
             for tr in table.find_elements(By.XPATH, ".//tr"):
                 tds = tr.find_elements(By.XPATH, ".//td")
                 if len(tds) == 1:
@@ -521,10 +521,10 @@ class FEDBankScrapper(BaseBankScraper):
 
 
         # Federal Reserve Balance Sheet Developments
-        self..driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/balance-sheet-developments-report.htm")
+        self.driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/balance-sheet-developments-report.htm")
         to_process = []
         links_to_process = {}
-        table = self..driver_manager.driver.find_element(By.XPATH, "//table/tbody")
+        table = self.driver_manager.driver.find_element(By.XPATH, "//table/tbody")
         for tr in table.find_elements(By.XPATH, ".//tr"):
             tds = tr.find_elements(By.XPATH, ".//td")
             date_txt = tds[0].text
@@ -585,9 +585,9 @@ class FEDBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
-        self..driver_manager.driver.get("https://www.federalreserve.gov/publications/supervision-and-regulation-report.htm")
+        self.driver_manager.driver.get("https://www.federalreserve.gov/publications/supervision-and-regulation-report.htm")
         xpath = "//div[@id='article']/div/*"
-        elements = self..driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
+        elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
         # assert that the first is h4 tag
         assert elements[0].tag_name == "h4"
         year = int(elements[0].text)
@@ -662,9 +662,9 @@ class FEDBankScrapper(BaseBankScraper):
     def process_financial_stability(self):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
-        self..driver_manager.driver.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
+        self.driver_manager.driver.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
         xpath = "//div[@id='article']/div/*"
-        elements = self..driver_manager.driver.find_elements(By.XPATH, xpath)[3:]
+        elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[3:]
         # assert that the first is h4 tag
         assert elements[0].tag_name == "h4"
         year = int(elements[0].text)
@@ -727,9 +727,9 @@ class FEDBankScrapper(BaseBankScraper):
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
         # Federal Reserve Payments Study (FRPS)
-        self..driver_manager.driver.get("https://www.federalreserve.gov/paymentsystems/frps_previous.htm")
+        self.driver_manager.driver.get("https://www.federalreserve.gov/paymentsystems/frps_previous.htm")
         xpath = "//div[@id='article']/*"
-        elements = self..driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
+        elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
 
 
         to_process = []
@@ -812,8 +812,8 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(1996, current_year + 1):
             to_process = []
-            self..driver_manager.driver.get(main_url.format(year))
-            papers = self..driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
+            self.driver_manager.driver.get(main_url.format(year))
+            papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
                 if len(tag_times) == 0:
@@ -866,8 +866,8 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(2013, current_year + 1):
             to_process = []
-            self..driver_manager.driver.get(main_url.format(year))
-            papers = self..driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
+            self.driver_manager.driver.get(main_url.format(year))
+            papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
                 if len(tag_times) == 0:
@@ -918,8 +918,8 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(1971, current_year + 1):
             to_process = []
-            self..driver_manager.driver.get(main_url.format(year))
-            papers = self..driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
+            self.driver_manager.driver.get(main_url.format(year))
+            papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
                 if len(tag_times) == 0:
@@ -972,8 +972,8 @@ class FEDBankScrapper(BaseBankScraper):
         xpath = "//div[@id='article']/div[@class='row']"
         for year in range(1997, current_year + 1):
             to_process = []
-            self..driver_manager.driver.get(main_url.format(year))
-            cas = self..driver_manager.driver.find_elements(By.XPATH, xpath)
+            self.driver_manager.driver.get(main_url.format(year))
+            cas = self.driver_manager.driver.find_elements(By.XPATH, xpath)
             for ca in cas[1:]:
                 try:
                     a_tag = ca.find_element(By.XPATH, ".//a")
@@ -996,18 +996,18 @@ class FEDBankScrapper(BaseBankScraper):
             for href in to_process:
                 logger.info(f"Processing: {href}")
                 # get date
-                self..driver_manager.driver.get(href)
+                self.driver_manager.driver.get(href)
                 # try p with class "date"
                 
-                if len(p_dates := self..driver_manager.driver.find_elements(By.XPATH, "//p[@class='date']")) == 1:
+                if len(p_dates := self.driver_manager.driver.find_elements(By.XPATH, "//p[@class='date']")) == 1:
                     date_txt = p_dates[0].text
-                elif len(div_dates := self..driver_manager.driver.find_elements(By.XPATH, "//div[@class='date_text']")) == 1:
+                elif len(div_dates := self.driver_manager.driver.find_elements(By.XPATH, "//div[@class='date_text']")) == 1:
                     date_txt = div_dates[0].text
-                elif '--' in self..driver_manager.driver.title:
-                    date_txt = self..driver_manager.driver.title.split('--')[1].strip()
-                elif len(p_center := self..driver_manager.driver.find_elements(By.XPATH, "//p[@align='center']")) == 1:
+                elif '--' in self.driver_manager.driver.title:
+                    date_txt = self.driver_manager.driver.title.split('--')[1].strip()
+                elif len(p_center := self.driver_manager.driver.find_elements(By.XPATH, "//p[@align='center']")) == 1:
                     date_txt = p_center[0].text
-                elif len(div_col := self..driver_manager.driver.find_elements(By.XPATH, "//div[@id='article']/div/div[@class='col-xs-12 col-sm-4']/strong")) >= 2:
+                elif len(div_col := self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='article']/div/div[@class='col-xs-12 col-sm-4']/strong")) >= 2:
                     date_txt = div_col[1].text
                 else:
                     raise ValueError("No date found")
@@ -1122,13 +1122,13 @@ class FEDBankScrapper(BaseBankScraper):
     
     def read_html(self, url: str, load_page=True):
         if load_page:
-            self..driver_manager.driver.get(url)
+            self.driver_manager.driver.get(url)
         url_parsed = urlparse(url)
         
-        elements = self..driver_manager.driver.find_elements(By.XPATH, "//*[@id='content']")
+        elements = self.driver_manager.driver.find_elements(By.XPATH, "//*[@id='content']")
         if len(elements) == 0:
             # old page try main='content'
-            elements = self..driver_manager.driver.find_elements(By.XPATH, "//body")
+            elements = self.driver_manager.driver.find_elements(By.XPATH, "//body")
         if len(elements) == 0:
             raise ValueError(f"No content found in HTML file, {url}")
         element = elements[0]

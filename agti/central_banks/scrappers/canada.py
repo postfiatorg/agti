@@ -21,7 +21,7 @@ class CanadaBankScrapper(BaseBankScraper):
     
 
     def process_all_years(self):
-        wait = WebDriverWait(self..driver_manager.driver, 30)
+        wait = WebDriverWait(self.driver_manager.driver, 30)
 
         all_urls = self.get_all_db_urls()
         all_categories = self.get_all_db_categories()
@@ -30,12 +30,12 @@ class CanadaBankScrapper(BaseBankScraper):
         while True:
             if page % 10 == 0:
                 logger.debug(f"Current page: {page}")
-            self..driver_manager.driver.get(self.get_url_search(page))
+            self.driver_manager.driver.get(self.get_url_search(page))
 
             xpath_results = "(//article | //div)[@class='media' and starts-with(@id, 'post-')]"
 
             #wait.until(EC.presence_of_all_elements_located((By.XPATH, xpath_results)))
-            articles = list(self..driver_manager.driver.find_elements(By.XPATH, xpath_results))
+            articles = list(self.driver_manager.driver.find_elements(By.XPATH, xpath_results))
             if len(articles) == 0:
                 break
             if len(articles) != 10:
@@ -114,7 +114,7 @@ class CanadaBankScrapper(BaseBankScraper):
                     "full_extracted_text": text
                 })
             else:
-                self..driver_manager.driver.get(file_url)
+                self.driver_manager.driver.get(file_url)
                 url_parsed = urlparse(file_url)
                 if url_parsed.netloc != "www.bankofcanada.ca":
                     result.append({
