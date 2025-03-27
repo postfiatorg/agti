@@ -69,7 +69,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                             self.add_to_categories(total_categories)
                         continue
                     logger.info(f"Processing: {href}")
-                    text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies())
+                    text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
                     result.append({
                         "date_published": None,
                         "scraping_time": pd.Timestamp.now(),
@@ -285,7 +285,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             name = a.text
             extracted_link_text = None
             if link.endswith(".pdf"):
-                extracted_link_text = download_and_read_pdf(link,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies())
+                extracted_link_text = download_and_read_pdf(link,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
             links.append({
                 "file_url": url,
                 "link_url": link,
@@ -347,7 +347,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         for url in to_process:
             logger.info(f"Processing: {url}")
             if url.endswith(".pdf"):
-                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies())
+                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
                 date = None
 
             else:
