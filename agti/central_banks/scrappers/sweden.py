@@ -45,7 +45,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # process archive reports
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
         logger.info(f"Processing Monetary Policy Reports Archive")
-        self.driver_manager.driver.get(main_url)
+        self.get(main_url)
         trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
         omit_dates = []
@@ -120,7 +120,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # process minutes
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Minutes-of-the-Executive-Boards-monetary-policy-meetings/index.html@all=1.html"
         logger.info(f"Processing Monetary Policy Minutes Archive")
-        self.driver_manager.driver.get(main_url)
+        self.get(main_url)
         trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = []
 
@@ -148,7 +148,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_links = []
         for (date, href) in to_process:
             logger.info(f"Processing {href}")
-            self.driver_manager.driver.get(href)
+            self.get(href)
             main_div = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='main']")
             text = main_div.text
             links = main_div.find_elements(By.XPATH, "./parent::div//a")
@@ -195,7 +195,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Financial-stability/Financial-Stability-Report/index.html@all=1.html"
         logger.info(f"Processing Financial Stability Reports Archive")
-        self.driver_manager.driver.get(main_url)
+        self.get(main_url)
         trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
         omit_dates = []
@@ -299,7 +299,7 @@ class SwedenBankScrapper(BaseBankScraper):
         page = 1
         to_process = []
         while True:
-            self.driver_manager.driver.get(main_url + "?&page={}".format(page))
+            self.get(main_url + "?&page={}".format(page))
             # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
             WebDriverWait(self.driver_manager.driver, 60, poll_frequency=0.1).until(
                 EC.presence_of_element_located((By.XPATH, ul_xpath))
@@ -332,7 +332,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_links = []
         for date, href, categories in to_process:
             logger.info(f"Processing {href}")
-            self.driver_manager.driver.get(href)
+            self.get(href)
             articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
             if len(articles) > 1:
                 raise Exception("More than one article found")
@@ -564,7 +564,7 @@ class SwedenBankScrapper(BaseBankScraper):
         one_page = False
         to_process = []
 
-        self.driver_manager.driver.get(main_url)
+        self.get(main_url)
         # find "pagination__link" class
         all_pagitation_links = self.driver_manager.driver.find_elements(By.XPATH, "//a[contains(@class, 'pagination__link')]")
         if len(all_pagitation_links) == 0:
@@ -577,7 +577,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 page_url = main_url + "?&page={}".format(page_number)
             else:
                 page_url = main_url
-            self.driver_manager.driver.get(page_url)
+            self.get(page_url)
             
             # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
             WebDriverWait(self.driver_manager.driver, 60, poll_frequency=0.1).until(
@@ -624,7 +624,7 @@ class SwedenBankScrapper(BaseBankScraper):
             if href_prased.path.endswith(".pdf"):
                 text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
             elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm") or href_prased.path.endswith("/"):
-                self.driver_manager.driver.get(href)
+                self.get(href)
                 articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
                 if len(articles) > 1:
                     raise Exception("More than one article found")
@@ -679,7 +679,7 @@ class SwedenBankScrapper(BaseBankScraper):
         self.add_all_atomic(result, total_categories, total_links)
                 
     def initialize_cookies(self):
-        self.driver_manager.driver.get("https://www.riksbank.se/en-gb/")
+        self.get("https://www.riksbank.se/en-gb/")
         # find button with class having "js-accept-cookies"
         wait = WebDriverWait(self.driver_manager.driver, 10, 0.1)
         wait.until(

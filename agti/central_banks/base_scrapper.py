@@ -1,5 +1,7 @@
 import socket
 import logging
+import time
+import random
 from urllib.parse import urlparse
 import pandas as pd
 from sqlalchemy import text
@@ -26,7 +28,9 @@ class BaseBankScraper:
         # Automatically register the subclass
         BaseBankScraper.registry[cls.__name__] = cls
 
-    def __init__(self,driver_manager, pw_map, user_name, table_name):
+    def __init__(self,driver_manager, pw_map, user_name, table_name, min_sleep, max_sleep):
+        self.min_sleep = min_sleep
+        self.max_sleep = max_sleep
         self.pw_map = pw_map
         self.user_name = user_name
         self.table_name = table_name
@@ -37,6 +41,11 @@ class BaseBankScraper:
         self._header_to_use = None
 
         self._cookies = None
+
+    def get(self, url):
+        # random sleep time to mimic human behavior
+        time.sleep(random.uniform(self.min_sleep, self.max_sleep))
+        self.driver_manager.driver.get(url)
 
     def initialize_cookies(self):
         raise NotImplementedError
