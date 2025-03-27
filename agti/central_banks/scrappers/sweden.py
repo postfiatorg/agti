@@ -3,6 +3,9 @@ import logging
 import re
 from urllib.parse import urlparse
 import pandas as pd
+import os
+import time
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -17,8 +20,9 @@ class SwedenBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "SWE"
     COUNTRY_NAME = "Sweden"
 
-
-
+    def get_netloc(self):
+        return "www.riksbank.se"
+    
     def process_monetary_policy(self):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
@@ -41,8 +45,8 @@ class SwedenBankScrapper(BaseBankScraper):
         # process archive reports
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Monetary-policy/Monetary-Policy-Report/index.html@all=1.html"
         logger.info(f"Processing Monetary Policy Reports Archive")
-        self._driver.get(main_url)
-        trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
+        self.driver_manager.driver.get(main_url)
+        trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
         omit_dates = []
         for tr in trs:
@@ -84,7 +88,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -101,7 +105,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -116,8 +120,8 @@ class SwedenBankScrapper(BaseBankScraper):
         # process minutes
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Minutes-of-the-Executive-Boards-monetary-policy-meetings/index.html@all=1.html"
         logger.info(f"Processing Monetary Policy Minutes Archive")
-        self._driver.get(main_url)
-        trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
+        self.driver_manager.driver.get(main_url)
+        trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = []
 
         for tr in trs:
@@ -144,15 +148,15 @@ class SwedenBankScrapper(BaseBankScraper):
         total_links = []
         for (date, href) in to_process:
             logger.info(f"Processing {href}")
-            self._driver.get(href)
-            main_div = self._driver.find_element(By.XPATH, "//div[@id='main']")
+            self.driver_manager.driver.get(href)
+            main_div = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='main']")
             text = main_div.text
             links = main_div.find_elements(By.XPATH, "./parent::div//a")
             for link in links:
                 link_text = None
                 link_href = link.get_attribute("href")
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -191,8 +195,8 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         main_url = "https://archive.riksbank.se/en/Web-archive/Published/Published-from-the-Riksbank/Financial-stability/Financial-Stability-Report/index.html@all=1.html"
         logger.info(f"Processing Financial Stability Reports Archive")
-        self._driver.get(main_url)
-        trs = self._driver.find_elements(By.XPATH, "//table//tr")[1:]
+        self.driver_manager.driver.get(main_url)
+        trs = self.driver_manager.driver.find_elements(By.XPATH, "//table//tr")[1:]
         to_process = defaultdict(list)
         omit_dates = []
         for tr in trs:
@@ -243,7 +247,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -260,7 +264,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self._driver)
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -295,12 +299,12 @@ class SwedenBankScrapper(BaseBankScraper):
         page = 1
         to_process = []
         while True:
-            self._driver.get(main_url + "?&page={}".format(page))
+            self.driver_manager.driver.get(main_url + "?&page={}".format(page))
             # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
-            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
+            WebDriverWait(self.driver_manager.driver, 60, poll_frequency=0.1).until(
                 EC.presence_of_element_located((By.XPATH, ul_xpath))
             )
-            ul = self._driver.find_element(By.XPATH, ul_xpath)
+            ul = self.driver_manager.driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
                 break
@@ -328,8 +332,8 @@ class SwedenBankScrapper(BaseBankScraper):
         total_links = []
         for date, href, categories in to_process:
             logger.info(f"Processing {href}")
-            self._driver.get(href)
-            articles = self._driver.find_elements(By.XPATH, "//article")
+            self.driver_manager.driver.get(href)
+            articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
             if len(articles) > 1:
                 raise Exception("More than one article found")
             article = articles[0]
@@ -340,7 +344,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 link_href = link.get_attribute("href")
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -417,7 +421,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
         if single_url not in all_urls:
-            text = download_and_read_pdf(single_url,self.datadump_directory_path, self._driver)
+            text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
             result = [
                 {
                     "file_url":single_url,
@@ -459,7 +463,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_categories = []
         for single_url in archive_urls:
             if single_url not in all_urls:
-                text = download_and_read_pdf(single_url,self.datadump_directory_path, self._driver)
+                text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                 result.append(
                     {
                         "file_url":single_url,
@@ -560,9 +564,9 @@ class SwedenBankScrapper(BaseBankScraper):
         one_page = False
         to_process = []
 
-        self._driver.get(main_url)
+        self.driver_manager.driver.get(main_url)
         # find "pagination__link" class
-        all_pagitation_links = self._driver.find_elements(By.XPATH, "//a[contains(@class, 'pagination__link')]")
+        all_pagitation_links = self.driver_manager.driver.find_elements(By.XPATH, "//a[contains(@class, 'pagination__link')]")
         if len(all_pagitation_links) == 0:
             one_page = True
 
@@ -573,13 +577,13 @@ class SwedenBankScrapper(BaseBankScraper):
                 page_url = main_url + "?&page={}".format(page_number)
             else:
                 page_url = main_url
-            self._driver.get(page_url)
+            self.driver_manager.driver.get(page_url)
             
             # Wait up to 60 seconds for the element to be present, checking every 0.1 seconds
-            WebDriverWait(self._driver, 60, poll_frequency=0.1).until(
+            WebDriverWait(self.driver_manager.driver, 60, poll_frequency=0.1).until(
                 EC.presence_of_element_located((By.XPATH, ul_xpath))
             )
-            ul = self._driver.find_element(By.XPATH, ul_xpath)
+            ul = self.driver_manager.driver.find_element(By.XPATH, ul_xpath)
             a_tags = ul.find_elements(By.XPATH,"./li/a")
             if len(a_tags) == 0:
                 break
@@ -618,24 +622,24 @@ class SwedenBankScrapper(BaseBankScraper):
             href_prased = urlparse(href)
             text = None
             if href_prased.path.endswith(".pdf"):
-                text = download_and_read_pdf(href,self.datadump_directory_path, self._driver)
+                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
             elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm") or href_prased.path.endswith("/"):
-                self._driver.get(href)
-                articles = self._driver.find_elements(By.XPATH, "//article")
+                self.driver_manager.driver.get(href)
+                articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
                 if len(articles) > 1:
                     raise Exception("More than one article found")
                 elif len(articles) == 0:
                     if "archive" in href_prased.path:
                         # find div id="main"
-                        main_div = self._driver.find_element(By.XPATH, "//div[@id='main']")
+                        main_div = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='main']")
                         text = main_div.text
                         links = main_div.find_elements(By.XPATH, ".//a")
                     else:
                         # try to find text Download PDF
                         # or we could parse the page, the issue is, it dynamically loads the content
                         pdf_xpath = "//a[contains(text(), 'Download PDF')] | //a[@class='report-page__download']"
-                        pdf_href = self._driver.find_element(By.XPATH, pdf_xpath).get_attribute("href")
-                        text = download_and_read_pdf(pdf_href,self.datadump_directory_path, self._driver)
+                        pdf_href = self.driver_manager.driver.find_element(By.XPATH, pdf_xpath).get_attribute("href")
+                        text = download_and_read_pdf(pdf_href,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                         links = []
                 else:
                     main_text = articles[0]
@@ -646,7 +650,7 @@ class SwedenBankScrapper(BaseBankScraper):
                     link_href = link.get_attribute("href")
                     link_text = None
                     if link_href.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
+                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers()(), cookies=self.get_cookies())
                     total_links.append({
                         "file_url": href,
                         "link_url": link_href,
@@ -674,24 +678,24 @@ class SwedenBankScrapper(BaseBankScraper):
             })
         self.add_all_atomic(result, total_categories, total_links)
                 
+    def initialize_cookies(self):
+        self.driver_manager.driver.get("https://www.riksbank.se/en-gb/")
+        # find button with class having "js-accept-cookies"
+        wait = WebDriverWait(self.driver_manager.driver, 10, 0.1)
+        wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
+        ).click()
+        self._cookies = self.driver_manager.driver.get_cookies()
+        self._cookies = {cookie["name"]: cookie["value"] for cookie in self._cookies}
 
             
 
     def process_all_years(self):
-        import os
-        import time
-        from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-        
         # Create debug directory if it doesn't exist
         debug_dir = os.path.join(self.datadump_directory_path, "debug", "sweden")
         os.makedirs(debug_dir, exist_ok=True)
         # accept cookies
-        self._driver.get("https://www.riksbank.se/en-gb/")
-        # find button with class having "js-accept-cookies"
-        wait = WebDriverWait(self._driver, 10, 0.1)
-        wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
-        ).click()
+        self.initialize_cookies()
         # Process each section with error handling
         sections = [
             ("monetary_policy", self.process_monetary_policy),
@@ -713,12 +717,12 @@ class SwedenBankScrapper(BaseBankScraper):
                 
                 # Save screenshot
                 screenshot_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.png")
-                self._driver.save_screenshot(screenshot_path)
+                self.driver_manager.driver.save_screenshot(screenshot_path)
                 
                 # Save HTML source
                 html_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.html")
                 with open(html_path, "w", encoding="utf-8") as f:
-                    f.write(self._driver.page_source)
+                    f.write(self.driver_manager.driver.page_source)
                 
                 # Log the error
                 logger.error(

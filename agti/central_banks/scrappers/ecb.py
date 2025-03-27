@@ -65,19 +65,19 @@ const callback = arguments[0];
 """
 
     def fetch_all_data(self):
-        self._driver.get(self.get_serach_url())
-        return self._driver.execute_async_script(self.SCRIPT_FETCHER)
+        self..driver_manager.driver.get(self.get_serach_url())
+        return self..driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
 
 
     def parse_html(self, url: str):
         url_parsed = urlparse(url)
-        self._driver.get(url)
-        current_url_parsed = urlparse(self._driver.current_url)
+        self..driver_manager.driver.get(url)
+        current_url_parsed = urlparse(self..driver_manager.driver.current_url)
         # check if it is pdf
         if current_url_parsed.path.endswith("pdf"):
-            return download_and_read_pdf(url,self.datadump_directory_path, self._driver), []
+            return download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies()), []
         # select all text from dev with class section
-        main = self._driver.find_element(By.XPATH, "//main")
+        main = self..driver_manager.driver.find_element(By.XPATH, "//main")
         text = main.text
         # find all links and process them
         links = main.find_elements(By.XPATH, ".//a")
@@ -105,7 +105,7 @@ const callback = arguments[0];
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self._driver)
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies())
             # NOTE add support for different file types
             total_links.append({
                 "file_url": url,
@@ -144,7 +144,7 @@ const callback = arguments[0];
                     logger.debug(f"PDF already in db: {temp_url}")
                     continue
                 logger.info(f"Processing PDF: {temp_url}")
-                text = download_and_read_pdf(temp_url,self.datadump_directory_path, self._driver)
+                text = download_and_read_pdf(temp_url,self.datadump_directory_path, headers=self.get_headers()()(), cookies=self.get_cookies())
                 result.append({
                     "file_url": temp_url,
                     "date_published": timestamp,

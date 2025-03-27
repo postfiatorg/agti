@@ -1,5 +1,6 @@
 import socket
 import logging
+from urllib.parse import urlparse
 import pandas as pd
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
@@ -25,14 +26,32 @@ class BaseBankScraper:
         # Automatically register the subclass
         BaseBankScraper.registry[cls.__name__] = cls
 
-    def __init__(self,driver, pw_map, user_name, table_name):
+    def __init__(self,driver_manager, pw_map, user_name, table_name):
         self.pw_map = pw_map
         self.user_name = user_name
         self.table_name = table_name
-        self._driver = driver
+        self.driver_manager = driver_manager
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         self.credential_manager = CredentialManager()
         self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
+        self._header_to_use = None
+
+        self._cookies = None
+
+    def initialize_cookies(self):
+        raise NotImplementedError
+
+    def get_headers(self):
+        return self.driver_manager.headers
+    
+    def get_cookies(self):
+        if self._cookies is None:
+            raise ValueError("Cookies not initialized.")
+        return self._cookies
+    
+    def get_driver(self):
+        return self.driver_manager.driver
+        
 
     def ip_hostname(self):
         """Retrieve machine IP and hostname."""

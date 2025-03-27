@@ -21,7 +21,7 @@ class Categories(enum.Enum):
 logger = logging.getLogger(__name__)
 logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
-def download_and_read_pdf(url, save_dir, driver,  evaluate_tolerances=None):
+def download_and_read_pdf(url, save_dir, headers=None, cookies=None,  evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
 
     # NOTE: This is a temporary fix to disable PDF processing for quick local testing
@@ -52,7 +52,6 @@ def download_and_read_pdf(url, save_dir, driver,  evaluate_tolerances=None):
         "Sec-GPC": "1"  # Global Privacy Control
     }
     """
-    cookies, headers = get_cookies_headers(driver)
     
     text = None
     
