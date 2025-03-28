@@ -65,11 +65,6 @@ const callback = arguments[0];
     })();
 """
 
-    def initialize_cookies(self, go_to_url=False):
-        if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
-        self.cookies = self.driver_manager.driver.get_cookies()
-
     def fetch_all_data(self):
         self.get(self.get_serach_url())
         return self.driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)

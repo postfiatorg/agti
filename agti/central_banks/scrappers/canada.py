@@ -19,13 +19,7 @@ class CanadaBankScrapper(BaseBankScraper):
     COUNTRY_NAME = "Canada"
     NETLOC = "www.bankofcanada.ca"
 
-    def initialize_cookies(self, go_to_url=False):
-        if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
-        self.cookies = self.driver_manager.driver.get_cookies()
         
-    
-
     def process_all_years(self):
         wait = WebDriverWait(self.driver_manager.driver, 30)
 
