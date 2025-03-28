@@ -23,11 +23,13 @@ class EnglandBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "ENG"
     COUNTRY_NAME = "England"
     MAX_OLD_YEAR = 2000
+    NETLOC = "www.bankofengland.co.uk"
 
-    def cookie_click(self):
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}")
         wait = WebDriverWait(self.driver_manager.driver, 10)
-        xpath = "//button[@class='cookie__button btn btn-default btn-neutral']"
-
+        xpath = "//button[@class='cookie__button btn btn-default']"
         success = False
         repeat = 3
         for i in range(repeat):
@@ -37,23 +39,16 @@ class EnglandBankScrapper(BaseBankScraper):
                 )
                 # click the cookie banner
                 cookie_btn.click()
-                success = True
                 break
             except Exception as e:
-                if repeat != (repeat - 1):
-                    logger.warning(f"Could not click cookie banner repeating", exc_info=True)
-                else:
-                    logger.exception(f"Could not click cookie banner", exc_info=True)
-                    
-        if not success:
-            raise Exception("Can not click cookie banner")
-        
-        wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
-        logger.debug("Cookie banner clicked")
+                logger.warning(f"Could not click cookie banner", exc_info=True)
+                if i == repeat - 1:
+                    raise e
+        self.cookies = self.driver_manager.driver.get_cookies()
 
 
     def init_filter(self, topic):
-        self.driver_manager.driver.get(self.get_base_url())
+        self.get(self.get_base_url())
         wait = WebDriverWait(self.driver_manager.driver, 10,0.2)
     
         def iterate_over_labels(div_element_xpath, filters_list):
@@ -98,7 +93,7 @@ class EnglandBankScrapper(BaseBankScraper):
 
     def parse_html(self, url: str):
         # find main with id="main-content"
-        self.driver_manager.driver.get(url)
+        self.get(url)
         url_parsed = urlparse(url)
         xpath = "//main[@id='main-content']"
         main = self.driver_manager.driver.find_element(By.XPATH, xpath)
@@ -134,8 +129,9 @@ class EnglandBankScrapper(BaseBankScraper):
 
 
     def process_all_years(self):
-        self.driver_manager.driver.get(self.get_base_url())
-        self.cookie_click()
+        wait = WebDriverWait(self.driver_manager.driver, 10)
+        self.get(self.get_base_url())
+        wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         topics = [
