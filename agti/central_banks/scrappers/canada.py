@@ -17,7 +17,13 @@ logger = logging.getLogger(__name__)
 class CanadaBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "CAN"
     COUNTRY_NAME = "Canada"
+    NETLOC = "www.bankofcanada.ca"
 
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+        self.cookies = self.driver_manager.driver.get_cookies()
+        
     
 
     def process_all_years(self):
@@ -30,7 +36,7 @@ class CanadaBankScrapper(BaseBankScraper):
         while True:
             if page % 10 == 0:
                 logger.debug(f"Current page: {page}")
-            self.driver_manager.driver.get(self.get_url_search(page))
+            self.get(self.get_url_search(page))
 
             xpath_results = "(//article | //div)[@class='media' and starts-with(@id, 'post-')]"
 
@@ -114,7 +120,7 @@ class CanadaBankScrapper(BaseBankScraper):
                     "full_extracted_text": text
                 })
             else:
-                self.driver_manager.driver.get(file_url)
+                self.get(file_url)
                 url_parsed = urlparse(file_url)
                 if url_parsed.netloc != "www.bankofcanada.ca":
                     result.append({
