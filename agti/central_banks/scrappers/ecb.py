@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 class ECBBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "EUE"
     COUNTRY_NAME = "European Union"
+    NETLOC = "www.ecb.europa.eu"
 
     SCRIPT_FETCHER = """
 const callback = arguments[0];
@@ -64,14 +65,19 @@ const callback = arguments[0];
     })();
 """
 
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+        self.cookies = self.driver_manager.driver.get_cookies()
+
     def fetch_all_data(self):
-        self.driver_manager.driver.get(self.get_serach_url())
+        self.get(self.get_serach_url())
         return self.driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
 
 
     def parse_html(self, url: str):
         url_parsed = urlparse(url)
-        self.driver_manager.driver.get(url)
+        self.get(url)
         current_url_parsed = urlparse(self.driver_manager.driver.current_url)
         # check if it is pdf
         if current_url_parsed.path.endswith("pdf"):
@@ -202,7 +208,7 @@ const callback = arguments[0];
         return f"{self.get_base_url()}/press/pubbydate/html/index.en.html"
     
     def get_base_url(self) -> str:
-        return "https://www.ecb.europa.eu"
+        return f"https://{self.NETLOC}"
     
     def get_categories(self, taxonomies: list[str], publication_name:str) -> set[Categories]:
         result_categories = set()
