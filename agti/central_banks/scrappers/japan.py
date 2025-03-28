@@ -23,6 +23,7 @@ __all__ = ["JapanBankScrapper"]
 class JapanBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "JPN"
     COUNTRY_NAME = "Japan"
+    NETLOC = "www.boj.or.jp"
 
 
 
@@ -63,7 +64,7 @@ class JapanBankScrapper(BaseBankScraper):
         ## Others
         ##########################
         logger.info("Processing MP meeting others")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/mopo/mpmsche_minu/m_ref/index.htm")
+        self.get("https://www.boj.or.jp/en/mopo/mpmsche_minu/m_ref/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value])
 
@@ -92,7 +93,7 @@ class JapanBankScrapper(BaseBankScraper):
         # they are 2 tables, we let the first one to be parsed by process_href_table
         # and the second one we parse it here
         logger.info("Processing outlook for economic activity and prices")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/mopo/outlook/index.htm")
+        self.get("https://www.boj.or.jp/en/mopo/outlook/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -136,7 +137,7 @@ class JapanBankScrapper(BaseBankScraper):
         # Semiannual Report on Currency and Monetary Control
         ##########################
         logger.info("Processing semiannual report on currency and monetary control")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/mopo/diet/d_report/index.htm")
+        self.get("https://www.boj.or.jp/en/mopo/diet/d_report/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -144,7 +145,7 @@ class JapanBankScrapper(BaseBankScraper):
         # Statement concerning the Report to the Diet
         ##########################
         logger.info("Processing statement concerning the report to the diet")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/mopo/diet/d_state/index.htm")
+        self.get("https://www.boj.or.jp/en/mopo/diet/d_state/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -155,7 +156,7 @@ class JapanBankScrapper(BaseBankScraper):
         ## Statements
         ##########################
         logger.info("Processing MP statements")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/mopo/r_menu_dan/index.htm")
+        self.get("https://www.boj.or.jp/en/mopo/r_menu_dan/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MONETARY_POLICY.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -188,7 +189,7 @@ class JapanBankScrapper(BaseBankScraper):
         # on -site
         # https://www.boj.or.jp/en/finsys/exam_monit/exampolicy/index.htm
         logger.info("Processing financial system reports")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/exam_monit/exampolicy/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/exam_monit/exampolicy/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
 
@@ -197,12 +198,12 @@ class JapanBankScrapper(BaseBankScraper):
         # https://www.boj.or.jp/en/research/brp/fsr/index.htm#p02
         # old markets reports
         logger.info("Processing financial old markets reports")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/brp/fmr/index.htm")
+        self.get("https://www.boj.or.jp/en/research/brp/fmr/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value, Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
         # new system reports and Annex series
         logger.info("Processing financial new system reports and annex series")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/brp/fsr/index.htm")
+        self.get("https://www.boj.or.jp/en/research/brp/fsr/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=2)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -212,19 +213,19 @@ class JapanBankScrapper(BaseBankScraper):
         # https://www.boj.or.jp/en/finsys/spp/index.htm
         # https://www.boj.or.jp/en/finsys/rfs/index.htm
         logger.info("Processing financial policy")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/fs_policy/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/fs_policy/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
 
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/msfs/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/msfs/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
 
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/spp/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/spp/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value,Categories.INSTITUTIONAL_AND_GOVERNANCE.value])
 
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/rfs/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/rfs/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -232,11 +233,11 @@ class JapanBankScrapper(BaseBankScraper):
         # https://www.boj.or.jp/en/finsys/macpru/index.htm
         # https://www.boj.or.jp/en/finsys/cofsa/index.htm (all tables)
         logger.info("Processing financial coordination")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/macpru/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/macpru/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.NEWS_AND_EVENTS.value])
 
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/cofsa/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/cofsa/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=3)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -259,7 +260,7 @@ class JapanBankScrapper(BaseBankScraper):
         
         # statements
         logger.info("Processing financial system statements")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/finsys/r_menu_dan/index.htm")
+        self.get("https://www.boj.or.jp/en/finsys/r_menu_dan/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.FINANCIAL_STABILITY_AND_REGULATION.value, Categories.NEWS_AND_EVENTS.value])
         
@@ -276,25 +277,25 @@ class JapanBankScrapper(BaseBankScraper):
 
         # Payment and Settlement Systems and the Bank
         logger.info("Processing payment and settlement systems")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/outline/pay_boj/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/outline/pay_boj/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         # oversight
         logger.info("Processing payment and settlement systems oversight")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/outline/pay_os/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/outline/pay_os/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.FINANCIAL_STABILITY_AND_REGULATION.value])
 
         # forums
         logger.info("Processing payment and settlement systems forums")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/outline/pay_forum/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/outline/pay_forum/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
 
         # Payment and Settlement Systems Operated by the Private Sector
         logger.info("Processing payment and settlement systems operated by the private sector")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/outline/pay_ps/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/outline/pay_ps/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
@@ -303,58 +304,58 @@ class JapanBankScrapper(BaseBankScraper):
 
         # The Next-Generation RTGS Project
         logger.info("Processing next-generation RTGS project")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/next_rtgs/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/next_rtgs/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         # RTGS (Real-Time Gross Settlement)
         logger.info("Processing RTGS")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/rtgs/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/rtgs/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         # New BOJ-NET
         logger.info("Processing new BOJ-NET")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/new_net/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/new_net/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         # Forum Towards Making Effective Use of the BOJ-NET
         logger.info("Processing forum towards making effective use of the BOJ-NET")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/net_forum/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/net_forum/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
 
         # Cross-border DVP Link
         logger.info("Processing cross-border DVP link")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/crossborder/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/crossborder/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         # Others
         logger.info("Processing Payments and Markets others")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bojnet/other/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bojnet/other/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         ##########################
         # JGB Book-Entry System
         logger.info("Processing JGB book-entry system")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/jgb_bes/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/jgb_bes/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         ##########################
         # FinTech Center
         logger.info("Processing fintech center")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/fintech/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/fintech/index.htm")
         to_process = self.process_href_table(all_urls,num_tables=2)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
         ##########################
         # Central Bank Digital Currency
         logger.info("Processing central bank digital currency")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/digital/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/digital/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=4)
         # parse separately the last table
         table = self.driver_manager.driver.find_elements(By.XPATH, "//table[@class='js-tbl' or @class='STDtable TAB_top']")[-1]
@@ -374,14 +375,14 @@ class JapanBankScrapper(BaseBankScraper):
 
         # CBDC Forum
         logger.info("Processing CBDC forum")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/digital/d_forum/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/digital/d_forum/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.NEWS_AND_EVENTS.value]) 
 
         ##########################
         # Money Market
         logger.info("Processing Payments and Markets money market")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/market/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/market/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=4)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
 
@@ -390,7 +391,7 @@ class JapanBankScrapper(BaseBankScraper):
 
         # Cross-Industry Committee on Japanese Yen Interest Rate Benchmarks
         logger.info("Processing cross-industry committee on Japanese yen interest rate benchmarks")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/market/jpy_cmte/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/market/jpy_cmte/index.htm")
         # we could theoretically ignore the first table
         to_process = self.process_href_table(all_urls, num_tables=3)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value])
@@ -399,19 +400,19 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Bond Market
         logger.info("Processing bond market")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bond/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bond/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=3)
         self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value])
 
         # Bond Market Survey
         logger.info("Processing bond market survey")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bond/bond_list/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bond/bond_list/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.RESEARCH_AND_DATA.value])
 
         # Bond Market Group
         logger.info("Processing bond market group")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/bond/mbond_list/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/bond/mbond_list/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -421,7 +422,7 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Forums and Conferences
         logger.info("Processing Payments and Markets forums and conferences")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/forum/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/forum/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -431,19 +432,19 @@ class JapanBankScrapper(BaseBankScraper):
         logger.info("Processing Payments and Markets research papers, reports, speeches and statements")
         # Payment and Settlement Systems Report
         logger.info("Processing payment and settlement systems report")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/brp/psr/index.htm")
+        self.get("https://www.boj.or.jp/en/research/brp/psr/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=2)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
 
         # Market Operations in Each Fiscal Year
         logger.info("Processing market operations in each fiscal year")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/brp/mor/index.htm")
+        self.get("https://www.boj.or.jp/en/research/brp/mor/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
 
         # Market Functioning Survey concerning Climate Change
         logger.info("Processing market functioning survey concerning climate change")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/m-climate/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/m-climate/index.htm")
         to_process = self.process_href_table(all_urls, num_tables=3)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.RESEARCH_AND_DATA.value])
 
@@ -468,7 +469,7 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Other Releases Related to Payment and Markets
         logger.info("Processing other releases related to payment and markets")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/paym/release/index.htm")
+        self.get("https://www.boj.or.jp/en/paym/release/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -493,19 +494,19 @@ class JapanBankScrapper(BaseBankScraper):
 
         # International Meetings
         logger.info("Processing international meetings")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/intl_finance/meeting/index.htm") 
+        self.get("https://www.boj.or.jp/en/intl_finance/meeting/index.htm") 
         to_process = self.process_href_table(all_urls, num_tables=2)
         self.extract_data_update_tables(to_process, [Categories.NEWS_AND_EVENTS.value])
 
         # Foreign Currency Assets
         logger.info("Processing foreign currency assets")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/intl_finance/ex_assets/index.htm")
+        self.get("https://www.boj.or.jp/en/intl_finance/ex_assets/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value])
 
         # Cooperation with Other Central Banks
         logger.info("Processing cooperation with other central banks")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/intl_finance/cooperate/index.htm")
+        self.get("https://www.boj.or.jp/en/intl_finance/cooperate/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.INSTITUTIONAL_AND_GOVERNANCE.value, Categories.NEWS_AND_EVENTS.value])
 
@@ -527,7 +528,7 @@ class JapanBankScrapper(BaseBankScraper):
 
         # Other Releases Related to International Finance
         logger.info("Processing other releases related to international finance")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/intl_finance/release/index.htm")
+        self.get("https://www.boj.or.jp/en/intl_finance/release/index.htm")
         to_process = self.process_href_table(all_urls)
         self.extract_data_update_tables(to_process, [Categories.NEWS_AND_EVENTS.value])
 
@@ -563,7 +564,7 @@ class JapanBankScrapper(BaseBankScraper):
 
         # Regional Economic Report
         logger.info("Processing regional economic report")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/brp/rer/index.htm")
+        self.get("https://www.boj.or.jp/en/research/brp/rer/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -579,7 +580,7 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Bank of Japan Working Paper Series, Review Series, and Research Laboratory Series
         logger.info("Processing bank of japan working paper series, review series and research laboratory series")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/wps_rev/index.htm")
+        self.get("https://www.boj.or.jp/en/research/wps_rev/index.htm")
         to_process = self.process_href_table(all_urls, date_col=1, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -595,7 +596,7 @@ class JapanBankScrapper(BaseBankScraper):
         logger.info("Processing monetary and economic studies")
         for year in range(1997,current_year + 1):
             short_year = str(year)[-2:]
-            self.driver_manager.driver.get(f"https://www.boj.or.jp/en/research/imes/mes/mes{short_year}.htm")
+            self.get(f"https://www.boj.or.jp/en/research/imes/mes/mes{short_year}.htm")
             to_process = []
             tables = self.driver_manager.driver.find_elements(By.XPATH, "//table")
             for table in tables:
@@ -617,7 +618,7 @@ class JapanBankScrapper(BaseBankScraper):
         logger.info("Processing IMES discussion paper E-series")
         for year in range(1997,current_year + 1):
             short_year = str(year)[-2:]
-            self.driver_manager.driver.get(f"https://www.boj.or.jp/en/research/imes/dps/dps{short_year}.htm")
+            self.get(f"https://www.boj.or.jp/en/research/imes/dps/dps{short_year}.htm")
             to_process = []
             tables = self.driver_manager.driver.find_elements(By.XPATH, "//table")
             for table in tables:
@@ -642,7 +643,7 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Study Group Reports
         logger.info("Processing study group reports")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/other_release/index.htm")
+        self.get("https://www.boj.or.jp/en/research/other_release/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -653,7 +654,7 @@ class JapanBankScrapper(BaseBankScraper):
         ##########################
         # Alternative Data Analysis
         logger.info("Processing alternative data analysis")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/research/bigdata/index.htm")
+        self.get("https://www.boj.or.jp/en/research/bigdata/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -675,13 +676,13 @@ class JapanBankScrapper(BaseBankScraper):
 
         # Central Bank Survey of Foreign Exchange and Derivatives Market Activity
         logger.info("Processing central bank survey of foreign exchange and derivatives market activity")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/statistics/bis/deri/index.htm")
+        self.get("https://www.boj.or.jp/en/statistics/bis/deri/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
         # Statistics on Securities Financing Transactions in Japan
         logger.info("Processing statistics on securities financing transactions in Japan")
-        self.driver_manager.driver.get("https://www.boj.or.jp/en/statistics/bis/repo_release/index.htm")
+        self.get("https://www.boj.or.jp/en/statistics/bis/repo_release/index.htm")
         to_process = self.process_href_table(all_urls, num_tables="ALL")
         self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -706,7 +707,7 @@ class JapanBankScrapper(BaseBankScraper):
     # Helper function
     ########################## 
     def read_html(self, url: str):
-        self.driver_manager.driver.get(url)
+        self.get(url)
         url_parsed = urlparse(url)
         try:
             element = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container']")
@@ -731,7 +732,7 @@ class JapanBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,
@@ -748,7 +749,7 @@ class JapanBankScrapper(BaseBankScraper):
         for date, href in to_process:
             logger.info(f"Processing: {href}")
             if href.endswith("pdf"):
-                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             elif href.endswith("htm") or href.endswith("html"):
                 text, links_output = self.read_html(href)
                 total_links.extend(links_output)
@@ -782,7 +783,7 @@ class JapanBankScrapper(BaseBankScraper):
         this_year = pd.Timestamp.now().year
         for year in range(init_year, this_year + 1):
             logger.info(f"Processing year: {year}")
-            self.driver_manager.driver.get(f_url.format(year))
+            self.get(f_url.format(year))
             to_process = self.process_href_table(all_urls, link_col=link_col, date_col=date_col, date_format=date_format,num_tables=num_tables)
             yield to_process
 
@@ -799,7 +800,7 @@ class JapanBankScrapper(BaseBankScraper):
         to_process = []
         while True:
             logger.info(f"Processing mylist: {i*50 +1}")
-            self.driver_manager.driver.get(f"{url}{i*50 +1}")
+            self.get(f"{url}{i*50 +1}")
             temp = self.process_href_table(all_urls, link_col=link_col, date_col=date_col, date_format=date_format,num_tables=num_tables)
             if len(temp) == 0:
                 break

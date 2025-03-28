@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class CanadaBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "CAN"
     COUNTRY_NAME = "Canada"
+    NETLOC = "www.bankofcanada.ca"
 
-    
-
+        
     def process_all_years(self):
         wait = WebDriverWait(self.driver_manager.driver, 30)
 
@@ -30,7 +30,7 @@ class CanadaBankScrapper(BaseBankScraper):
         while True:
             if page % 10 == 0:
                 logger.debug(f"Current page: {page}")
-            self.driver_manager.driver.get(self.get_url_search(page))
+            self.get(self.get_url_search(page))
 
             xpath_results = "(//article | //div)[@class='media' and starts-with(@id, 'post-')]"
 
@@ -106,7 +106,7 @@ class CanadaBankScrapper(BaseBankScraper):
             total_categories.extend(article_categories)
             if file_url.endswith(".pdf"):
                 # Note there can be multiple other pdf files as well on the page
-                text = download_and_read_pdf(file_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(file_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 result.append({
                     "file_url": file_url,
                     "date_published": date,
@@ -114,7 +114,7 @@ class CanadaBankScrapper(BaseBankScraper):
                     "full_extracted_text": text
                 })
             else:
-                self.driver_manager.driver.get(file_url)
+                self.get(file_url)
                 url_parsed = urlparse(file_url)
                 if url_parsed.netloc != "www.bankofcanada.ca":
                     result.append({
@@ -166,7 +166,7 @@ class CanadaBankScrapper(BaseBankScraper):
                             continue
                         # NOTE: we do not parse the text yet
                     elif link_href.endswith("pdf"):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     # NOTE add support for different file types
                     total_links.append({
                         "file_url": file_url,

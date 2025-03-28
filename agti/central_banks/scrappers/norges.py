@@ -19,6 +19,7 @@ __all__ = ["NorgesBankScrapper"]
 class NorgesBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "NOR"
     COUNTRY_NAME = "Norway"
+    NETLOC = "www.norges-bank.no"
 
     def load_main_page(self):
         wait = WebDriverWait(self.driver_manager.driver, 1)
@@ -38,7 +39,7 @@ class NorgesBankScrapper(BaseBankScraper):
 
     def process_all_years(self):
         all_urls = self.get_all_db_urls()
-        self.driver_manager.driver.get(self.get_base_url())
+        self.get(self.get_base_url())
         self.load_main_page()
 
 
@@ -58,7 +59,7 @@ class NorgesBankScrapper(BaseBankScraper):
         output = []
         for href in subsites:
             logger.info(f"Processing: {href}")
-            self.driver_manager.driver.get(href)
+            self.get(href)
             # extract timestamp
             # locate div meta-container
             meta_container = self.driver_manager.driver.find_element(By.CLASS_NAME, "meta-container")
@@ -82,7 +83,7 @@ class NorgesBankScrapper(BaseBankScraper):
             #print("Number of links found:", len(links))
             pdf_link = links[0].find_element(By.TAG_NAME, "a").get_attribute("href")
 
-            text = download_and_read_pdf(pdf_link,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+            text = download_and_read_pdf(pdf_link,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             output.append(
                 {
                     "date_published": timestamp,

@@ -28,7 +28,7 @@ class FEDBankScrapper(BaseBankScraper):
     """
     COUNTRY_CODE_ALPHA_3 = "USA"
     COUNTRY_NAME = "United States of America"
-
+    NETLOC = "www.federalreserve.gov"
 
 
 
@@ -242,7 +242,7 @@ class FEDBankScrapper(BaseBankScraper):
             logger.info(f"Processing: {total_url}")
 
             if total_url.endswith(".pdf"):
-                text = download_and_read_pdf(total_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(total_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             elif total_url.endswith(".html") or total_url.endswith(".htm"):
                 text, links = self.read_html(total_url)
@@ -257,7 +257,7 @@ class FEDBankScrapper(BaseBankScraper):
                         "file_url": total_url,
                         "link_url": link_url,
                         "link_name": "PDF",
-                        "full_extracted_text": download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        "full_extracted_text": download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     })
             total_categories.append({"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value})
             result.append({
@@ -323,7 +323,7 @@ class FEDBankScrapper(BaseBankScraper):
             logger.info(f"Processing: {total_url}")
 
             if total_url.endswith(".pdf"):
-                text = download_and_read_pdf(total_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(total_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             elif total_url.endswith(".html") or total_url.endswith(".htm"):
                 text, links = self.read_html(total_url)
@@ -336,7 +336,7 @@ class FEDBankScrapper(BaseBankScraper):
                     link_url = urljoin("https://www.federalreserve.gov", link_url)
                     text = None
                     if link_url.endswith(".pdf"):
-                        text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": total_url,
                         "link_url": link_url,
@@ -369,7 +369,7 @@ class FEDBankScrapper(BaseBankScraper):
         A_REGEX = r'<a\s+href="([^"]+)">([^<]+)</a>'
 
 
-        self.driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/mpr_default.htm")
+        self.get("https://www.federalreserve.gov/monetarypolicy/publications/mpr_default.htm")
         to_process = []
         links_to_process = {}
         # select div by id lazyload-container
@@ -417,7 +417,7 @@ class FEDBankScrapper(BaseBankScraper):
             exact_date = None
             text = None
             if url.endswith(".pdf"):
-                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies(), evaluate_tolerances=self.evaluate_tolerances)
+                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request(), evaluate_tolerances=self.evaluate_tolerances)
                 links = []
             else:
                 text, links = self.read_html(url)
@@ -426,7 +426,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies(), evaluate_tolerances=self.evaluate_tolerances)
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request(), evaluate_tolerances=self.evaluate_tolerances)
                         exact_date = self.get_exact_date(link_text)
                     total_links.append({
                         "file_url": url,
@@ -455,7 +455,7 @@ class FEDBankScrapper(BaseBankScraper):
         to_process = []
         links_to_process = {}
         for year, main_url in urls.items():
-            self.driver_manager.driver.get(main_url)
+            self.get(main_url)
             table = self.driver_manager.driver.find_element(By.XPATH, "//table/tbody")
             for tr in table.find_elements(By.XPATH, ".//tr"):
                 tds = tr.find_elements(By.XPATH, ".//td")
@@ -494,7 +494,7 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date in to_process:
             text = None
             if url.endswith(".pdf"):
-                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             else:
                 text, links = self.read_html(url)
@@ -503,7 +503,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -521,7 +521,7 @@ class FEDBankScrapper(BaseBankScraper):
 
 
         # Federal Reserve Balance Sheet Developments
-        self.driver_manager.driver.get("https://www.federalreserve.gov/monetarypolicy/publications/balance-sheet-developments-report.htm")
+        self.get("https://www.federalreserve.gov/monetarypolicy/publications/balance-sheet-developments-report.htm")
         to_process = []
         links_to_process = {}
         table = self.driver_manager.driver.find_element(By.XPATH, "//table/tbody")
@@ -554,7 +554,7 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             text = None
             if url.endswith(".pdf"):
-                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             else:
                 text, links = self.read_html(url)
@@ -563,7 +563,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -585,7 +585,7 @@ class FEDBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
-        self.driver_manager.driver.get("https://www.federalreserve.gov/publications/supervision-and-regulation-report.htm")
+        self.get("https://www.federalreserve.gov/publications/supervision-and-regulation-report.htm")
         xpath = "//div[@id='article']/div/*"
         elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
         # assert that the first is h4 tag
@@ -641,7 +641,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -662,7 +662,7 @@ class FEDBankScrapper(BaseBankScraper):
     def process_financial_stability(self):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
-        self.driver_manager.driver.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
+        self.get("https://www.federalreserve.gov/publications/financial-stability-report.htm")
         xpath = "//div[@id='article']/div/*"
         elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[3:]
         # assert that the first is h4 tag
@@ -704,7 +704,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -727,7 +727,7 @@ class FEDBankScrapper(BaseBankScraper):
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
         # Federal Reserve Payments Study (FRPS)
-        self.driver_manager.driver.get("https://www.federalreserve.gov/paymentsystems/frps_previous.htm")
+        self.get("https://www.federalreserve.gov/paymentsystems/frps_previous.htm")
         xpath = "//div[@id='article']/*"
         elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)[2:]
 
@@ -771,7 +771,7 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
             if url.endswith(".pdf"):
-                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             else:
                 text, links = self.read_html(url)
@@ -780,7 +780,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
                     if link_url.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": url,
                         "link_url": link_url,
@@ -812,7 +812,7 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(1996, current_year + 1):
             to_process = []
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
@@ -866,7 +866,7 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(2013, current_year + 1):
             to_process = []
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
@@ -918,7 +918,7 @@ class FEDBankScrapper(BaseBankScraper):
         ]
         for year in range(1971, current_year + 1):
             to_process = []
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             papers = self.driver_manager.driver.find_elements(By.XPATH, xpath)[1:]
             for paper in papers:
                 tag_times = paper.find_elements(By.XPATH, ".//time")
@@ -972,7 +972,7 @@ class FEDBankScrapper(BaseBankScraper):
         xpath = "//div[@id='article']/div[@class='row']"
         for year in range(1997, current_year + 1):
             to_process = []
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             cas = self.driver_manager.driver.find_elements(By.XPATH, xpath)
             for ca in cas[1:]:
                 try:
@@ -996,7 +996,7 @@ class FEDBankScrapper(BaseBankScraper):
             for href in to_process:
                 logger.info(f"Processing: {href}")
                 # get date
-                self.driver_manager.driver.get(href)
+                self.get(href)
                 # try p with class "date"
                 
                 if len(p_dates := self.driver_manager.driver.find_elements(By.XPATH, "//p[@class='date']")) == 1:
@@ -1050,7 +1050,7 @@ class FEDBankScrapper(BaseBankScraper):
                 continue
             logger.info(f"Processing: {href}")
             if href.endswith(".pdf"):
-                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 links = []
             else:
                 text, links = self.read_html(href)
@@ -1122,7 +1122,7 @@ class FEDBankScrapper(BaseBankScraper):
     
     def read_html(self, url: str, load_page=True):
         if load_page:
-            self.driver_manager.driver.get(url)
+            self.get(url)
         url_parsed = urlparse(url)
         
         elements = self.driver_manager.driver.find_elements(By.XPATH, "//*[@id='content']")
@@ -1150,7 +1150,7 @@ class FEDBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,
