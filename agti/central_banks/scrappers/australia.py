@@ -37,6 +37,13 @@ class AustraliaBankScrapper(BaseBankScraper):
     """
     COUNTRY_CODE_ALPHA_3 = "AUS"
     COUNTRY_NAME = "Australia"
+    NETLOC = "www.rba.gov.au"
+
+    def initialize_cookies(self, go_to_url=False):
+        # we do not need to accept cookies here
+        if go_to_url:
+            self.get(f"https://{self.NETLOC}/")
+        self.cookies = self.driver_manager.driver.get_cookies()
 
 
 
@@ -45,7 +52,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         ## Agreement on Framework
         logger.info("Processing Monetary Policy Framework")
         all_urls = self.get_all_db_urls()
-        self.driver_manager.driver.get("https://www.rba.gov.au/monetary-policy/framework/")
+        self.get("https://www.rba.gov.au/monetary-policy/framework/")
         # we need to prase the date from the link
         xpath = "//div[@id='content']/ul/li/a"
         links = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -59,7 +66,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
-            self.driver_manager.driver.get(url)
+            self.get(url)
             time_tag = self.driver_manager.driver.find_element(By.XPATH, "//time")
             date = pd.to_datetime(time_tag.text)
             main_content = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']")
@@ -112,7 +119,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         ## central bank digital currency
 
         ### speeches
-        self.driver_manager.driver.get("https://www.rba.gov.au/payments-and-infrastructure/central-bank-digital-currency/speeches.html")
+        self.get("https://www.rba.gov.au/payments-and-infrastructure/central-bank-digital-currency/speeches.html")
         # xpath id list-speeches/ div with class containing cbdc
         xpath = "//div[@id='list-speeches']/div[contains(@class, 'cbdc')]"
         speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -172,7 +179,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         self.add_all_atomic(result, total_categories, total_links)
 
         ### publications
-        self.driver_manager.driver.get("https://www.rba.gov.au/payments-and-infrastructure/central-bank-digital-currency/publications.html")
+        self.get("https://www.rba.gov.au/payments-and-infrastructure/central-bank-digital-currency/publications.html")
         xpath = "//div[@id='content']/div[@class='list-articles']/div[@class='item']"
         publications = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
@@ -225,7 +232,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         ## Resources
 
         ### Media Releases
-        self.driver_manager.driver.get("https://www.rba.gov.au/payments-and-infrastructure/resources/media-releases.html")
+        self.get("https://www.rba.gov.au/payments-and-infrastructure/resources/media-releases.html")
         xpath = "//div[@id='content']/p"
         media_releases = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
@@ -265,7 +272,7 @@ class AustraliaBankScrapper(BaseBankScraper):
 
 
         ### Speeches
-        self.driver_manager.driver.get("https://www.rba.gov.au/payments-and-infrastructure/resources/speeches.html")
+        self.get("https://www.rba.gov.au/payments-and-infrastructure/resources/speeches.html")
         xpath = "//div[@id='list-speeches']/div[contains(@class, 'fs')]"
         speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
@@ -332,7 +339,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         self.add_all_atomic(result, total_categories, total_links)
 
         ### Publications
-        self.driver_manager.driver.get("https://www.rba.gov.au/payments-and-infrastructure/resources/publications/")
+        self.get("https://www.rba.gov.au/payments-and-infrastructure/resources/publications/")
         xpath = "//div[@id='content']/div[@class='list-articles']/div[@class='item']"
         publications = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
@@ -389,7 +396,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         # skip becuase it is under publications
 
         # Publications
-        self.driver_manager.driver.get("https://www.rba.gov.au/fin-stability/resources/publications.html")
+        self.get("https://www.rba.gov.au/fin-stability/resources/publications.html")
 
         to_process = []
         xpath = "//div[@class='box-table']"
@@ -461,7 +468,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         self.add_all_atomic(result, total_categories, total_links)
             
         # Speeches
-        self.driver_manager.driver.get("https://www.rba.gov.au/fin-stability/resources/speeches.html")
+        self.get("https://www.rba.gov.au/fin-stability/resources/speeches.html")
         to_process = []
         xpath = "//div[@id='list-speeches']/div[contains(@class, 'py')]"
         speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -537,7 +544,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         current_year = pd.Timestamp.now().year
         all_urls = self.get_all_db_urls()
         for year in range(1988, current_year + 1):
-            self.driver_manager.driver.get(media_releases_url.format(year))
+            self.get(media_releases_url.format(year))
             to_process = []
             xpath = "//ul[contains(@class, 'list-articles')]/li"
             articles = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -576,7 +583,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         xpath_speeches = "//div[contains(@class, 'list-speeches')]/div[contains(@class, 'item')]"
         for year in range(1990, current_year + 1):
-            self.driver_manager.driver.get(main_releases_url.format(year))
+            self.get(main_releases_url.format(year))
             speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath_speeches)
             to_process = []
             for speech in speeches:
@@ -643,7 +650,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         main_url = "https://www.rba.gov.au/publications/smp/{}/"
         current_year = pd.Timestamp.now().year
         for year in range(2005,current_year + 1):
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             to_process = []
             xpath = "//div[@id='content']/section/ul/li"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -690,7 +697,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         main_url = "https://www.rba.gov.au/publications/fsr/{}/"
         current_year = pd.Timestamp.now().year
         for year in range(2005,current_year + 1):
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             to_process = []
             xpath = "//div[@id='content']/section/ul/li"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -734,7 +741,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         categories = set()
         # 2015 -> forward
         for year in range(2015, current_year + 1):
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             month_xpath = "//div[@class='item rss-bulletin-item']/div[@class='contents']"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, month_xpath)
             to_process = []
@@ -777,7 +784,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         
         # 2010 -> 2014
         for year in range(2010, 2015):
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             month_xpath = "//div[@id='content']//section//li/a"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, month_xpath)
             print(len(data_list))
@@ -812,7 +819,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             
         # 1985 -> 2009
         for year in range(1985, 2010):
-            self.driver_manager.driver.get(main_url.format(year))
+            self.get(main_url.format(year))
             month_xpath = "//div[@id='content']//h2"
             ul_xpath = "//div[@id='content']//ul"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, ul_xpath)
@@ -857,7 +864,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         page_number = 1
         wait = WebDriverWait(self.driver_manager.driver, 10,0.1)
         while True:
-            self.driver_manager.driver.get(main_url.format(page_number))
+            self.get(main_url.format(page_number))
             # get id "resultsInfo" and waits until text is laoded
             wait.until(lambda driver: driver.find_element(By.ID, "resultsInfo").text != "")
             search_result = self.driver_manager.driver.find_element(By.ID, "resultsInfo")
@@ -954,7 +961,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         
         current_year = pd.Timestamp.now().year
         for year in range(1989, current_year + 1):
-            self.driver_manager.driver.get(conf_url.format(year))
+            self.get(conf_url.format(year))
             xpath = "//div[@id='content']/section/ul"
             try:
                 time_txt = self.driver_manager.driver.find_element(By.XPATH, "//time").get_attribute("datetime")
@@ -1012,7 +1019,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         to_process = []
         current_year = pd.Timestamp.now().year
         for year in range(2007, current_year + 1):
-            self.driver_manager.driver.get(worskshop_url.format(year))
+            self.get(worskshop_url.format(year))
             try:
                 time_txt = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']/h1/span[@class='page-subtitle']").text
             except NoSuchElementException:
@@ -1066,7 +1073,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             if url in all_urls:
                     logger.debug(f"Href is already in db: {url}")
                     continue
-            self.driver_manager.driver.get(url)
+            self.get(url)
             # find a tag with "report" or "Annual Report" text 
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report' or contains(text(),'Annual Report')]")
             if len(a_tags) > 0:
@@ -1134,10 +1141,10 @@ class AustraliaBankScrapper(BaseBankScraper):
         result = []
         total_categories = []
         for year in range(1999,current_year + 1):
-            self.driver_manager.driver.get(psb_ar_url.format(year))
+            self.get(psb_ar_url.format(year))
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report']")
             if len(a_tags) == 0:
-                self.driver_manager.driver.get(psb_ar_url.format(year) + '/contents.html')
+                self.get(psb_ar_url.format(year) + '/contents.html')
                 a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report']")
             if len(a_tags) == 0:
                 logger.warning(f"No PSB Annual Report found for year: {year}")
@@ -1202,7 +1209,7 @@ class AustraliaBankScrapper(BaseBankScraper):
 
 
     def parse_html(self, url: str):
-        self.driver_manager.driver.get(url)
+        self.get(url)
         xpath = "//main[@id='content' or @id='main'] | //div[@id='content' or @id='main']"
         try:
             content = self.driver_manager.driver.find_element(By.XPATH, xpath)
@@ -1217,7 +1224,7 @@ class AustraliaBankScrapper(BaseBankScraper):
 
     def process_list_by_year(self, year:int, f_url, categories):
         all_urls = self.get_all_db_urls()
-        self.driver_manager.driver.get(f_url.format(year))
+        self.get(f_url.format(year))
         # get class "list-articles"
         try:
             ul = self.driver_manager.driver.find_element(By.CLASS_NAME, "list-articles")
