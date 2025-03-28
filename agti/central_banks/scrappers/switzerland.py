@@ -17,6 +17,34 @@ __all__ = ["SwitzerlandBankScrapper"]
 class SwitzerlandBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "CHE"
     COUNTRY_NAME = "Switzerland"
+    NETLOC = "www.snb.ch"
+
+
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+            self.driver_manager.driver.execute_script("window.localStorage.clear();")
+        else:
+            self.driver_manager.driver.execute_script("window.localStorage.clear();")
+            # refresh page
+            self.driver_manager.driver.refresh()
+        
+        wait = WebDriverWait(self.driver_manager.driver, 10)
+        xpath = "//button[@class='a-button a-button--primary a-button--size-4 h-typo-button-small js-m-gdpr-banner__button-all']"
+        repeat = 3
+        for i in range(repeat):
+            try:
+                cookie_btn = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, xpath))
+                )
+                # click the cookie banner
+                cookie_btn.click()
+                break
+            except Exception as e:
+                logger.warning(f"Could not click cookie banner", exc_info=True)
+                if i == repeat - 1:
+                    raise e
+        self.cookies = self.driver_manager.driver.get_cookies()
 
             
     
@@ -24,7 +52,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         logger.info("Processing Annual Report")
         all_db_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
-        self.driver_manager.driver.get("https://www.snb.ch/en/news-publications/annual-report-overview")
+        self.get("https://www.snb.ch/en/news-publications/annual-report-overview")
         # xpath get all as from ul tag with class="sitemap-linklist"
         a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[@class='sitemap-linklist']//a")
         if len(a_tags) == 0:
@@ -47,7 +75,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         total_categories = []
         total_links = []
         for href in to_process:
-            self.driver_manager.driver.get(href)
+            self.get(href)
             if href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1996-2017":
                 def f_url(page: int) -> str:
                     if page == 1:
@@ -113,7 +141,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
 
-        self.driver_manager.driver.get("https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/decisions")
+        self.get("https://www.snb.ch/en/the-snb/mandates-goals/monetary-policy/decisions")
         x_path_path = "//div[@class='container']//div[starts-with(@id, 'collapse')]"
         xpath = f"{x_path_path}//a[@class='m-mixed-list-item h-typo-body'] | {x_path_path}//div[@class='m-mixed-list-list__subtitle']"
         tags = self.driver_manager.driver.find_elements(By.XPATH, xpath)
@@ -247,7 +275,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
     
 
     def extract_date_text_or_pdf(self, url: str) -> dict:
-        self.driver_manager.driver.get(url)
+        self.get(url)
         try:
             # span with class="h-typo-tiny"
             span_date = self.driver_manager.driver.find_element(By.XPATH, "//span[@class='h-typo-tiny']")
@@ -308,7 +336,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             url = func_target_url(page)
             if url is None:
                 break
-            self.driver_manager.driver.get(url)
+            self.get(url)
             # get "link-teaser-list" ul tag
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[contains(@class, 'link-teaser-list') or contains(@class, 'publication-link-list')]//a")
             if len(a_tags) < 3:

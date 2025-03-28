@@ -30,7 +30,6 @@ class EnglandBankScrapper(BaseBankScraper):
             self.driver_manager.driver.get(f"https://{self.NETLOC}")
         wait = WebDriverWait(self.driver_manager.driver, 10)
         xpath = "//button[@class='cookie__button btn btn-default']"
-        success = False
         repeat = 3
         for i in range(repeat):
             try:
