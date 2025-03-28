@@ -57,6 +57,12 @@ class BaseBankScraper:
         self.cookies = None
         self.initialize_cookies(go_to_url=True)
 
+
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+        self.cookies = self.driver_manager.driver.get_cookies()
+
     def get(self, url):
         parsed_url = urlparse(url)
         # random sleep time to mimic human behavior
@@ -81,9 +87,6 @@ class BaseBankScraper:
         else:
             # we only increment if cookies are set
             self.session_counter += 1
-    @abc.abstractmethod
-    def initialize_cookies(self, go_to_url=False):
-        pass
 
     def get_headers(self):
         return self.driver_manager.headers

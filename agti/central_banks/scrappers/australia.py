@@ -39,13 +39,6 @@ class AustraliaBankScrapper(BaseBankScraper):
     COUNTRY_NAME = "Australia"
     NETLOC = "www.rba.gov.au"
 
-    def initialize_cookies(self, go_to_url=False):
-        # we do not need to accept cookies here
-        if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
-        self.cookies = self.driver_manager.driver.get_cookies()
-
-
 
     # Monetary Policy link
     def process_monetary_policy(self):
