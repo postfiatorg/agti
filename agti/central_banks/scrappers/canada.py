@@ -106,7 +106,7 @@ class CanadaBankScrapper(BaseBankScraper):
             total_categories.extend(article_categories)
             if file_url.endswith(".pdf"):
                 # Note there can be multiple other pdf files as well on the page
-                text = download_and_read_pdf(file_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(file_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 result.append({
                     "file_url": file_url,
                     "date_published": date,
@@ -166,7 +166,7 @@ class CanadaBankScrapper(BaseBankScraper):
                             continue
                         # NOTE: we do not parse the text yet
                     elif link_href.endswith("pdf"):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     # NOTE add support for different file types
                     total_links.append({
                         "file_url": file_url,

@@ -88,7 +88,7 @@ def download_and_read_pdf(url, save_dir, headers=None, cookies=None,  evaluate_t
 def get_cookies_headers(driver):
     # Get cookies from browser & unpack into a dictionary.
     #    
-    cookies = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies()}
+    cookies = {cookie["name"]: cookie["value"] for cookie in driver.get_cookies_for_request()}
     # Use a synchronous request to retrieve response headers.
     #
     script = """

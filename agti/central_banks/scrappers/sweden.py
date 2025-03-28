@@ -19,9 +19,16 @@ __all__ = ["SwedenBankScrapper"]
 class SwedenBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "SWE"
     COUNTRY_NAME = "Sweden"
+    NETLOC = "www.riksbank.se"
 
-    def get_netloc(self):
-        return "www.riksbank.se"
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get("https://www.riksbank.se/en-gb/")
+        wait = WebDriverWait(self.driver_manager.driver, 10, 0.1)
+        wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
+        ).click()
+        self.cookies = self.driver_manager.driver.get_cookies()
     
     def process_monetary_policy(self):
         all_urls = self.get_all_db_urls()
@@ -88,7 +95,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -105,7 +112,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -156,7 +163,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 link_text = None
                 link_href = link.get_attribute("href")
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -247,7 +254,7 @@ class SwedenBankScrapper(BaseBankScraper):
             main_report = main_reports[0]
 
             links = list(filter(lambda x: x[0] != main_report[0], values))
-            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+            text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             logger.info(f"Processing {main_report[0]}")
             result.append({
                 "file_url": main_report[0],
@@ -264,7 +271,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for (link_href, link_tag_text) in links:
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                    link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 total_links.append({
                     "file_url": main_report[0],
                     "link_url": link_href,
@@ -344,7 +351,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 link_href = link.get_attribute("href")
                 link_text = None
                 if link_href.endswith(".pdf"):
-                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                    link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 total_links.append({
                     "file_url": href,
                     "link_url": link_href,
@@ -421,7 +428,7 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
         if single_url not in all_urls:
-            text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+            text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             result = [
                 {
                     "file_url":single_url,
@@ -463,7 +470,7 @@ class SwedenBankScrapper(BaseBankScraper):
         total_categories = []
         for single_url in archive_urls:
             if single_url not in all_urls:
-                text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(single_url,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                 result.append(
                     {
                         "file_url":single_url,
@@ -622,7 +629,7 @@ class SwedenBankScrapper(BaseBankScraper):
             href_prased = urlparse(href)
             text = None
             if href_prased.path.endswith(".pdf"):
-                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
             elif href_prased.path.endswith(".html") or href_prased.path.endswith(".htm") or href_prased.path.endswith("/"):
                 self.get(href)
                 articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
@@ -639,7 +646,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         # or we could parse the page, the issue is, it dynamically loads the content
                         pdf_xpath = "//a[contains(text(), 'Download PDF')] | //a[@class='report-page__download']"
                         pdf_href = self.driver_manager.driver.find_element(By.XPATH, pdf_xpath).get_attribute("href")
-                        text = download_and_read_pdf(pdf_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        text = download_and_read_pdf(pdf_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                         links = []
                 else:
                     main_text = articles[0]
@@ -650,7 +657,7 @@ class SwedenBankScrapper(BaseBankScraper):
                     link_href = link.get_attribute("href")
                     link_text = None
                     if link_href.endswith(".pdf"):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies())
+                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
                     total_links.append({
                         "file_url": href,
                         "link_url": link_href,
@@ -677,16 +684,6 @@ class SwedenBankScrapper(BaseBankScraper):
                 "full_extracted_text": text,
             })
         self.add_all_atomic(result, total_categories, total_links)
-                
-    def initialize_cookies(self):
-        self.get("https://www.riksbank.se/en-gb/")
-        # find button with class having "js-accept-cookies"
-        wait = WebDriverWait(self.driver_manager.driver, 10, 0.1)
-        wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'js-accept-cookies')]"))
-        ).click()
-        self._cookies = self.driver_manager.driver.get_cookies()
-        self._cookies = {cookie["name"]: cookie["value"] for cookie in self._cookies}
 
             
 
@@ -694,8 +691,6 @@ class SwedenBankScrapper(BaseBankScraper):
         # Create debug directory if it doesn't exist
         debug_dir = os.path.join(self.datadump_directory_path, "debug", "sweden")
         os.makedirs(debug_dir, exist_ok=True)
-        # accept cookies
-        self.initialize_cookies()
         # Process each section with error handling
         sections = [
             ("monetary_policy", self.process_monetary_policy),
