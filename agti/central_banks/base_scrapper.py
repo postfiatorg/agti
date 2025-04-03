@@ -80,6 +80,8 @@ class BaseBankScraper:
             logger.debug("Refreshing headers", extra={"new_headers": new_headers})
         success = False
         for i in range(4):
+            if i > 0:
+                logger.warning(f"Retrying {i} for url: {url}")
             if i == 2:
                 # we try to refresh the session if we fail
                 logger.debug(f"Refreshing session {i} for url failed 2 times already: {url}")
@@ -97,6 +99,9 @@ class BaseBankScraper:
                 break
         if not success:
             logger.error(f"Failed to load page: {url}")
+            logger.debug(f"Headers: {self.driver_manager.headers}")
+            logger.debug(f"Cookies: {self.cookies}")
+            logger.debug(f"Proxy: {self.driver_manager.driver.proxy}")
             return False
         if self.cookies is None and parsed_url.netloc == self.NETLOC:
             try:
