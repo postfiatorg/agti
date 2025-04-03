@@ -732,7 +732,7 @@ class JapanBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request(),proxies=self.get_proxies())
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,
@@ -749,7 +749,7 @@ class JapanBankScrapper(BaseBankScraper):
         for date, href in to_process:
             logger.info(f"Processing: {href}")
             if href.endswith("pdf"):
-                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request())
+                text = download_and_read_pdf(href,self.datadump_directory_path, headers=self.get_headers(), cookies=self.get_cookies_for_request(),proxies=self.get_proxies())
             elif href.endswith("htm") or href.endswith("html"):
                 text, links_output = self.read_html(href)
                 total_links.extend(links_output)

@@ -5,6 +5,7 @@ import pdfplumber
 import time
 import enum
 import re
+import json
 
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
@@ -21,7 +22,7 @@ class Categories(enum.Enum):
 logger = logging.getLogger(__name__)
 logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
-def download_and_read_pdf(url, save_dir, headers=None, cookies=None,  evaluate_tolerances=None):
+def download_and_read_pdf(url, save_dir, headers=None, cookies=None, proxies=None, evaluate_tolerances=None):
     """Download and extract text from a PDF file."""
 
     # NOTE: This is a temporary fix to disable PDF processing for quick local testing
@@ -56,7 +57,7 @@ def download_and_read_pdf(url, save_dir, headers=None, cookies=None,  evaluate_t
     text = None
     
     try:
-        with requests.get(url, headers=headers, cookies=cookies, stream=True, timeout=100) as r:
+        with requests.get(url, headers=headers, cookies=cookies, proxies=proxies, stream=True, timeout=100) as r:
             r.raise_for_status()
             try:
                 with open(filepath, "wb") as f:
@@ -115,3 +116,18 @@ def pageBottom(driver):
             bottom=True
         time.sleep(0.001)
         a+=5
+
+def get_status(logs):
+    for log in logs:
+        if log["message"]:
+            d = json.loads(log["message"])
+            try:
+                content_type = (
+                    "text/html"
+                    in d["message"]["params"]["response"]["headers"]["content-type"]
+                )
+                response_received = d["message"]["method"] == "Network.responseReceived"
+                if content_type and response_received:
+                    return d["message"]["params"]["response"]["status"]
+            except:
+                pass

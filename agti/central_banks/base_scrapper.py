@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import pandas as pd
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
+from agti.agti.central_banks.utils import get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.common.exceptions import NoSuchElementException
@@ -25,6 +26,7 @@ class BaseBankScraper:
     COUNTRY_CODE_ALPHA_3 = None  # Set in child classes
     COUNTRY_NAME = None  # Set in child classes
     NETLOC = None  # Set in child classes
+    PROXY_COUNTRIES = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -72,12 +74,30 @@ class BaseBankScraper:
         if self.session_counter > self.session_refresh_interval and parsed_url.netloc == self.NETLOC:
             self.driver_manager.driver.delete_all_cookies()
             self.cookies = None
-            self.driver_manager.generate_new_headers()
+            self.driver_manager.reset_session()
             self.session_counter = 0
             new_headers = self.driver_manager.headers
             logger.debug("Refreshing headers", extra={"new_headers": new_headers})
-
-        self.driver_manager.driver.get(url)
+        success = False
+        for i in range(4):
+            if i == 2:
+                # we try to refresh the session if we fail
+                logger.debug(f"Refreshing session {i} for url failed 2 times already: {url}")
+                self.driver_manager.driver.delete_all_cookies()
+                self.cookies = None
+                self.driver_manager.reset_session()
+                self.session_counter = 0
+                new_headers = self.driver_manager.headers
+                logger.debug("Refreshing headers", extra={"new_headers": new_headers})
+            self.driver_manager.driver.get(url)
+            logs = self.driver_manager.driver.get_log("performance")
+            response = get_status(logs)
+            if response == 200:
+                success = True
+                break
+        if not success:
+            logger.error(f"Failed to load page: {url}")
+            return False
         if self.cookies is None and parsed_url.netloc == self.NETLOC:
             try:
                 self.initialize_cookies()
@@ -87,6 +107,7 @@ class BaseBankScraper:
         else:
             # we only increment if cookies are set
             self.session_counter += 1
+        return True
 
     def get_headers(self):
         return self.driver_manager.headers
@@ -98,6 +119,9 @@ class BaseBankScraper:
             return None
         cookies = {cookie["name"]: cookie["value"] for cookie in cookies}
         return cookies
+    
+    def get_proxies(self):
+        return self.driver_manager.driver.proxy
     
     def get_driver(self):
         return self.driver_manager.driver
