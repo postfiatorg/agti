@@ -1,10 +1,16 @@
 import socket
 import logging
+import time
+import random
+import abc
+from urllib.parse import urlparse
 import pandas as pd
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
+from agti.agti.central_banks.utils import get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
+from selenium.common.exceptions import NoSuchElementException
 
 
 __all__ = ["BaseBankScraper"]
@@ -19,20 +25,112 @@ class BaseBankScraper:
 
     COUNTRY_CODE_ALPHA_3 = None  # Set in child classes
     COUNTRY_NAME = None  # Set in child classes
+    NETLOC = None  # Set in child classes
+    PROXY_COUNTRIES = []
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         # Automatically register the subclass
         BaseBankScraper.registry[cls.__name__] = cls
 
-    def __init__(self,driver, pw_map, user_name, table_name):
+    def __init__(
+            self,
+            driver_manager,
+            pw_map,
+            user_name,
+            table_name,
+            min_sleep,
+            max_sleep,
+            session_refresh_interval=10,
+            ):
+        self.min_sleep = min_sleep
+        self.max_sleep = max_sleep
+        self.session_refresh_interval = session_refresh_interval
+        self.session_counter = 0
+
         self.pw_map = pw_map
         self.user_name = user_name
         self.table_name = table_name
-        self._driver = driver
+        self.driver_manager = driver_manager
         self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
         self.credential_manager = CredentialManager()
         self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
+
+        self.cookies = None
+        self.initialize_cookies(go_to_url=True)
+
+
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+        self.cookies = self.driver_manager.driver.get_cookies()
+
+    def get(self, url):
+        parsed_url = urlparse(url)
+        # random sleep time to mimic human behavior
+        time.sleep(random.uniform(self.min_sleep, self.max_sleep))
+        # we assume that get is only called on htm or htm pages
+        # 2 requrements to refresh session, count > interval + netloc and url.netloc == NETLOC and it is not 
+        if self.session_counter > self.session_refresh_interval and parsed_url.netloc == self.NETLOC:
+            self.driver_manager.driver.delete_all_cookies()
+            self.cookies = None
+            self.driver_manager.reset_session()
+            self.session_counter = 0
+            new_headers = self.driver_manager.headers
+            logger.debug("Refreshing headers", extra={"new_headers": new_headers})
+        success = False
+        for i in range(4):
+            if i > 0:
+                logger.warning(f"Retrying {i} for url: {url}")
+            if i == 2:
+                # we try to refresh the session if we fail
+                logger.debug(f"Refreshing session {i} for url failed 2 times already: {url}")
+                self.driver_manager.driver.delete_all_cookies()
+                self.cookies = None
+                self.driver_manager.reset_session()
+                self.session_counter = 0
+                new_headers = self.driver_manager.headers
+                logger.debug("Refreshing headers", extra={"new_headers": new_headers})
+            self.driver_manager.driver.get(url)
+            logs = self.driver_manager.driver.get_log("performance")
+            response = get_status(logs)
+            if response == 200:
+                success = True
+                break
+        if not success:
+            logger.error(f"Failed to load page: {url}")
+            logger.debug(f"Headers: {self.driver_manager.headers}")
+            logger.debug(f"Cookies: {self.cookies}")
+            logger.debug(f"Proxy: {self.driver_manager.driver.proxy}")
+            return False
+        if self.cookies is None and parsed_url.netloc == self.NETLOC:
+            try:
+                self.initialize_cookies()
+                logger.debug("Cookies initialized", extra={"cookies": self.cookies})
+            except Exception as e:
+                logger.exception(f"No cookies not found for url: {url}, ERROR: {e}", extra={"url": url})
+        else:
+            # we only increment if cookies are set
+            self.session_counter += 1
+        return True
+
+    def get_headers(self):
+        return self.driver_manager.headers
+    
+    def get_cookies_for_request(self):
+        # edit cookies to be used in requests
+        cookies = self.cookies
+        if cookies is None:
+            return None
+        cookies = {cookie["name"]: cookie["value"] for cookie in cookies}
+        return cookies
+    
+    def get_proxies(self):
+        return self.driver_manager.driver.proxy
+    
+    def get_driver(self):
+        return self.driver_manager.driver
+        
 
     def ip_hostname(self):
         """Retrieve machine IP and hostname."""

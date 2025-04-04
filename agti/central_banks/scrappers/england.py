@@ -23,12 +23,13 @@ class EnglandBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "ENG"
     COUNTRY_NAME = "England"
     MAX_OLD_YEAR = 2000
+    NETLOC = "www.bankofengland.co.uk"
 
-    def cookie_click(self):
-        wait = WebDriverWait(self._driver, 10)
-        xpath = "//button[@class='cookie__button btn btn-default btn-neutral']"
-
-        success = False
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+        wait = WebDriverWait(self.driver_manager.driver, 10)
+        xpath = "//button[@class='cookie__button btn btn-default']"
         repeat = 3
         for i in range(repeat):
             try:
@@ -37,24 +38,17 @@ class EnglandBankScrapper(BaseBankScraper):
                 )
                 # click the cookie banner
                 cookie_btn.click()
-                success = True
                 break
             except Exception as e:
-                if repeat != (repeat - 1):
-                    logger.warning(f"Could not click cookie banner repeating", exc_info=True)
-                else:
-                    logger.exception(f"Could not click cookie banner", exc_info=True)
-                    
-        if not success:
-            raise Exception("Can not click cookie banner")
-        
-        wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
-        logger.debug("Cookie banner clicked")
+                logger.warning(f"Could not click cookie banner", exc_info=True)
+                if i == repeat - 1:
+                    raise e
+        self.cookies = self.driver_manager.driver.get_cookies()
 
 
     def init_filter(self, topic):
-        self._driver.get(self.get_base_url())
-        wait = WebDriverWait(self._driver, 10,0.2)
+        self.get(self.get_base_url())
+        wait = WebDriverWait(self.driver_manager.driver, 10,0.2)
     
         def iterate_over_labels(div_element_xpath, filters_list):
             wait.until(EC.visibility_of_all_elements_located((By.XPATH, xpath)))
@@ -63,7 +57,7 @@ class EnglandBankScrapper(BaseBankScraper):
             for label in filter_labels:
                 name = label.text.strip()
                 if name in filters_list:
-                    #self._driver.execute_script("arguments[0].scrollIntoView(false);", label)
+                    #self.driver_manager.driver.execute_script("arguments[0].scrollIntoView(false);", label)
                     label = wait.until(EC.element_to_be_clickable(label))
                     label.click()
                     filters_list.remove(name)
@@ -98,10 +92,10 @@ class EnglandBankScrapper(BaseBankScraper):
 
     def parse_html(self, url: str):
         # find main with id="main-content"
-        self._driver.get(url)
+        self.get(url)
         url_parsed = urlparse(url)
         xpath = "//main[@id='main-content']"
-        main = self._driver.find_element(By.XPATH, xpath)
+        main = self.driver_manager.driver.find_element(By.XPATH, xpath)
         text = main.text
         if len(text) == 0:
             raise ValueError("No text found in HTML file")
@@ -120,7 +114,7 @@ class EnglandBankScrapper(BaseBankScraper):
                     continue
                 # NOTE: we do not parse the text yet
             elif link_href.endswith("pdf"):
-                link_text = download_and_read_pdf(link_href, self.datadump_directory_path)
+                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
             # NOTE add support for different file types
             links_output.append({
                 "file_url": url,
@@ -134,8 +128,9 @@ class EnglandBankScrapper(BaseBankScraper):
 
 
     def process_all_years(self):
-        self._driver.get(self.get_base_url())
-        self.cookie_click()
+        wait = WebDriverWait(self.driver_manager.driver, 10)
+        self.get(self.get_base_url())
+        wait.until(EC.visibility_of_element_located((By.ID, "SearchResults")))
         all_urls = self.get_all_db_urls()
         all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
         topics = [
@@ -160,7 +155,7 @@ class EnglandBankScrapper(BaseBankScraper):
             to_process = []
             while year >= self.MAX_OLD_YEAR:
                 # get id = SearchResults div
-                search_results = self._driver.find_element(By.ID, "SearchResults")
+                search_results = self.driver_manager.driver.find_element(By.ID, "SearchResults")
                 # find all elements with class="col3"
                 elements = search_results.find_elements(By.XPATH, ".//div[@class='col3']")
                 for element in elements:
@@ -207,7 +202,7 @@ class EnglandBankScrapper(BaseBankScraper):
 
 
     def get_current_page_number(self):
-        wait = WebDriverWait(self._driver, 10)
+        wait = WebDriverWait(self.driver_manager.driver, 10)
         # find list-pagination__link list-pagination__link--page list-pagination__link--is-current
         xpath = "//a[@class='list-pagination__link list-pagination__link--page list-pagination__link--is-current']"
         current_page = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
@@ -216,21 +211,21 @@ class EnglandBankScrapper(BaseBankScraper):
     
 
     def go_to_next_page(self):
-        wait = WebDriverWait(self._driver, 30, 0.1)
+        wait = WebDriverWait(self.driver_manager.driver, 30, 0.1)
         current_page_number = self.get_current_page_number()
 
         current_page_xpath = f"//a[@data-page-link='{current_page_number}']"
         next_page_xpath = f"//a[@data-page-link='{current_page_number + 1}']"
         
         current_page = wait.until(EC.visibility_of_element_located((By.XPATH, current_page_xpath)))
-        next_pages = self._driver.find_elements(By.XPATH, next_page_xpath)
+        next_pages = self.driver_manager.driver.find_elements(By.XPATH, next_page_xpath)
         if len(next_pages) == 0:
             logger.debug("No more pages")
             return False
         next_page = next_pages[0]
         wait.until(EC.element_to_be_clickable(next_page))
         
-        self._driver.execute_script("arguments[0].click();", next_page)
+        self.driver_manager.driver.execute_script("arguments[0].click();", next_page)
         
         # wait for finish loading class list-pagination ul
         #wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))

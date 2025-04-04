@@ -19,9 +19,10 @@ __all__ = ["NorgesBankScrapper"]
 class NorgesBankScrapper(BaseBankScraper):
     COUNTRY_CODE_ALPHA_3 = "NOR"
     COUNTRY_NAME = "Norway"
+    NETLOC = "www.norges-bank.no"
 
     def load_main_page(self):
-        wait = WebDriverWait(self._driver, 1)
+        wait = WebDriverWait(self.driver_manager.driver, 1)
         while True:
             try:
                 load_more_button = wait.until(
@@ -29,7 +30,7 @@ class NorgesBankScrapper(BaseBankScraper):
                 )
                 wait.until(EC.visibility_of_element_located((By.CLASS_NAME, "_jsNewsListLoadMore_newslist")))
 
-                self._driver.execute_script("arguments[0].click();", load_more_button)
+                self.driver_manager.driver.execute_script("arguments[0].click();", load_more_button)
             except TimeoutException:
                 # TODO add verify that something has loaded
                 break
@@ -38,11 +39,11 @@ class NorgesBankScrapper(BaseBankScraper):
 
     def process_all_years(self):
         all_urls = self.get_all_db_urls()
-        self._driver.get(self.get_base_url())
+        self.get(self.get_base_url())
         self.load_main_page()
 
 
-        news_list_div = WebDriverWait(self._driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "_jsNewsListResultList_newslist")))
+        news_list_div = WebDriverWait(self.driver_manager.driver, 10).until(EC.presence_of_element_located((By.CLASS_NAME, "_jsNewsListResultList_newslist")))
 
         articles = news_list_div.find_elements(By.TAG_NAME, "article")
         subsites = []
@@ -58,10 +59,10 @@ class NorgesBankScrapper(BaseBankScraper):
         output = []
         for href in subsites:
             logger.info(f"Processing: {href}")
-            self._driver.get(href)
+            self.get(href)
             # extract timestamp
             # locate div meta-container
-            meta_container = self._driver.find_element(By.CLASS_NAME, "meta-container")
+            meta_container = self.driver_manager.driver.find_element(By.CLASS_NAME, "meta-container")
             meta = meta_container.find_element(By.CLASS_NAME, "meta")
 
             # drop "published " from text 
@@ -70,10 +71,10 @@ class NorgesBankScrapper(BaseBankScraper):
 
             # get link to pdf
             pdf_link = None
-            links = list(self._driver.find_elements(By.CLASS_NAME,"download-link"))
+            links = list(self.driver_manager.driver.find_elements(By.CLASS_NAME,"download-link"))
             if len(links) == 0:
                 # they are some special pages with different elements, we use that
-                links = self._driver.find_elements(By.CLASS_NAME, "publication-start__body")
+                links = self.driver_manager.driver.find_elements(By.CLASS_NAME, "publication-start__body")
 
             if len(links) == 0:
                 logger.debug("No links found")
@@ -82,7 +83,7 @@ class NorgesBankScrapper(BaseBankScraper):
             #print("Number of links found:", len(links))
             pdf_link = links[0].find_element(By.TAG_NAME, "a").get_attribute("href")
 
-            text = download_and_read_pdf(pdf_link, self.datadump_directory_path)
+            text = download_and_read_pdf(pdf_link,self.datadump_directory_path, self)
             output.append(
                 {
                     "date_published": timestamp,
