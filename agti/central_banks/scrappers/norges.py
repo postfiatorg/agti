@@ -49,6 +49,7 @@ class NorgesBankScrapper(BaseBankScraper):
         self.process_id(11404, [Categories.MONETARY_POLICY])
     def process_id(self, id: int, categories: list[Categories]):
         all_urls = self.get_all_db_urls()
+        all_categories = self.get_all_db_categories()
         # Process a single ID
         logger.info(f"Processing ID: {id}")
         page = 1
@@ -69,6 +70,15 @@ class NorgesBankScrapper(BaseBankScraper):
                 href = a_tag.get_attribute("href")
                 if href in all_urls:
                     logger.debug(f"Url is already in db: {href}")
+                    # add missing categories
+                    total_missing_cat = [
+                        {
+                            "file_url": href,
+                            "category_name": category.value,
+                        } for category in categories if (href, category.value) not in all_categories
+                    ]
+                    if len(total_missing_cat) > 0:
+                        self.add_to_categories(total_missing_cat)
                     continue
                 output.append(
                     (href, date)
