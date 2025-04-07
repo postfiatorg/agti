@@ -49,7 +49,7 @@ class NorgesBankScrapper(BaseBankScraper):
 
         # News & Events
         ## News and publications (id:107500)
-        news_events_categoties = {
+        news_events_categories = {
             "Press releases": (80,[Categories.NEWS_AND_EVENTS]),
             "New Items": (71,[Categories.NEWS_AND_EVENTS]),
             "Speeches": (69,[Categories.NEWS_AND_EVENTS]),
