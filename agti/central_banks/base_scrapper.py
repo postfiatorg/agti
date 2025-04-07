@@ -97,6 +97,10 @@ class BaseBankScraper:
             if response == 200:
                 success = True
                 break
+            else:
+                logger.warning(f"Failed to load page: {url}, response code: {response}")
+                # we have to wait for a while
+                time.sleep(random.uniform(self.min_sleep, self.max_sleep))
         if not success:
             logger.error(f"Failed to load page: {url}")
             logger.debug(f"Headers: {self.driver_manager.headers}")
