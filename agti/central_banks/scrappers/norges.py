@@ -59,7 +59,7 @@ class NorgesBankScrapper(BaseBankScraper):
             "Articles and opinion pieces": (68,[Categories.OTHER,Categories.NEWS_AND_EVENTS]),
 
         }
-        for name, (category_number, categories) in news_events_categoties.items():
+        for name, (category_number, categories) in news_events_categories.items():
             logger.info(f"Processing category: {name} ({category_number})")
             self.process_id(107500, categories, category_filter=category_number)
             logger.info(f"Finished processing category: {name} ({category_number})")
@@ -116,17 +116,9 @@ class NorgesBankScrapper(BaseBankScraper):
             self.process_id(107501, categories, category_filter=category_number)
             logger.info(f"Finished processing category: {name} ({category_number})")
 
-
-        #
-
-
-
-
+        
         # monetary policy MEETINGS (78157)
         self.process_id(78157, [Categories.MONETARY_POLICY])
-
-
-        self.process_id(11404, [Categories.MONETARY_POLICY])
 
 
 
