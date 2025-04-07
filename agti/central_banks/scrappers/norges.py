@@ -92,7 +92,7 @@ class NorgesBankScrapper(BaseBankScraper):
             for link in links:
                 link_text = None
                 link_href = link.get_attribute("href")
-                if link_href.endswith(".pdf"):
+                if urlparse(link_href).path.lower().endswith('.pdf'):
                     link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
                 total_links.append({
                     "file_url": href,

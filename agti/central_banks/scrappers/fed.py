@@ -241,7 +241,7 @@ class FEDBankScrapper(BaseBankScraper):
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
 
-            if total_url.endswith(".pdf"):
+            if urlparse(total_url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(total_url,self.datadump_directory_path, self)
                 links = []
             elif total_url.endswith(".html") or total_url.endswith(".htm"):
@@ -322,7 +322,7 @@ class FEDBankScrapper(BaseBankScraper):
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
 
-            if total_url.endswith(".pdf"):
+            if urlparse(total_url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(total_url,self.datadump_directory_path, self)
                 links = []
             elif total_url.endswith(".html") or total_url.endswith(".htm"):
@@ -335,7 +335,7 @@ class FEDBankScrapper(BaseBankScraper):
                 for (link_name, link_url) in links_to_process[url]:
                     link_url = urljoin("https://www.federalreserve.gov", link_url)
                     text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": total_url,
@@ -416,7 +416,7 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             exact_date = None
             text = None
-            if url.endswith(".pdf"):
+            if urlparse(url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(url,self.datadump_directory_path, self, evaluate_tolerances=self.evaluate_tolerances)
                 links = []
             else:
@@ -425,7 +425,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self, evaluate_tolerances=self.evaluate_tolerances)
                         exact_date = self.get_exact_date(link_text)
                     total_links.append({
@@ -493,7 +493,7 @@ class FEDBankScrapper(BaseBankScraper):
         total_links = []
         for url, date in to_process:
             text = None
-            if url.endswith(".pdf"):
+            if urlparse(url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(url,self.datadump_directory_path, self)
                 links = []
             else:
@@ -502,7 +502,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": url,
@@ -553,7 +553,7 @@ class FEDBankScrapper(BaseBankScraper):
         total_links = []
         for url, date_txt in to_process:
             text = None
-            if url.endswith(".pdf"):
+            if urlparse(url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(url,self.datadump_directory_path, self)
                 links = []
             else:
@@ -562,7 +562,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": url,
@@ -640,7 +640,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": url,
@@ -703,7 +703,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": url,
@@ -770,7 +770,7 @@ class FEDBankScrapper(BaseBankScraper):
         total_links = []
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
-            if url.endswith(".pdf"):
+            if urlparse(url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(url,self.datadump_directory_path, self)
                 links = []
             else:
@@ -779,7 +779,7 @@ class FEDBankScrapper(BaseBankScraper):
             if url in links_to_process:
                 for (link_name, link_url) in links_to_process[url]:
                     link_text = None
-                    if link_url.endswith(".pdf"):
+                    if urlparse(link_url).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": url,
@@ -1049,7 +1049,7 @@ class FEDBankScrapper(BaseBankScraper):
                 ])
                 continue
             logger.info(f"Processing: {href}")
-            if href.endswith(".pdf"):
+            if urlparse(href).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(href,self.datadump_directory_path, self)
                 links = []
             else:
@@ -1149,7 +1149,7 @@ class FEDBankScrapper(BaseBankScraper):
                     # we ignore links to the same page (fragment identifier)
                     continue
                 # NOTE: we do not parse the text yet
-            elif link_href.endswith("pdf"):
+            elif urlparse(link_href).path.lower().endswith('.pdf'):
                 link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
             # NOTE add support for different file types
             links_output.append({

@@ -113,7 +113,7 @@ class EnglandBankScrapper(BaseBankScraper):
                     # we ignore links to the same page (fragment identifier)
                     continue
                 # NOTE: we do not parse the text yet
-            elif link_href.endswith("pdf"):
+            elif urlparse(link_href).path.lower().endswith('.pdf'):
                 link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
             # NOTE add support for different file types
             links_output.append({

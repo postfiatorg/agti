@@ -112,7 +112,7 @@ class SwedenBankScrapper(BaseBankScraper):
             )
             for (link_href, link_tag_text) in links:
                 link_text = None
-                if link_href.endswith(".pdf"):
+                if urlparse(link_href).path.lower().endswith('.pdf'):
                     link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self)
                 total_links.append({
                     "file_url": main_report[0],
@@ -163,7 +163,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for link in links:
                 link_text = None
                 link_href = link.get_attribute("href")
-                if link_href.endswith(".pdf"):
+                if urlparse(link_href).path.lower().endswith('.pdf'):
                     link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
                 total_links.append({
                     "file_url": href,
@@ -271,7 +271,7 @@ class SwedenBankScrapper(BaseBankScraper):
             )
             for (link_href, link_tag_text) in links:
                 link_text = None
-                if link_href.endswith(".pdf"):
+                if urlparse(link_href).path.lower().endswith('.pdf'):
                     link_text = download_and_read_pdf(main_report[0],self.datadump_directory_path, self)
                 total_links.append({
                     "file_url": main_report[0],
@@ -351,7 +351,7 @@ class SwedenBankScrapper(BaseBankScraper):
             for link in links:
                 link_href = link.get_attribute("href")
                 link_text = None
-                if link_href.endswith(".pdf"):
+                if urlparse(link_href).path.lower().endswith('.pdf'):
                     link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
                 total_links.append({
                     "file_url": href,
@@ -657,7 +657,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 for link in links:
                     link_href = link.get_attribute("href")
                     link_text = None
-                    if link_href.endswith(".pdf"):
+                    if urlparse(link_href).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
                     total_links.append({
                         "file_url": href,
