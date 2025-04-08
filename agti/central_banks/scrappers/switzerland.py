@@ -1,4 +1,5 @@
 import re
+from urllib.parse import urlparse
 import pandas as pd
 import logging
 from selenium.webdriver.common.by import By
@@ -312,7 +313,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             link = a.get_attribute("href")
             name = a.text
             extracted_link_text = None
-            if link.endswith(".pdf"):
+            if urlparse(link).path.lower().endswith('.pdf'):
                 extracted_link_text = download_and_read_pdf(link,self.datadump_directory_path, self)
             links.append({
                 "file_url": url,
@@ -374,7 +375,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         total_links = []
         for url in to_process:
             logger.info(f"Processing: {url}")
-            if url.endswith(".pdf"):
+            if urlparse(url).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(url,self.datadump_directory_path, self)
                 date = None
 

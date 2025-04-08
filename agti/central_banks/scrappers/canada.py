@@ -104,7 +104,7 @@ class CanadaBankScrapper(BaseBankScraper):
                 for category in article_categories
             ]
             total_categories.extend(article_categories)
-            if file_url.endswith(".pdf"):
+            if urlparse(file_url).path.lower().endswith('.pdf'):
                 # Note there can be multiple other pdf files as well on the page
                 text = download_and_read_pdf(file_url,self.datadump_directory_path, self)
                 result.append({
@@ -165,7 +165,7 @@ class CanadaBankScrapper(BaseBankScraper):
                             # we ignore links to the same page (fragment identifier)
                             continue
                         # NOTE: we do not parse the text yet
-                    elif link_href.endswith("pdf"):
+                    elif urlparse(link_href).path.lower().endswith('.pdf'):
                         link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
                     # NOTE add support for different file types
                     total_links.append({

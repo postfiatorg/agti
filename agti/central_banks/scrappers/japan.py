@@ -731,7 +731,7 @@ class JapanBankScrapper(BaseBankScraper):
                     # we ignore links to the same page (fragment identifier)
                     continue
                 # NOTE: we do not parse the text yet
-            elif link_href.endswith("pdf"):
+            elif urlparse(link_href).path.lower().endswith('.pdf'):
                 link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
             # NOTE add support for different file types
             links_output.append({
@@ -748,7 +748,7 @@ class JapanBankScrapper(BaseBankScraper):
         total_links = []
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            if href.endswith("pdf"):
+            if urlparse(href).path.lower().endswith('.pdf'):
                 text = download_and_read_pdf(href,self.datadump_directory_path, self)
             elif href.endswith("htm") or href.endswith("html"):
                 text, links_output = self.read_html(href)
