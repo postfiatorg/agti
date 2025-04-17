@@ -153,17 +153,26 @@ def pageBottom(driver):
         time.sleep(0.001)
         a+=5
 
-def get_status(logs):
+def recusive_lower_keys(d):
+    if isinstance(d, dict):
+        return {k.lower(): recusive_lower_keys(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [recusive_lower_keys(i) for i in d]
+    else:
+        return d
+
+def get_status(logs, target_url):
     for log in logs:
         if log["message"]:
             d = json.loads(log["message"])
+            d = recusive_lower_keys(d)
             try:
                 content_type = (
                     "text/html"
                     in d["message"]["params"]["response"]["headers"]["content-type"]
                 )
                 response_received = d["message"]["method"] == "Network.responseReceived"
-                if content_type and response_received:
+                if content_type and response_received and target_url in d["message"]["params"]["response"]["url"]:
                     return d["message"]["params"]["response"]["status"]
-            except:
+            except KeyError:
                 pass

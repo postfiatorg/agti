@@ -129,8 +129,12 @@ class BaseBankScraper:
                 logger.debug("Refreshing headers", extra={"new_headers": new_headers})
             self.driver_manager.driver.get(url)
             logs = self.driver_manager.driver.get_log("performance")
-            response = get_status(logs)
+            response = get_status(logs, url)
             if response == 200:
+                success = True
+                break
+            elif response == 404:
+                logger.warning(f"Page not found: {url}, response code: {response}")
                 success = True
                 break
             else:
