@@ -20,14 +20,11 @@ logger = logging.getLogger(__name__)
 __all__ = ["EnglandBankScrapper"]
 
 class EnglandBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "ENG"
-    COUNTRY_NAME = "England"
     MAX_OLD_YEAR = 2000
-    NETLOC = "www.bankofengland.co.uk"
 
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+            self.driver_manager.driver.get(self.bank_config.URL)
         wait = WebDriverWait(self.driver_manager.driver, 10)
         xpath = "//button[@class='cookie__button btn btn-default']"
         repeat = 3

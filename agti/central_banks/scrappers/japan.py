@@ -21,9 +21,6 @@ __all__ = ["JapanBankScrapper"]
 # NOTE! before running read_html check for any pdf links and download them
 # there can be also some zips or any other files, but we are not going to handle them
 class JapanBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "JPN"
-    COUNTRY_NAME = "Japan"
-    NETLOC = "www.boj.or.jp"
 
 
 

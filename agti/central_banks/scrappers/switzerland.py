@@ -16,14 +16,10 @@ logger = logging.getLogger(__name__)
 __all__ = ["SwitzerlandBankScrapper"]
 
 class SwitzerlandBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "CHE"
-    COUNTRY_NAME = "Switzerland"
-    NETLOC = "www.snb.ch"
-
 
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+            self.driver_manager.driver.get(self.bank_config.URL)
             self.driver_manager.driver.execute_script("window.localStorage.clear();")
         else:
             self.driver_manager.driver.execute_script("window.localStorage.clear();")

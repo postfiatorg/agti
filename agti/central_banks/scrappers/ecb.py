@@ -18,9 +18,6 @@ __all__ = ["ECBBankScrapper"]
 logger = logging.getLogger(__name__)
 
 class ECBBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "EUE"
-    COUNTRY_NAME = "European Union"
-    NETLOC = "www.ecb.europa.eu"
 
     SCRIPT_FETCHER = """
 const callback = arguments[0];
@@ -134,7 +131,7 @@ const callback = arguments[0];
             timestamp = pd.to_datetime(d["pub_timestamp"], unit='s')
             categories = self.get_categories(taxonnomies, publication_name)
             document_types_urls = {
-                os.path.splitext(urlparse(self.get_base_url() + url["id"]).path)[1][1:]: self.get_base_url() + url["id"]
+                os.path.splitext(urlparse(self.bank_config.URL + url["id"]).path)[1][1:]: self.bank_config.URL + url["id"]
                 for url in d["documentTypes"]
             }
             if len(document_types_urls) == 0:
@@ -200,10 +197,7 @@ const callback = arguments[0];
     
 
     def get_serach_url(self) -> str:
-        return f"{self.get_base_url()}/press/pubbydate/html/index.en.html"
-    
-    def get_base_url(self) -> str:
-        return f"https://{self.NETLOC}"
+        return f"{self.bank_config.URL}/press/pubbydate/html/index.en.html"
     
     def get_categories(self, taxonomies: list[str], publication_name:str) -> set[Categories]:
         result_categories = set()

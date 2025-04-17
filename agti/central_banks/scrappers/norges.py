@@ -19,10 +19,6 @@ logger = logging.getLogger(__name__)
 __all__ = ["NorgesBankScrapper"]
 
 class NorgesBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "NOR"
-    COUNTRY_NAME = "Norway"
-    NETLOC = "www.norges-bank.no"
-
 
     def initialize_cookies(self, go_to_url = False):
         current_url = self.driver_manager.driver.current_url
@@ -31,7 +27,7 @@ class NorgesBankScrapper(BaseBankScraper):
         # if we are under /api/NewsList/LoadMoreAndFilter,  go to main page
         if parsed_current_url.path.startswith("/api/NewsList/LoadMoreAndFilter") or go_to_url:
             # go to main page
-            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+            self.driver_manager.driver.get(self.bank_config.URL)
 
         self.driver_manager.driver.execute_script("CookieInformation.submitConsent()")
         time.sleep(0.1)

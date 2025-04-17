@@ -15,11 +15,7 @@ __all__ = ["CanadaBankScrapper"]
 logger = logging.getLogger(__name__)
 
 class CanadaBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "CAN"
-    COUNTRY_NAME = "Canada"
-    NETLOC = "www.bankofcanada.ca"
 
-        
     def process_all_years(self):
         wait = WebDriverWait(self.driver_manager.driver, 30)
 
@@ -116,7 +112,7 @@ class CanadaBankScrapper(BaseBankScraper):
             else:
                 self.get(file_url)
                 url_parsed = urlparse(file_url)
-                if url_parsed.netloc != "www.bankofcanada.ca":
+                if url_parsed.netloc != self.bank_config.NETLOC:
                     result.append({
                         "file_url": file_url,
                         "date_published": date,

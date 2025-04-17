@@ -35,9 +35,6 @@ class AustraliaBankScrapper(BaseBankScraper):
     That is why we fetch the minutes only.
 
     """
-    COUNTRY_CODE_ALPHA_3 = "AUS"
-    COUNTRY_NAME = "Australia"
-    NETLOC = "www.rba.gov.au"
 
 
     # Monetary Policy link

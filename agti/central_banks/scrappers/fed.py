@@ -26,10 +26,6 @@ class FEDBankScrapper(BaseBankScraper):
     We use  "For use at" initial text to detect correct tolerances for pdfplumber.
     Plus, we use it for extracting exact datetime.
     """
-    COUNTRY_CODE_ALPHA_3 = "USA"
-    COUNTRY_NAME = "United States of America"
-    NETLOC = "www.federalreserve.gov"
-
 
 
     def process_news_events(self):

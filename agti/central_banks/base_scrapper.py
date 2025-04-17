@@ -11,50 +11,81 @@ from agti.agti.central_banks.utils import get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.common.exceptions import NoSuchElementException
+from agti.agti.central_banks.types import SupportedScrapers
 
 
-__all__ = ["BaseBankScraper"]
+__all__ = ["create_bank_scraper"]
 
 logger = logging.getLogger(__name__)
+
+def create_bank_scraper(
+        bank_enum: SupportedScrapers, 
+        driver_manager, 
+        sql_config, 
+        scraper_config):
+    """
+    Factory function to create a scraper instance based on SupportedScrapers enum
+    
+    Args:
+        bank_enum (SupportedScrapers): The bank to create a scraper for
+        driver_manager: Selenium driver manager instance
+        sql_config: SQL configuration instance
+        scraper_config: Scraper configuration instance
+        
+    Returns:
+        BaseBankScraper: An instance of the appropriate bank scraper
+    """
+    from agti.agti.central_banks.scrappers.australia import AustraliaBankScrapper
+    from agti.agti.central_banks.scrappers.canada import CanadaBankScrapper
+    from agti.agti.central_banks.scrappers.ecb import ECBBankScrapper
+    from agti.agti.central_banks.scrappers.england import EnglandBankScrapper
+    from agti.agti.central_banks.scrappers.fed import FEDBankScrapper
+    from agti.agti.central_banks.scrappers.japan import JapanBankScrapper
+    from agti.agti.central_banks.scrappers.norges import NorgesBankScrapper
+    from agti.agti.central_banks.scrappers.sweden import SwedenBankScrapper
+    from agti.agti.central_banks.scrappers.switzerland import SwitzerlandBankScrapper
+    
+    scraper_map = {
+        SupportedScrapers.AUSTRALIA: AustraliaBankScrapper,
+        SupportedScrapers.CANADA: CanadaBankScrapper,
+        SupportedScrapers.EUROPE: ECBBankScrapper,
+        SupportedScrapers.ENGLAND: EnglandBankScrapper,
+        SupportedScrapers.USA: FEDBankScrapper,
+        SupportedScrapers.JAPAN: JapanBankScrapper,
+        SupportedScrapers.NORGES: NorgesBankScrapper,
+        SupportedScrapers.SWEDEN: SwedenBankScrapper,
+        SupportedScrapers.SWITZERLAND: SwitzerlandBankScrapper
+    }
+    
+    if bank_enum not in scraper_map:
+        raise ValueError(f"Unsupported bank enum: {bank_enum}")
+    
+    return scraper_map[bank_enum](
+        bank_config=bank_enum.value,
+        driver_manager=driver_manager,
+        sql_config=sql_config,
+        scraper_config=scraper_config,
+    )
 
 class BaseBankScraper:
     """Base class for bank scrapers with common functionality."""
 
-
-    registry = {}
-
-    COUNTRY_CODE_ALPHA_3 = None  # Set in child classes
-    COUNTRY_NAME = None  # Set in child classes
-    NETLOC = None  # Set in child classes
-    PROXY_COUNTRIES = []
-
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        # Automatically register the subclass
-        BaseBankScraper.registry[cls.__name__] = cls
-
     def __init__(
             self,
+            bank_config,
             driver_manager,
-            pw_map,
-            user_name,
-            table_name,
-            min_sleep,
-            max_sleep,
-            session_refresh_interval=10,
+            sql_config,
+            scraper_config,
             ):
-        self.min_sleep = min_sleep
-        self.max_sleep = max_sleep
-        self.session_refresh_interval = session_refresh_interval
+        self.scraper_config = scraper_config
         self.session_counter = 0
 
-        self.pw_map = pw_map
-        self.user_name = user_name
-        self.table_name = table_name
+        self.sql_config = sql_config
         self.driver_manager = driver_manager
-        self.db_connection_manager = DBConnectionManager(pw_map=self.pw_map)
-        self.credential_manager = CredentialManager()
-        self.datadump_directory_path = self.credential_manager.get_datadump_directory_path()
+        self.datadump_directory_path = CredentialManager().get_datadump_directory_path()
+        
+        # Store the bank configuration from SupportedScrapers enum
+        self.bank_config = bank_config
 
         self.cookies = None
         self.initialize_cookies(go_to_url=True)
@@ -62,16 +93,21 @@ class BaseBankScraper:
 
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}/")
+            self.driver_manager.driver.get(self.bank_config.URL)
         self.cookies = self.driver_manager.driver.get_cookies()
+
+
+    def random_sleep(self):
+        """Sleep for a random time between min and max sleep time."""
+        time.sleep(random.uniform(self.scraper_config.SLEEP_MIN, self.scraper_config.SLEEP_MAX))
 
     def get(self, url):
         parsed_url = urlparse(url)
         # random sleep time to mimic human behavior
-        time.sleep(random.uniform(self.min_sleep, self.max_sleep))
+        self.random_sleep()
         # we assume that get is only called on htm or htm pages
         # 2 requrements to refresh session, count > interval + netloc and url.netloc == NETLOC and it is not 
-        if self.session_counter > self.session_refresh_interval and parsed_url.netloc == self.NETLOC:
+        if self.session_counter > self.scraper_config.SESSION_REFRESH_INTERVAL and parsed_url.netloc == self.bank_config.NETLOC:
             self.driver_manager.driver.delete_all_cookies()
             self.cookies = None
             self.driver_manager.reset_session()
@@ -100,14 +136,14 @@ class BaseBankScraper:
             else:
                 logger.warning(f"Failed to load page: {url}, response code: {response}")
                 # we have to wait for a while
-                time.sleep(random.uniform(self.min_sleep, self.max_sleep))
+                self.random_sleep()
         if not success:
             logger.error(f"Failed to load page: {url}")
             logger.debug(f"Headers: {self.driver_manager.headers}")
             logger.debug(f"Cookies: {self.cookies}")
             logger.debug(f"Proxy: {self.driver_manager.driver.proxy}")
             return False
-        if self.cookies is None and parsed_url.netloc == self.NETLOC:
+        if self.cookies is None and parsed_url.netloc == self.bank_config.NETLOC:
             try:
                 self.initialize_cookies()
                 logger.debug("Cookies initialized", extra={"cookies": self.cookies})
@@ -142,16 +178,16 @@ class BaseBankScraper:
         return socket.gethostbyname(hostname), hostname
     
     def get_category_table_name(self):
-        return f"{self.table_name}_categories"
+        return f"{self.sql_config.TABLE_NAME}_categories"
     
     def get_links_table_name(self):
-        return f"{self.table_name}_links"
+        return f"{self.sql_config.TABLE_NAME}_links"
 
     def get_all_db_urls(self):
         """Retrieve all URLs already stored in the database."""
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
-        query = text(f"SELECT file_url FROM {self.table_name} WHERE country_code_alpha_3 = :country_code_alpha_3")
-        params = {"country_code_alpha_3": self.COUNTRY_CODE_ALPHA_3}
+        dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
+        query = text(f"SELECT file_url FROM {self.sql_config.TABLE_NAME} WHERE country_code_alpha_3 = :country_code_alpha_3")
+        params = {"country_code_alpha_3": self.bank_config.COUNTRY_CODE_ALPHA_3}
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
             output =  [row[0] for row in rs.fetchall()]
@@ -159,13 +195,13 @@ class BaseBankScraper:
         
     def get_all_db_categories(self):
         """Retrieve all categories already stored in the database."""
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
-        # query select all from categories table, which joined with self.table_name over file_url has country_code_alpha_3
+        dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
+        # query select all from categories table, which joined with self.sql_config.TABLE_NAME over file_url has country_code_alpha_3
         table_name = self.get_category_table_name()
         query = text(f"SELECT {table_name}.file_url, {table_name}.category_name FROM {table_name} " +  \
-                    f"INNER JOIN {self.table_name} ON {table_name}.file_url = {self.table_name}.file_url " + \
-                    f"WHERE {self.table_name}.country_code_alpha_3 = :country_code_alpha_3")
-        params = {"country_code_alpha_3": self.COUNTRY_CODE_ALPHA_3}
+                    f"INNER JOIN {self.sql_config.TABLE_NAME} ON {table_name}.file_url = {self.sql_config.TABLE_NAME}.file_url " + \
+                    f"WHERE {self.sql_config.TABLE_NAME}.country_code_alpha_3 = :country_code_alpha_3")
+        params = {"country_code_alpha_3": self.bank_config.COUNTRY_CODE_ALPHA_3}
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
             output =  [row for row in rs.fetchall()]
@@ -173,12 +209,12 @@ class BaseBankScraper:
     
     def get_all_db_links(self):
         """Retrieve all links already stored in the database."""
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
         links_table_name = self.get_links_table_name()
         query = text(f"SELECT {links_table_name}.file_url, {links_table_name}.link_url FROM {links_table_name} " +  \
-            f"INNER JOIN {self.table_name} ON {links_table_name}.file_url = {self.table_name}.file_url " + \
-            f"WHERE {self.table_name}.country_code_alpha_3 = :country_code_alpha_3")
-        params = {"country_code_alpha_3": self.COUNTRY_CODE_ALPHA_3}
+            f"INNER JOIN {self.sql_config.TABLE_NAME} ON {links_table_name}.file_url = {self.sql_config.TABLE_NAME}.file_url " + \
+            f"WHERE {self.sql_config.TABLE_NAME}.country_code_alpha_3 = :country_code_alpha_3")
+        params = {"country_code_alpha_3": self.bank_config.COUNTRY_CODE_ALPHA_3}
         with dbconnx.connect() as con:
             rs = con.execute(query, params)
             output =  [row for row in rs.fetchall()]
@@ -193,8 +229,8 @@ class BaseBankScraper:
             return
         
         ipaddr, hostname = self.ip_hostname()
-        df["country_name"] = self.COUNTRY_NAME
-        df["country_code_alpha_3"] = self.COUNTRY_CODE_ALPHA_3
+        df["country_name"] = self.bank_config.COUNTRY_NAME
+        df["country_code_alpha_3"] = self.bank_config.COUNTRY_CODE_ALPHA_3
         df["scraping_machine"] = hostname
         df["scraping_ip"] = ipaddr
 
@@ -229,8 +265,8 @@ class BaseBankScraper:
         df = df[~df["file_url"].isin(db_urls)] 
         logger.info(f"Adding {df.shape[0]} new entries to the database.")
         if dbconnx is None:
-            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
-        df.to_sql(self.table_name, con=dbconnx, if_exists="append", index=False)
+            dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
+        df.to_sql(self.sql_config.TABLE_NAME, con=dbconnx, if_exists="append", index=False)
 
     def add_to_categories(self, data, dbconnx=None):
         """Store scraped data into categories table."""
@@ -271,7 +307,7 @@ class BaseBankScraper:
 
         logger.info(f"Adding {df.shape[0]} new entries to the categories table.")
         if dbconnx is None:
-            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+            dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
         table_name = self.get_category_table_name()
         df.to_sql(table_name, con=dbconnx, if_exists="append", index=False)
 
@@ -315,7 +351,7 @@ class BaseBankScraper:
 
         logger.info(f"Adding {df.shape[0]} new entries to the links table.")
         if dbconnx is None:
-            dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+            dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
         table_name = self.get_links_table_name()
         df.to_sql(table_name, con=dbconnx, if_exists="append", index=False)
 
@@ -323,7 +359,7 @@ class BaseBankScraper:
 
     def add_all_atomic(self, data, tags, links):
         """Store scraped data into the database."""
-        dbconnx = self.db_connection_manager.spawn_sqlalchemy_db_connection_for_user(self.user_name)
+        dbconnx = self.sql_config.CONNECTION_MANAGER.spawn_sqlalchemy_db_connection_for_user(self.sql_config.USER_NAME)
         with dbconnx.begin() as connection:
             self.add_to_db(data,dbconnx=connection)
             self.add_to_categories(tags,dbconnx=connection)

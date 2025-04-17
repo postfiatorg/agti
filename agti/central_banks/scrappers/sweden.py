@@ -17,10 +17,6 @@ logger = logging.getLogger(__name__)
 __all__ = ["SwedenBankScrapper"]
 
 class SwedenBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "SWE"
-    COUNTRY_NAME = "Sweden"
-    NETLOC = "www.riksbank.se"
-    PROXY_COUNTRIES = ['se','fi','no']
 
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
