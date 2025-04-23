@@ -1,17 +1,21 @@
+import os
+from pathlib import Path
 import socket
 import logging
 import time
 import random
-import abc
+import boto3
 from urllib.parse import urlparse
+import uuid
 import pandas as pd
+import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
 from agti.agti.central_banks.utils import get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.common.exceptions import NoSuchElementException
-from agti.agti.central_banks.types import SupportedScrapers
+from agti.agti.central_banks.types import SCRAPERCONFIG, SQLDBCONFIG, BotoS3Config, CountryCB, SupportedScrapers
 
 
 __all__ = ["create_bank_scraper"]
@@ -22,7 +26,9 @@ def create_bank_scraper(
         bank_enum: SupportedScrapers, 
         driver_manager, 
         sql_config, 
-        scraper_config):
+        scraper_config,
+        boto3_config
+    ):
     """
     Factory function to create a scraper instance based on SupportedScrapers enum
     
@@ -31,6 +37,7 @@ def create_bank_scraper(
         driver_manager: Selenium driver manager instance
         sql_config: SQL configuration instance
         scraper_config: Scraper configuration instance
+        boto3_config: Boto3 configuration instance
         
     Returns:
         BaseBankScraper: An instance of the appropriate bank scraper
@@ -65,6 +72,7 @@ def create_bank_scraper(
         driver_manager=driver_manager,
         sql_config=sql_config,
         scraper_config=scraper_config,
+        boto3_config=boto3_config,
     )
 
 class BaseBankScraper:
@@ -72,10 +80,11 @@ class BaseBankScraper:
 
     def __init__(
             self,
-            bank_config,
+            bank_config: CountryCB ,
             driver_manager,
-            sql_config,
-            scraper_config,
+            sql_config: SQLDBCONFIG,
+            scraper_config: SCRAPERCONFIG,
+            boto3_config: BotoS3Config,
             ):
         self.scraper_config = scraper_config
         self.session_counter = 0
@@ -87,8 +96,35 @@ class BaseBankScraper:
         # Store the bank configuration from SupportedScrapers enum
         self.bank_config = bank_config
 
+        self.bucket = self._initialize_bucket(boto3_config)
+        if self.bucket is None:
+            raise ValueError(f"Failed to create or access S3 bucket: {boto3_config.BUCKET_NAME}")
+
         self.cookies = None
         self.initialize_cookies(go_to_url=True)
+
+
+    @staticmethod
+    def _initialize_bucket(boto3_config: BotoS3Config):
+        """
+        Initialize the S3 bucket for the bank.
+        """
+        # Create the S3 bucket if it doesn't exist
+        client = boto3.client(
+            "s3",
+            aws_access_key_id=boto3_config.ACCESS_KEY,
+            aws_secret_access_key=boto3_config.SECRET_KEY,
+            region_name=boto3_config.REGION_NAME
+        )
+        location = {'LocationConstraint': boto3_config.REGION_NAME}
+        # check if bucket exists
+        try:
+            bucket = client.create_bucket(Bucket=boto3_config.BUCKET_NAME, CreateBucketConfiguration=location)
+        except Exception as e:
+            logger.exception(f"Error creating bucket: {e}")
+            return None
+        return bucket
+        
 
 
     def initialize_cookies(self, go_to_url=False):
@@ -368,4 +404,85 @@ class BaseBankScraper:
             self.add_to_db(data,dbconnx=connection)
             self.add_to_categories(tags,dbconnx=connection)
             self.add_to_links(links,dbconnx=connection)
+
+
+
+    def download_pdf(self, url):
+        # NOTE: This is a temporary fix to disable PDF processing for quick local testing
+        if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
+            time.sleep(0.1) # Simulate processing
+            return "Processing pdf disabled"
+        uuid_str = str(uuid.uuid4())
+        filename = f"{uuid_str}.pdf"
+        filepath = Path(os.path.join(self.datadump_directory_path, filename))
+
+        headers = self.get_headers()
+        cookies = self.get_cookies_for_request()
+        proxies = self.get_proxies()
+        for i in range(3):
+            try:
+                with requests.get(url, headers=headers, cookies=cookies, proxies=proxies, stream=True, timeout=100) as r:
+                    r.raise_for_status()
+                    try:
+                        with open(filepath, "wb") as f:
+                            for chunk in r.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                    except Exception as stream_error:
+                        raise stream_error
+            except requests.exceptions.HTTPError:
+                logger.exception("Error downloading and reading PDF", extra={
+                    "url": url,
+                    "filepath": filepath,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                cookies = None
+                logger.info("Trying again with new proxy")
+                if self.driver_manager.proxy_provider is not None:
+                    new_proxies = self.driver_manager.proxy_provider.get_proxy()
+                    proxies = {
+                        "http": new_proxies,
+                        "https": new_proxies
+                    }
+            except Exception as e:
+                logger.exception("Error downloading and reading PDF", extra={
+                    "url": url,
+                    "filepath": filepath,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                break
+
+        if os.path.exists(filepath):
+            return filepath
+        return None
+
+
+
+    def upload_pdf_to_s3(self, filepath: Path, year: int = None, remove_file: bool = True):
+        """
+        Upload a PDF file to S3 bucket.
+        
+        Args:
+            filepath (Path): The path of the PDF file to upload.
+            year (int): The year for the S3 path.
+            remove_file (bool): Whether to remove the local file after upload.
+            
+        Returns:
+            bool: True if the file was uploaded successfully, False otherwise.
+        1. Upload the file to S3 bucket.
+        path: /country_code_alpha_3/{year}/
+        """
+        filename = filepath.name
+        # Upload to S3
+        if year is None:
+            year = "unknown"
+        self.bucket.upload_file(filepath, f"{self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/{filename}")
+        # Remove local file if specified
+        if remove_file:
+            os.remove(filepath)
+        logger.info(f"Uploaded {filename} to S3 bucket {self.bucket.name} at path {self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/")
+        return True
         

@@ -7,6 +7,14 @@ from enum import Enum
 from agti.agti.utilities.db_manager import DBConnectionManager
 
 
+
+@dataclass
+class BotoS3Config:
+    REGION_NAME: str
+    ACCESS_KEY: str
+    SECRET_KEY: str
+    BUCKET_NAME: str
+
 @dataclass
 class Country:
     COUNTRY_CODE_ALPHA_3: str
