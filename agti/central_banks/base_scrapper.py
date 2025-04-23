@@ -114,7 +114,8 @@ class BaseBankScraper:
             "s3",
             aws_access_key_id=boto3_config.ACCESS_KEY,
             aws_secret_access_key=boto3_config.SECRET_KEY,
-            region_name=boto3_config.REGION_NAME
+            region_name=boto3_config.REGION_NAME,
+            endpoint_url=boto3_config.ENDPOINT_URL,
         )
         location = {'LocationConstraint': boto3_config.REGION_NAME}
         # check if bucket exists

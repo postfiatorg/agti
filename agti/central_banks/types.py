@@ -14,6 +14,7 @@ class BotoS3Config:
     ACCESS_KEY: str
     SECRET_KEY: str
     BUCKET_NAME: str
+    ENDPOINT_URL: str | None = None
 
 @dataclass
 class Country:
