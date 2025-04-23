@@ -3,9 +3,46 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from functools import cache
 from enum import Enum
+from typing import NewType
 
 from agti.agti.utilities.db_manager import DBConnectionManager
 
+
+# supported file extension, which we download
+STATIC_PAGE_EXTENSIONS = [
+    "html",
+    "htm",
+    "xhtml",
+    "xht",
+    "shtml",
+    "mhtml",
+    "mht",
+    "maff"
+]
+DYNAMIC_PAGE_EXTENSIONS = [
+    "php",
+    "phtml",
+    "asp",
+    "aspx",
+    "axd",
+    "asmx",
+    "ashx",
+    "jsp",
+    "jspx",
+    "do",
+    "action",
+    "cfm",
+    "cfc",
+    "cgi",
+]
+
+class ExtensionType(Enum):
+    WEBPAGE = "webpage"
+    FILE = "file"
+
+class URLType(Enum):
+    INTERNAL = "internal"
+    EXTERNAL = "external"
 
 
 @dataclass

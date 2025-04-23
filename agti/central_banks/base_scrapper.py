@@ -1,3 +1,5 @@
+import base64
+import mimetypes
 import os
 from pathlib import Path
 import socket
@@ -11,11 +13,12 @@ import pandas as pd
 import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
-from agti.agti.central_banks.utils import get_status
+from agti.agti.central_banks.utils import clasify_extension, get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.common.exceptions import NoSuchElementException
-from agti.agti.central_banks.types import SCRAPERCONFIG, SQLDBCONFIG, BotoS3Config, CountryCB, SupportedScrapers
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, SupportedScrapers, URLType
+from selenium.webdriver.common.by import By
 
 
 __all__ = ["create_bank_scraper"]
@@ -408,13 +411,13 @@ class BaseBankScraper:
 
 
 
-    def download_pdf(self, url):
+    def download_file(self, url, extension="pdf"):
         # NOTE: This is a temporary fix to disable PDF processing for quick local testing
         if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
             time.sleep(0.1) # Simulate processing
             return "Processing pdf disabled"
         uuid_str = str(uuid.uuid4())
-        filename = f"{uuid_str}.pdf"
+        filename = f"{uuid_str}.{extension}"
         filepath = Path(os.path.join(self.datadump_directory_path, filename))
 
         headers = self.get_headers()
@@ -431,7 +434,7 @@ class BaseBankScraper:
                     except Exception as stream_error:
                         raise stream_error
             except requests.exceptions.HTTPError:
-                logger.exception("Error downloading and reading PDF", extra={
+                logger.exception(f"Error downloading and reading {extension}", extra={
                     "url": url,
                     "filepath": filepath,
                     "headers": headers,
@@ -447,7 +450,7 @@ class BaseBankScraper:
                         "https": new_proxies
                     }
             except Exception as e:
-                logger.exception("Error downloading and reading PDF", extra={
+                logger.exception(f"Error downloading and reading {extension}", extra={
                     "url": url,
                     "filepath": filepath,
                     "headers": headers,
@@ -459,15 +462,54 @@ class BaseBankScraper:
         if os.path.exists(filepath):
             return filepath
         return None
-
-
-
-    def upload_pdf_to_s3(self, filepath: Path, year: int = None, remove_file: bool = True):
+    
+    def save_page_as_pdf(self):
         """
-        Upload a PDF file to S3 bucket.
+        Save the current page as a PDF file.
+        We use "printToPDF" to save the page as a PDF.
         
         Args:
-            filepath (Path): The path of the PDF file to upload.
+            url (str): The URL of the page to save.
+            
+        Returns:
+            str: The path of the saved PDF file.
+        """
+        # Generate a unique filename for the PDF
+        uuid_str = str(uuid.uuid4())
+        filename = f"{uuid_str}.pdf"
+        filepath = Path(os.path.join(self.datadump_directory_path, filename))
+
+            # 4. Define print options
+        print_options = {
+            "printBackground": True,       # include background colors/images
+            "preferCSSPageSize": True,     # use CSS @page size if defined
+            "marginTop": 0.4,              # margins in inches
+            "marginBottom": 0.4,
+            "marginLeft": 0.4,
+            "marginRight": 0.4,
+            # "scale": 1.0,                # adjust scale if needed
+            # experimental flags—for outline or tagging:
+            # "generateTaggedPDF": False,
+            # "generateDocumentOutline": False
+        }
+        result = self.driver_manager.driver.execute_cdp_cmd("Page.printToPDF", print_options)
+        pdf_data = base64.b64decode(result["data"]) # Decode the base64 data
+
+        # Save the PDF data to a file
+        with open(filepath, "wb") as f:
+            f.write(pdf_data)
+        logger.info(f"Saved page as PDF: {filepath}")
+        return filepath
+        
+
+
+
+    def upload_file_to_s3(self, filepath: Path, year: int = None, remove_file: bool = True):
+        """
+        Upload a file to S3 bucket.
+        
+        Args:
+            filepath (Path): The path of the file to upload.
             year (int): The year for the S3 path.
             remove_file (bool): Whether to remove the local file after upload.
             
@@ -486,4 +528,90 @@ class BaseBankScraper:
             os.remove(filepath)
         logger.info(f"Uploaded {filename} to S3 bucket {self.bucket.name} at path {self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/")
         return True
+        
+    def get_file_type_request(self, url):
+        """
+        Get the file type based on the URL extension.
+        """
+        headers = self.get_headers()
+        cookies = self.get_cookies_for_request()
+        proxies = self.get_proxies()
+        for i in range(3):
+            try:
+                resp = requests.head(url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60)
+                resp.raise_for_status()
+            except requests.exceptions.HTTPError:
+                logger.exception(f"HTTPError getting filetype for {url}", extra={
+                    "url": url,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                cookies = None
+                logger.info("Trying again with new proxy")
+                if self.driver_manager.proxy_provider is not None:
+                    new_proxies = self.driver_manager.proxy_provider.get_proxy()
+                    proxies = {
+                        "http": new_proxies,
+                        "https": new_proxies
+                    }
+            except Exception as e:
+                logger.exception(f"General getting filetype from {url}", extra={
+                    "url": url,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                break
+        ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
+        # if ctype has text/html we return page, otherwise we return file
+        ctype_type = clasify_extension(ctype)
+        return ctype_type
+    
+
+    def clasify_url(self, link, allow_outside=False):
+        parsed_link = urlparse(link)
+        ext = os.path.splitext(parsed_link.path)[1].lstrip(".").lower()
+        output = (None, None)
+        if link.netloc == self.bank_config.NETLOC:
+            output[0] = URLType.INTERNAL
+        else:
+            output[0] = URLType.EXTERNAL
+        if len(ext) > 0:
+            output[1] = clasify_extension(ext)
+        elif allow_outside or output[0] == URLType.INTERNAL:
+            output[1] = self.get_file_type_request(link)
+        #else:
+        #    output[1] = None
+        return output
+        
+
+
+    def get_all_links(self, f_get_links):
+        """
+        Args:
+            f_get_links (function): Function to get links from the page
+        1. get all links
+        2. filter links
+        2a. link with extesion to file type (like pdf...) will be downloaded and uploaded to s3
+        2b. link point to website within the same domain will be transferred to pdf and uploaded to s3
+        2c. link point to website outside the domain will be ignored
+        """
+        # get all links from the main page
+        clean_links = [link for link in f_get_links() if link.get_attribute("href") is not None]
+        all_links = {
+            link.text: link.get_attribute("href") for link in clean_links 
+        }
+        
+        
+        result = []
+        for link_text, link in all_links.items():
+            urlType, extesion_type = self.clasify_url(link)
+            raise NotImplementedError("Implement this")
+            
+            
+
+
+
+        
         

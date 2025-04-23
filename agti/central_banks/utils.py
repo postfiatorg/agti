@@ -7,6 +7,8 @@ import enum
 import re
 import json
 
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
+
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
     MONETARY_POLICY = "Monetary Policy"
@@ -20,10 +22,22 @@ class Categories(enum.Enum):
 
 
 logger = logging.getLogger(__name__)
-logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
 
 def download_and_read_pdf(url, save_dir, base_scraper, evaluate_tolerances=None):
     raise NotImplementedError("This function is not supported in this version.")
+
+def clasify_extension(ext):
+    """
+    Classify the file extension into static or dynamic.
+    """
+    if len(ext) == 0:
+        return None
+    if ext in STATIC_PAGE_EXTENSIONS:
+        return ExtensionType.WEBPAGE
+    elif ext in DYNAMIC_PAGE_EXTENSIONS:
+        return ExtensionType.WEBPAGE
+    else:
+        return ExtensionType.FILE
     
 def get_cookies_headers(driver):
     # Get cookies from browser & unpack into a dictionary.
