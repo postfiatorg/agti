@@ -441,7 +441,7 @@ class BaseBankScraper:
                     except Exception as stream_error:
                         raise stream_error
             except requests.exceptions.HTTPError:
-                logger.exception(f"Error downloading and reading {extension}", extra={
+                logger.exception(f"Error downloading and reading extension {extension} for {url}", extra={
                     "url": url,
                     "filepath": filepath,
                     "headers": headers,
@@ -457,7 +457,7 @@ class BaseBankScraper:
                         "https": new_proxies
                     }
             except Exception as e:
-                logger.exception(f"Error downloading and reading {extension}", extra={
+                logger.exception(f"Error downloading and reading extension {extension} for {url}", extra={
                     "url": url,
                     "filepath": filepath,
                     "headers": headers,
@@ -591,7 +591,7 @@ class BaseBankScraper:
                 break
         ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
         # if ctype has text/html we return page, otherwise we return file
-        ctype_extension = mimetypes.guess_extension(ctype)
+        ctype_extension = mimetypes.guess_extension(ctype).lstrip(".").lower()
         if ctype_extension is None:
             logger.warning(f"Unknown content type: {ctype} for url: {url}", extra={
                 "url": url,
@@ -641,8 +641,12 @@ class BaseBankScraper:
         
         result = []
         for link_text, link in all_links.items():
+            if link.startswith("tel:") or link.startswith("mailto:"):
+                continue
             # ignore links, which have fragment ot the same page
             link_parsed = urlparse(link)
+            if link_parsed.path == "" or link_parsed.path == "/":
+                continue
             if link_parsed.fragment != "":
                 if link_parsed.netloc == self.bank_config.NETLOC and link_parsed.path == current_url_parsed.path:
                     logger.debug(f"Link has fragment to the same page: {link}", extra={
@@ -653,7 +657,7 @@ class BaseBankScraper:
                 continue
             urlType, extension = self.clasify_url(link, allow_outside=allow_outside)
             if extension is None:
-                if urlType == URLType.EXTERNAL and allow_outside:
+                if (urlType == URLType.EXTERNAL and allow_outside) or urlType == URLType.INTERNAL:
                     logger.error(f"Unknown file type for {link}", extra={
                         "link": link,
                         "link_text": link_text,
