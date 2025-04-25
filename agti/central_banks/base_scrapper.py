@@ -123,10 +123,20 @@ class BaseBankScraper:
         location = {'LocationConstraint': boto3_config.REGION_NAME}
         # check if bucket exists
         try:
-            bucket = client.create_bucket(Bucket=boto3_config.BUCKET_NAME, CreateBucketConfiguration=location)
+            bucket_dict = client.create_bucket(Bucket=boto3_config.BUCKET_NAME, CreateBucketConfiguration=location)
+        except client.exceptions.BucketAlreadyOwnedByYou:
+            pass
         except Exception as e:
             logger.exception(f"Error creating bucket: {e}")
             return None
+        s3 = boto3.resource(
+            "s3",
+            aws_access_key_id=boto3_config.ACCESS_KEY,
+            aws_secret_access_key=boto3_config.SECRET_KEY,
+            region_name=boto3_config.REGION_NAME,
+            endpoint_url=boto3_config.ENDPOINT_URL,
+        )
+        bucket = s3.Bucket(boto3_config.BUCKET_NAME)
         return bucket
         
 
@@ -413,9 +423,6 @@ class BaseBankScraper:
 
     def download_file(self, url, extension):
         # NOTE: This is a temporary fix to disable PDF processing for quick local testing
-        if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
-            time.sleep(0.1) # Simulate processing
-            return None
         uuid_str = str(uuid.uuid4())
         filename = f"{uuid_str}.{extension}"
         filepath = Path(os.path.join(self.datadump_directory_path, filename))
@@ -528,6 +535,25 @@ class BaseBankScraper:
             os.remove(filepath)
         logger.info(f"Uploaded {filename} to S3 bucket {self.bucket.name} at path {self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/")
         return True
+    
+
+    def process_html_page(self, year):
+        filepath = self.save_page_as_pdf()
+        if filepath is not None:
+            if self.upload_file_to_s3(filepath, year=year):
+                return filepath.stem
+            logger.error(f"Failed to upload file to S3: {filepath}", extra={
+                "year": year,
+                "filepath": filepath,
+                "url": self.driver_manager.driver.current_url
+            })
+            return None
+        logger.error(f"Failed to save page as PDF: {filepath}", extra={
+            "year": year,
+            "filepath": filepath,
+            "url": self.driver_manager.driver.current_url
+        })
+        return None
         
     def get_file_type_request(self, url):
         """
@@ -579,9 +605,9 @@ class BaseBankScraper:
     def clasify_url(self, link, allow_outside=False):
         parsed_link = urlparse(link)
         ext = os.path.splitext(parsed_link.path)[1].lstrip(".").lower()
-        output = (None, None)
+        output = [None, None]
         # NOTE uerltype is never None
-        if link.netloc == self.bank_config.NETLOC:
+        if parsed_link.netloc == self.bank_config.NETLOC:
             output[0] = URLType.INTERNAL
         else:
             output[0] = URLType.EXTERNAL
@@ -595,7 +621,7 @@ class BaseBankScraper:
         
 
 
-    def get_all_links(self, f_get_links, year = None):
+    def process_links(self, f_get_links, year = None, allow_outside=False):
         """
         Args:
             f_get_links (function): Function to get links from the page
@@ -611,30 +637,54 @@ class BaseBankScraper:
             link.text: link.get_attribute("href") for link in clean_links 
         }
         
+        current_url_parsed = urlparse(self.driver_manager.driver.current_url)
         
         result = []
         for link_text, link in all_links.items():
-            urlType, extension = self.clasify_url(link)
-            if extension is None:
-                logger.error(f"Unknown file type for {link}", extra={
-                    "link": link,
-                    "link_text": link_text,
-                    "urlType": urlType,
-                    "extension_type": extension
-                })
+            # ignore links, which have fragment ot the same page
+            link_parsed = urlparse(link)
+            if link_parsed.fragment != "":
+                if link_parsed.netloc == self.bank_config.NETLOC and link_parsed.path == current_url_parsed.path:
+                    logger.debug(f"Link has fragment to the same page: {link}", extra={
+                        "link": link,
+                        "link_text": link_text,
+                        "current_url": self.driver_manager.driver.current_url
+                    })
                 continue
+            urlType, extension = self.clasify_url(link, allow_outside=allow_outside)
+            if extension is None:
+                if urlType == URLType.EXTERNAL and allow_outside:
+                    logger.error(f"Unknown file type for {link}", extra={
+                        "link": link,
+                        "link_text": link_text,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            filepath = None
             if classify_extension(extension) == ExtensionType.FILE:
                 # download file and upload to s3
                 filepath = self.download_file(link, extension)
+                if filepath is None:
+                    logger.error(f"Failed to download file: {link}", extra={
+                        "link": link,
+                        "link_text": link_text,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                    continue
             elif urlType == URLType.INTERNAL:
                 # we now it is webpage and we process internal links only
                 self.get(link)
                 # save it as pdf
                 filepath = self.save_page_as_pdf()
+            else:
+                # we ignore external links
+                pass
 
             if filepath is not None:
                 if self.upload_file_to_s3(filepath, year=year):
-                    result.append((link, link_text, filepath))
+                    result.append((link, link_text, filepath.stem))
                 else:
                     logger.error(f"Failed to upload file to S3: {filepath}", extra={
                         "link": link,
