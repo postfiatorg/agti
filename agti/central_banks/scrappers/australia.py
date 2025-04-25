@@ -49,35 +49,40 @@ class AustraliaBankScrapper(BaseBankScraper):
         to_process = [
             link.get_attribute("href") for link in links
         ]
-        result = []
-        total_links = []
-        total_categories = []
         for url in to_process:
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
+            logger.info(f"Processing: {url}")
             self.get(url)
             time_tag = self.driver_manager.driver.find_element(By.XPATH, "//time")
             date = pd.to_datetime(time_tag.text)
             main_content = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']")
-            text = main_content.text
-            # all links
-            links_output = self.process_links(url, main_content)
-            total_links.extend(links_output)
-            result.append({
+            main_uuid = self.process_html_page(date.year)
+            links_output = self.process_links(lambda : main_content.find_elements(By.XPATH, ".//a"), year = date.year)
+
+            result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "file_uuid": main_uuid
+            }
             # categories
-            total_categories.append(
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.MONETARY_POLICY.value
                 }
-            )
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            total_links = [
+                {
+                    "file_url": url,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_uuid": link_uuid,
+                } for (link, link_text, link_uuid) in links_output
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
         
         
         ## Monetary Policy Decision
@@ -1169,47 +1174,24 @@ class AustraliaBankScrapper(BaseBankScraper):
 
     
 
-    def process_links(self, url, html_tag):
-        url_parsed = urlparse(url)
-        links_output = []
-        links = html_tag.find_elements(By.XPATH, ".//a")
-        for link in links:
-            link_href = link.get_attribute("href")
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
-                    continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            links_output.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link.text,
-                "full_extracted_text": link_text,
-            })
-        return links_output
 
 
 
-
-    def parse_html(self, url: str):
+    def parse_html(
+            self, url: str, 
+            year: str | None = None):
         self.get(url)
         xpath = "//main[@id='content' or @id='main'] | //div[@id='content' or @id='main']"
         try:
             content = self.driver_manager.driver.find_element(By.XPATH, xpath)
         except NoSuchElementException:
             logger.warning(f"No content found for url: {url}")
-            return "", []
-        text = content.text
-        # all links
-        links_output = self.process_links(url, content)
-        return text, links_output
+            return None
+        file_uuid = self.process_html_page(year)
+        g_get_links = lambda : content.find_elements(By.XPATH, ".//a")
+        processed_links = self.process_links(g_get_links, year=year)
+        return file_uuid, processed_links
+        
     
 
     def process_list_by_year(self, year:int, f_url, categories):
@@ -1234,38 +1216,41 @@ class AustraliaBankScrapper(BaseBankScraper):
                 continue
 
             to_process.append([date, href])
-        result = []
-        total_links = []
-        total_categories = []
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            text, links = self.parse_html(href)
-            total_links.extend(links)
-            result.append({
+            main_uuid, links_output = self.parse_html(href, year=str(date.year))
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
-                "full_extracted_text": text if len(text) > 0 else None,
-            })
-            total_categories.extend([
+                "file_uuid": main_uuid,
+            }
+            total_categories = [
                 {
                     "file_url": href,
                     "category_name": category.value
                 } for category in categories
-            ])
-
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            total_links = [
+                {
+                    "file_url": href,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_uuid": link_uuid,
+                } for (link, link_text, link_uuid) in links_output
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
             
 
 
 
     def process_all_years(self):
-        self.process_monetary_policy()
+        #self.process_monetary_policy()
         self.process_payments_infrastructure()
-        self.process_financial_stability()
-        self.processing_media_releases()
-        self.processing_speeches()
-        self.process_publications()
+        #self.process_financial_stability()
+        #self.processing_media_releases()
+        #self.processing_speeches()
+        #self.process_publications()
     
 
     def get_base_url(self) -> str:
