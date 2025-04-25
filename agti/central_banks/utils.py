@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 def download_and_read_pdf(url, save_dir, base_scraper, evaluate_tolerances=None):
     raise NotImplementedError("This function is not supported in this version.")
 
-def clasify_extension(ext):
+def classify_extension(ext):
     """
     Classify the file extension into static or dynamic.
     """

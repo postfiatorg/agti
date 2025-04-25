@@ -13,11 +13,11 @@ import pandas as pd
 import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
-from agti.agti.central_banks.utils import clasify_extension, get_status
+from agti.agti.central_banks.utils import classify_extension, get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.common.exceptions import NoSuchElementException
-from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, SupportedScrapers, URLType
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, SupportedScrapers, URLType
 from selenium.webdriver.common.by import By
 
 
@@ -411,11 +411,11 @@ class BaseBankScraper:
 
 
 
-    def download_file(self, url, extension="pdf"):
+    def download_file(self, url, extension):
         # NOTE: This is a temporary fix to disable PDF processing for quick local testing
         if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
             time.sleep(0.1) # Simulate processing
-            return "Processing pdf disabled"
+            return None
         uuid_str = str(uuid.uuid4())
         filename = f"{uuid_str}.{extension}"
         filepath = Path(os.path.join(self.datadump_directory_path, filename))
@@ -504,13 +504,13 @@ class BaseBankScraper:
 
 
 
-    def upload_file_to_s3(self, filepath: Path, year: int = None, remove_file: bool = True):
+    def upload_file_to_s3(self, filepath: Path, year: str = None, remove_file: bool = True):
         """
         Upload a file to S3 bucket.
         
         Args:
             filepath (Path): The path of the file to upload.
-            year (int): The year for the S3 path.
+            year (str): The year for the S3 path.
             remove_file (bool): Whether to remove the local file after upload.
             
         Returns:
@@ -565,20 +565,28 @@ class BaseBankScraper:
                 break
         ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
         # if ctype has text/html we return page, otherwise we return file
-        ctype_type = clasify_extension(ctype)
-        return ctype_type
+        ctype_extension = mimetypes.guess_extension(ctype)
+        if ctype_extension is None:
+            logger.warning(f"Unknown content type: {ctype} for url: {url}", extra={
+                "url": url,
+                "headers": headers,
+                "cookies": cookies,
+                "proxies": proxies,
+            })
+        return ctype_extension
     
 
     def clasify_url(self, link, allow_outside=False):
         parsed_link = urlparse(link)
         ext = os.path.splitext(parsed_link.path)[1].lstrip(".").lower()
         output = (None, None)
+        # NOTE uerltype is never None
         if link.netloc == self.bank_config.NETLOC:
             output[0] = URLType.INTERNAL
         else:
             output[0] = URLType.EXTERNAL
         if len(ext) > 0:
-            output[1] = clasify_extension(ext)
+            output[1] = ext
         elif allow_outside or output[0] == URLType.INTERNAL:
             output[1] = self.get_file_type_request(link)
         #else:
@@ -587,7 +595,7 @@ class BaseBankScraper:
         
 
 
-    def get_all_links(self, f_get_links):
+    def get_all_links(self, f_get_links, year = None):
         """
         Args:
             f_get_links (function): Function to get links from the page
@@ -606,8 +614,36 @@ class BaseBankScraper:
         
         result = []
         for link_text, link in all_links.items():
-            urlType, extesion_type = self.clasify_url(link)
-            raise NotImplementedError("Implement this")
+            urlType, extension = self.clasify_url(link)
+            if extension is None:
+                logger.error(f"Unknown file type for {link}", extra={
+                    "link": link,
+                    "link_text": link_text,
+                    "urlType": urlType,
+                    "extension_type": extension
+                })
+                continue
+            if classify_extension(extension) == ExtensionType.FILE:
+                # download file and upload to s3
+                filepath = self.download_file(link, extension)
+            elif urlType == URLType.INTERNAL:
+                # we now it is webpage and we process internal links only
+                self.get(link)
+                # save it as pdf
+                filepath = self.save_page_as_pdf()
+
+            if filepath is not None:
+                if self.upload_file_to_s3(filepath, year=year):
+                    result.append((link, link_text, filepath))
+                else:
+                    logger.error(f"Failed to upload file to S3: {filepath}", extra={
+                        "link": link,
+                        "link_text": link_text,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+        return result
+                
             
             
 
