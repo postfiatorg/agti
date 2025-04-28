@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
+import urllib3
 from agti.agti.central_banks.utils import classify_extension, get_status
 from agti.utilities.settings import CredentialManager
 from agti.utilities.db_manager import DBConnectionManager
@@ -177,9 +178,15 @@ class BaseBankScraper:
                 self.session_counter = 0
                 new_headers = self.driver_manager.headers
                 logger.debug("Refreshing headers", extra={"new_headers": new_headers})
-            self.driver_manager.driver.get(url)
-            logs = self.driver_manager.driver.get_log("performance")
-            response = get_status(logs, url)
+            try:
+                self.driver_manager.driver.get(url)
+                logs = self.driver_manager.driver.get_log("performance")
+                response = get_status(logs, url)
+            except urllib3.exceptions.ReadTimeoutError as e:
+                logger.exception(f"ReadTimeoutError for url: {url}, ERROR: {e}", extra={"url": url})
+                # we have to wait for a while
+                self.random_sleep()
+                continue
             if response == 200:
                 success = True
                 break
@@ -440,7 +447,7 @@ class BaseBankScraper:
                                 f.write(chunk)
                     except Exception as stream_error:
                         raise stream_error
-            except requests.exceptions.HTTPError:
+            except (requests.exceptions.HTTPError, urllib3.exceptions.ReadTimeoutError):
                 logger.exception(f"Error downloading and reading extension {extension} for {url}", extra={
                     "url": url,
                     "filepath": filepath,
@@ -456,6 +463,7 @@ class BaseBankScraper:
                         "http": new_proxies,
                         "https": new_proxies
                     }
+                self.random_sleep()
             except Exception as e:
                 logger.exception(f"Error downloading and reading extension {extension} for {url}", extra={
                     "url": url,
@@ -637,8 +645,6 @@ class BaseBankScraper:
             link.text: link.get_attribute("href") for link in clean_links 
         }
         
-        current_url_parsed = urlparse(self.driver_manager.driver.current_url)
-        
         result = []
         for link_text, link in all_links.items():
             if link.startswith("tel:") or link.startswith("mailto:"):
@@ -647,6 +653,7 @@ class BaseBankScraper:
             link_parsed = urlparse(link)
             if link_parsed.path == "" or link_parsed.path == "/":
                 continue
+            current_url_parsed = urlparse(self.driver_manager.driver.current_url)
             if link_parsed.fragment != "":
                 if link_parsed.netloc == self.bank_config.NETLOC and link_parsed.path == current_url_parsed.path:
                     logger.debug(f"Link has fragment to the same page: {link}", extra={
@@ -654,7 +661,7 @@ class BaseBankScraper:
                         "link_text": link_text,
                         "current_url": self.driver_manager.driver.current_url
                     })
-                continue
+                    continue
             urlType, extension = self.clasify_url(link, allow_outside=allow_outside)
             if extension is None:
                 if (urlType == URLType.EXTERNAL and allow_outside) or urlType == URLType.INTERNAL:

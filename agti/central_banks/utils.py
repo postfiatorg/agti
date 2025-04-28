@@ -1,6 +1,7 @@
 import os
 import logging
 from pathlib import Path
+from urllib.parse import urlparse
 import requests
 import pdfplumber
 import time
@@ -80,6 +81,9 @@ def recusive_lower_keys(d):
         return d
 
 def get_status(logs, target_url):
+    parsed_target_url = urlparse(target_url)
+    # get clean url without fragment
+    without_fragment_target_url = parsed_target_url._replace(fragment="").geturl()
     for log in logs:
         if log["message"]:
             d = json.loads(log["message"])
@@ -90,7 +94,9 @@ def get_status(logs, target_url):
                     in d["message"]["params"]["response"]["headers"]["content-type"]
                 )
                 response_received = d["message"]["method"] == "Network.responseReceived"
-                if content_type and response_received and target_url in d["message"]["params"]["response"]["url"]:
+                t1 = (target_url == d["message"]["params"]["response"]["url"])
+                t2 = (without_fragment_target_url == d["message"]["params"]["response"]["url"])
+                if content_type and response_received and (t1 or t2):
                     return d["message"]["params"]["response"]["status"]
             except KeyError:
                 pass

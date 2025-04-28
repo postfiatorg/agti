@@ -304,7 +304,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 if len(urls) > 0:
                     url = urls[0]
                 else:
-                    logger.warning(f"No href found for speech: {speech.get_attribute('textContent')} for Payments and Infrastructure - Resources - Speeches")
+                    logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
                     continue
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
@@ -505,34 +505,61 @@ class AustraliaBankScrapper(BaseBankScraper):
             except NoSuchElementException:
                 date_txt = None
             to_process.append((date_txt, url))
-
-        result = []
-        total_links = []
-        total_categories = []
         for date_txt, url in to_process:
             logger.info(f"Processing: {url}")
             date = None
+            year = None
             if date_txt is not None:
                 date_txt = date_txt.strip()
                 # if date has just one "-" it is not a date
                 if date_txt[0].isdigit():
                     date = pd.to_datetime(date_txt)
                     date_txt = None
+                    year = str(date.year)
+                else:
+                    year = str(pd.to_datetime(date_txt).year)
             url_parsed = urlparse(url)
             extracted_text = None
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                filepath = self.download_file(url, extension)
+                if filepath is None:
+                    logger.error(f"Failed to download file: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                    continue
+                main_uuid = filepath.stem
+                total_links = []
+            elif extType == ExtensionType.WEBPAGE:
+                main_uuid, links_output = self.parse_html(url, year=year)
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_uuid": link_uuid,
+                    } for (link, link_text, link_uuid) in links_output
+                ]
             else:
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-            result.append({
+                if allowed_outside or url_parsed.netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_uuid": main_uuid,
+            }
+            total_categories =[
                 {
                     "file_url": url,
                     "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
@@ -541,9 +568,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
-            
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
         # Speeches
         self.get("https://www.rba.gov.au/fin-stability/resources/speeches.html")
         to_process = []
@@ -556,10 +582,10 @@ class AustraliaBankScrapper(BaseBankScraper):
             except NoSuchElementException:
                 # find first html link from links
                 urls = [x.get_attribute("href") for x in links if x.get_attribute("href").endswith(".html")]
-                if len(url) > 0:
+                if len(urls) > 0:
                     url = urls[0]
                 else:
-                    logger.warning(f"No href found for speech: {speech.text} for Payments and Infrastructure - Resources - Speeches")
+                    logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
                     continue
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
@@ -573,32 +599,57 @@ class AustraliaBankScrapper(BaseBankScraper):
             to_process.append((date, url, founded_links))
 
         for date, url, temp_links in to_process:
-            logger.info(f"Processing: {url}")
-            text, links_output = self.parse_html(url)
-            links_href = [x["link_url"] for x in links_output]
-            for (main_link, main_link_text) in temp_links:
-                if main_link not in links_href:
-                    parsed_link = urlparse(main_link)
-                    # if it is pdf
-                    extracted_text = None
-                    if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self)
-                    links_output.append({
-                        "file_url": url,
-                        "link_url": main_link,
-                        "link_name": main_link_text,
-                        "full_extracted_text": extracted_text,
-                    })
-            total_links.extend(links_output)
-                    
-            result.append({
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+            main_uuid, links_output = self.parse_html(url, year=str(date.year))
+            result = {
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_url": url,
+                "file_uuid": main_uuid,
+            }
+            total_links = [
+                {
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_uuid": link_uuid,
+                } for (link, link_text, link_uuid) in links_output
+            ]
+            for (main_link, main_link_text) in temp_links:
+                if url == main_link:
+                    continue
+                allowed_outside = False
+                urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                extType = classify_extension(extension)
+                if extType == ExtensionType.FILE:
+                    filepath = self.download_file(main_link, extension)
+                    if filepath is None:
+                        logger.error(f"Failed to download file: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                        continue
+                    link_uuid = filepath.stem
+                elif extType == ExtensionType.WEBPAGE:
+                    link_uuid, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                else:
+                    if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
+                        logger.error(f"Unknown file type: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                    continue
+                total_links.append({
+                    "file_url": url,
+                    "link_url": main_link,
+                    "link_name": main_link_text,
+                    "file_uuid": link_uuid,
+                })
             # categories
-            total_categories.extend([
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.NEWS_AND_EVENTS.value
@@ -615,8 +666,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def processing_media_releases(self):
@@ -670,7 +721,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 try:
                     url = speech.find_element(By.XPATH, ".//h3//a").get_attribute("href")
                 except NoSuchElementException:
-                    logger.warning(f"No href found for speech: {speech.text} for Payments and Infrastructure - Resources - Speeches")
+                    logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
                     continue
                 if url in all_urls:
                     logger.debug(f"Href is already in db: {url}")
@@ -1335,8 +1386,8 @@ class AustraliaBankScrapper(BaseBankScraper):
 
     def process_all_years(self):
         #self.process_monetary_policy()
-        self.process_payments_infrastructure()
-        #self.process_financial_stability()
+        #self.process_payments_infrastructure()
+        self.process_financial_stability()
         #self.processing_media_releases()
         #self.processing_speeches()
         #self.process_publications()
