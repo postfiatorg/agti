@@ -31,7 +31,7 @@ def classify_extension(ext):
     """
     Classify the file extension into static or dynamic.
     """
-    if len(ext) == 0:
+    if ext is None or len(ext) == 0:
         return None
     if ext in STATIC_PAGE_EXTENSIONS:
         return ExtensionType.WEBPAGE
