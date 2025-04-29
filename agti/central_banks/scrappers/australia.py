@@ -194,13 +194,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=str(year))
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 total_links = []
                 main_uuid = filepath.stem
@@ -342,7 +337,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_file(main_link, extension)
+                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
                     if filepath is None:
                         logger.error(f"Failed to download file: {main_link}", extra={
                             "url": url,
@@ -417,14 +412,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "link_url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 main_uuid = filepath.stem
                 total_links = []
@@ -524,13 +513,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 main_uuid = filepath.stem
                 total_links = []
@@ -622,7 +606,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_file(main_link, extension)
+                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
                     if filepath is None:
                         logger.error(f"Failed to download file: {main_link}", extra={
                             "url": url,
@@ -694,7 +678,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(article_url, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_file(article_url, extension)
+                    filepath = self.download_and_upload_file(article_url, extension, year=str(date.year))
                     if filepath is None:
                         logger.error(f"Failed to download file: {article_url}", extra={
                             "url": article_url,
@@ -792,7 +776,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
                     if extType == ExtensionType.FILE:
-                        filepath = self.download_file(main_link, extension)
+                        filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
                         if filepath is None:
                             logger.error(f"Failed to download file: {main_link}", extra={
                                 "url": url,
@@ -901,7 +885,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 date_txt = a_tag.text
-                if "Boxes" in date_txt:
+                if "Boxes" in date_txt or "Focus Topics" in date_txt:
                     continue
                 to_process.append((date_txt, url))
 
@@ -1213,13 +1197,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             extType = classify_extension(extension)
             total_links = []
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 main_uuid = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
@@ -1251,7 +1230,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     urlType, extension = self.clasify_url(link_url, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
                     if extType == ExtensionType.FILE:
-                        filepath = self.download_file(link_url, extension)
+                        filepath = self.download_and_upload_file(link_url, extension, year=year)
                         if filepath is None:
                             logger.error(f"Failed to download file: {link_url}", extra={
                                 "url": url,
@@ -1318,13 +1297,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             extType = classify_extension(extension)
             allowed_outside = False
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=str(date.year))
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 main_uuid = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
@@ -1384,7 +1358,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(url)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_file(url, extension)
+                    filepath = self.download_and_upload_file(url, extension, year=str(year))
                     if filepath is None:
                         logger.error(f"Failed to download file: {url}", extra={
                             "url": url,
@@ -1448,7 +1422,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     a_urlType, a_extension = self.clasify_url(a_url)
                     a_extType = classify_extension(a_extension)
                     if a_extType == ExtensionType.FILE:
-                        filepath = self.download_file(a_url, a_extension)
+                        filepath = self.download_and_upload_file(a_url, a_extension, year=str(year))
                         if filepath is None:
                             logger.error(f"Failed to download file: {a_url}", extra={
                                 "url": url,
@@ -1505,13 +1479,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             extType = classify_extension(extension)
             total_links = []
             if extType == ExtensionType.FILE:
-                filepath = self.download_file(url, extension)
+                filepath = self.download_and_upload_file(url, extension, year=str(year))
                 if filepath is None:
-                    logger.error(f"Failed to download file: {url}", extra={
-                        "url": url,
-                        "urlType": urlType,
-                        "extension_type": extension
-                    })
                     continue
                 main_uuid = filepath.stem
             elif extType == ExtensionType.WEBPAGE:

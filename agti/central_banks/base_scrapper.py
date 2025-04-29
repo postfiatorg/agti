@@ -515,6 +515,37 @@ class BaseBankScraper:
             f.write(pdf_data)
         logger.info(f"Saved page as PDF: {filepath}")
         return filepath
+    
+    def download_and_upload_file(self, url, extension, year=None):
+        """
+        Download a file from the given URL and upload it to S3.
+        
+        Args:
+            url (str): The URL of the file to download.
+            extension (str): The file extension.
+            year (str): The year for the S3 path.
+            
+        Returns:
+            bool: True if the file was downloaded and uploaded successfully, False otherwise.
+        """
+        filepath = self.download_file(url, extension)
+        if filepath is not None:
+            done = self.upload_file_to_s3(filepath, year=year)
+            if done:
+                return filepath.stem
+            else:
+                logger.error(f"Failed to upload file to S3: {filepath}", extra={
+                    "url": url,
+                    "extension_type": extension,
+                    "year": year,
+                })
+                return None
+        logger.error(f"Failed to download file: {url}", extra={
+            "url": url,
+            "extension_type": extension,
+            "year": year,
+        })
+        return None
         
 
 
