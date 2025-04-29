@@ -182,8 +182,8 @@ class BaseBankScraper:
                 self.driver_manager.driver.get(url)
                 logs = self.driver_manager.driver.get_log("performance")
                 response = get_status(logs, url)
-            except urllib3.exceptions.ReadTimeoutError as e:
-                logger.exception(f"ReadTimeoutError for url: {url}, ERROR: {e}", extra={"url": url})
+            except (urllib3.exceptions.ReadTimeoutError, TimeoutError) as e:
+                logger.exception(f"TimeoutError for url: {url}, ERROR: {e}", extra={"url": url})
                 # we have to wait for a while
                 self.random_sleep()
                 continue
