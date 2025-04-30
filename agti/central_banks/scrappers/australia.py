@@ -1539,9 +1539,15 @@ class AustraliaBankScrapper(BaseBankScraper):
             logger.warning(f"No content found for url: {url}")
             return None
         file_uuid = self.process_html_page(year)
-        g_get_links = lambda : content.find_elements(By.XPATH, ".//a")
+        def f_get_links():
+            links = []
+            for link in content.find_elements(By.XPATH, ".//a"):
+                link_text = link.text
+                link_url = link.get_attribute("href")
+                links.append((link_text, link_url))
+            return links
         if parse_links:
-            processed_links = self.process_links(g_get_links, year=year)
+            processed_links = self.process_links(f_get_links, year=year)
         else:
             processed_links = []
         return file_uuid, processed_links

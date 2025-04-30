@@ -7,25 +7,30 @@ import selenium
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+from agti.agti.central_banks.types import ExtensionType, URLType
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories, classify_extension, download_and_read_pdf
 
 __all__ = ["CanadaBankScrapper"]
 
 logger = logging.getLogger(__name__)
 
 class CanadaBankScrapper(BaseBankScraper):
-
+    IGNORED_PATHS = [
+        "/search/",
+        "/profile/",
+        "/about/",
+    ]
     def process_all_years(self):
         wait = WebDriverWait(self.driver_manager.driver, 30)
 
-        all_urls = self.get_all_db_urls()
-        all_categories = self.get_all_db_categories()
         page = 1
-        to_process = []
         while True:
-            if page % 10 == 0:
-                logger.debug(f"Current page: {page}")
+            all_urls = self.get_all_db_urls()
+            all_categories = self.get_all_db_categories()
+            to_process = []
+            logger.debug(f"Current page: {page}")
             self.get(self.get_url_search(page))
 
             xpath_results = "(//article | //div)[@class='media' and starts-with(@id, 'post-')]"
@@ -41,19 +46,50 @@ class CanadaBankScrapper(BaseBankScraper):
                 try:
                     a_tag = article.find_element(By.XPATH,".//div[@class='media-body']/h3/a")
                     file_url = a_tag.get_attribute("href")
+                    parsed_url = urlparse(file_url)
+                    # if path of parsed_url contains any of the ignored paths, skip it
+                    if any(ignored_path in parsed_url.path for ignored_path in self.IGNORED_PATHS):
+                        logger.debug(f"Skipping ignored path: {file_url}")
+                        continue
+
                 except selenium.common.exceptions.NoSuchElementException:
-                    logger.warning(f"No href found for article: {article.text}",stack_info=True, exc_info=True)
+                    logger.warning(f"No href found  at page {page} for article: {article.text}",stack_info=True, exc_info=True)
                     continue
 
                 # each article has multiple content types
                 date = None
+                date_str = None
                 try:
                     date = pd.to_datetime(
                         article.find_element(By.XPATH, ".//div[@class='media-body']/span[contains(concat(' ', normalize-space(@class), ' '), ' media-date ')]").text
                     )
                 except selenium.common.exceptions.NoSuchElementException:
-                    date = None
+                    pass
+
+                if date is None:
+                    # we try media-type
+                    xpath = ".//div[@class='media-body']/div[@class='media-meta']/span[@class='media-type']"
+                    try:
+                        date_str = article.find_element(By.XPATH, xpath).text.split(" ")[-1]
+                        if "-" not in date_str:
+                            # we try to get it from url as last option
+                            parsed_file_url = urlparse(file_url)
+                            # .com/2025/....
+                            date_str = parsed_file_url.path.split("/")[1]
+                            # verify if it is 4 digit value
+                            if len(date_str) != 4 or not date_str.isdigit():
+                                date_str = None
+                    except selenium.common.exceptions.NoSuchElementException:
+                        pass
                 
+                
+                if date is not None and date > pd.Timestamp.now():
+                    logger.debug(f"Skipping future date: {date} at page: {page}")
+                    continue
+                
+                if date is None and date_str is None:
+                    logger.warning(f"No date found at page {page} for article: {file_url}")
+                    continue
 
                 # get tags, content type, topic
                 content_types = []
@@ -87,91 +123,89 @@ class CanadaBankScrapper(BaseBankScraper):
                         self.add_to_categories(article_categories) 
                     continue
 
-                to_process.append((date, file_url, article_categories))
+                to_process.append((date, date_str, file_url, article_categories))
+            # process the page
+            if len(to_process) > 0:
+                self.process_to_process(to_process)
             page += 1
 
-        result = []
-        total_categories = []
-        total_links = []
-        for date, file_url, article_categories in to_process:
+    def process_to_process(self, to_process):
+        wait = WebDriverWait(self.driver_manager.driver, 30)
+        for date, date_str, file_url, article_categories in to_process:
+            year = str(date.year) if date is not None else None
+            # if year is none we will use date str
+            if year is None and date_str is not None:
+                year = date_str.split("-")[0]
+            if year is None:
+                logger.error(f"No year found for file_url: {file_url}")
+                continue
             logger.info(f"Processing: {file_url}")
-            article_categories = [
+            total_categories = [
                 {"file_url": file_url, "category_name": category.value}
                 for category in article_categories
             ]
-            total_categories.extend(article_categories)
-            if urlparse(file_url).path.lower().endswith('.pdf'):
-                # Note there can be multiple other pdf files as well on the page
-                text = download_and_read_pdf(file_url,self.datadump_directory_path, self)
-                result.append({
+            urlType, extension = self.clasify_url(file_url)
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                main_uuid = self.download_and_upload_file(file_url, extension, year=str(year))
+                if main_uuid is None:
+                    continue
+                result = {
                     "file_url": file_url,
                     "date_published": date,
+                    "date_published_str": date_str,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text
-                })
-            else:
+                    "file_uuid": main_uuid,
+                }
+                total_links = []
+            elif extType == ExtensionType.WEBPAGE and urlType == URLType.EXTERNAL:
+                continue
+            elif extType == ExtensionType.WEBPAGE and urlType == URLType.INTERNAL:
                 self.get(file_url)
-                url_parsed = urlparse(file_url)
-                if url_parsed.netloc != self.bank_config.NETLOC:
-                    result.append({
-                        "file_url": file_url,
-                        "date_published": date,
-                        "scraping_time": pd.Timestamp.now(),
-                        "full_extracted_text": None
-                    })
-                    continue
-                try:
-                    main = wait.until(EC.presence_of_element_located((By.XPATH, "//main[@id='main-content']")))
-                except selenium.common.exceptions.TimeoutException:
-                    logger.warning(f"Timeout for {file_url}")
-                    result.append({
-                        "file_url": file_url,
-                        "date_published": date,
-                        "scraping_time": pd.Timestamp.now(),
-                        "full_extracted_text": None
-                    })
-                    continue
-                text = main.text
-                result.append({
+                main_uuid = self.process_html_page(year)
+                result = {
                     "file_url": file_url,
                     "date_published": date,
+                    "date_published_str": date_str,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text
-                })
-                links = main.find_elements(By.XPATH, ".//a")
-                links_data = []
-                for temp_link in links:
+                    "file_uuid": main_uuid,
+                }
+
+                def get_links():
                     try:
-                        link_href = temp_link.get_attribute("href")
-                        link_name = temp_link.text
-                        links_data.append((link_href, link_name))
-                    except selenium.common.exceptions.StaleElementReferenceException:
-                        continue
+                        main = wait.until(EC.presence_of_element_located((By.XPATH, "//main[@id='main-content']")))
+                    except selenium.common.exceptions.TimeoutException:
+                        return []
+                    links = []
+                    for link in main.find_elements(By.XPATH, ".//a"):
+                        try:
+                            link_url = link.get_attribute("href")
+                            link_text = link.text
+                            if link_url is None:
+                                continue
+                            # filter search links
+                            parsed_link = urlparse(link_url)
+                            if any(ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS):
+                                continue
 
-                if len(links_data) != len(links):
-                    logger.warning(f"Links length mismatch: Found {len(links)} vs obtained {len(links_data)}")
-                
-                for link_href, link_name in links_data:
-                    if link_href is None:
-                        continue
-                    link_href_parsed = urlparse(link_href)
-                    link_text = None
-                    if link_href_parsed.fragment != '':
-                        if url_parsed[:3] == link_href_parsed[:3]:
-                            # we ignore links to the same page (fragment identifier)
-                            continue
-                        # NOTE: we do not parse the text yet
-                    elif urlparse(link_href).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-                    # NOTE add support for different file types
-                    total_links.append({
+                            links.append((link_text, link_url))
+                        except selenium.common.exceptions.StaleElementReferenceException:
+                            pass
+                    return links
+                links_output = self.process_links(
+                    get_links,
+                    year=str(year),
+                )
+                total_links = [
+                    {
                         "file_url": file_url,
-                        "link_url": link_href,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text,
-                    })
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_uuid": link_uuid,
+                    } for (link, link_text, link_uuid) in links_output
+                ]
 
-        self.add_all_atomic(result,total_categories,total_links)        
+            self.add_all_atomic([result],total_categories,total_links)        
             
 
         

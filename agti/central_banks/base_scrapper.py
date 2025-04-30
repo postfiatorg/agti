@@ -203,6 +203,7 @@ class BaseBankScraper:
             logger.debug(f"Headers: {self.driver_manager.headers}")
             logger.debug(f"Cookies: {self.cookies}")
             logger.debug(f"Proxy: {self.driver_manager.driver.proxy}")
+            raise Exception(f"Failed to load page: {url}")
             return False
         if self.cookies is None and parsed_url.netloc == self.bank_config.NETLOC:
             try:
@@ -671,13 +672,12 @@ class BaseBankScraper:
         2c. link point to website outside the domain will be ignored
         """
         # get all links from the main page
-        clean_links = [link for link in f_get_links() if link.get_attribute("href") is not None]
-        all_links = {
-            link.text: link.get_attribute("href") for link in clean_links 
-        }
+        all_links = [
+            (link_text, link) for link_text, link in f_get_links() if link is not None and link_text != ""
+        ]
         
         result = []
-        for link_text, link in all_links.items():
+        for link_text, link in all_links:
             if link.startswith("tel:") or link.startswith("mailto:"):
                 continue
             # ignore links, which have fragment ot the same page
