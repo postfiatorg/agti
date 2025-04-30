@@ -84,6 +84,11 @@ def get_status(logs, target_url):
     parsed_target_url = urlparse(target_url)
     # get clean url without fragment
     without_fragment_target_url = parsed_target_url._replace(fragment="").geturl()
+    possible_urls = [
+        target_url,
+        without_fragment_target_url,
+        without_fragment_target_url + "?",
+    ]
     for log in logs:
         if log["message"]:
             d = json.loads(log["message"])
@@ -94,9 +99,10 @@ def get_status(logs, target_url):
                     in d["message"]["params"]["response"]["headers"]["content-type"]
                 )
                 response_received = d["message"]["method"] == "Network.responseReceived"
-                t1 = (target_url == d["message"]["params"]["response"]["url"])
-                t2 = (without_fragment_target_url == d["message"]["params"]["response"]["url"])
-                if content_type and response_received and (t1 or t2):
+                if content_type and response_received and any([
+                    d["message"]["params"]["response"]["url"] == url
+                    for url in possible_urls
+                ]):
                     return d["message"]["params"]["response"]["status"]
             except KeyError:
                 pass
