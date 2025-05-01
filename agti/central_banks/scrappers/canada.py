@@ -204,6 +204,9 @@ class CanadaBankScrapper(BaseBankScraper):
                         "file_uuid": link_uuid,
                     } for (link, link_text, link_uuid) in links_output
                 ]
+            else:
+                logger.error(f"Unknown extension type: {extension} for file_url: {file_url}")
+                continue
 
             self.add_all_atomic([result],total_categories,total_links)        
             

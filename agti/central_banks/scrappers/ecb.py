@@ -6,8 +6,10 @@ from selenium import webdriver
 import selenium
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
+from agti.agti.central_banks.types import ExtensionType
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf, pageBottom
+from ..utils import Categories, classify_extension, download_and_read_pdf, pageBottom
 
 
 
@@ -18,7 +20,12 @@ __all__ = ["ECBBankScrapper"]
 logger = logging.getLogger(__name__)
 
 class ECBBankScrapper(BaseBankScraper):
-
+    IGNORED_PATHS = [
+        "/press/contacts/",
+        "/press/pubbydate/",
+        "/home/search/",
+        "/pub/research/authors/",
+    ]
     SCRIPT_FETCHER = """
 const callback = arguments[0];
     (async () => {
@@ -61,133 +68,136 @@ const callback = arguments[0];
         }
     })();
 """
+    # cookies implementation, does not work
+    """
+    def initialize_cookies(self, go_to_url=False):
+        if go_to_url:
+            self.driver_manager.driver.get(self.bank_config.URL)
+        wait = WebDriverWait(self.driver_manager.driver, 10)
+        xpath = "//div[@id='cookieConsent']//div[@class='consentButtons initial cf']/button[@class='check linkButton linkButtonLarge floatLeft highlight-medium']"
+        repeat = 3
+        for i in range(repeat):
+            try:
+                # wait for div
+                div_xpath = "//div[@id='cookieConsent']"
+                wait.until(EC.presence_of_element_located((By.XPATH, div_xpath)))
+                cookie_btn = wait.until(
+                    EC.element_to_be_clickable((By.XPATH, xpath))
+                )
+                # click the cookie banner
+                cookie_btn.click()
+                break
+            except Exception as e:
+                logger.warning(f"Could not click cookie banner", exc_info=True)
+                if i == repeat - 1:
+                    raise e
+        self.cookies = self.driver_manager.driver.get_cookies()
+    """
 
     def fetch_all_data(self):
         self.get(self.get_serach_url())
         return self.driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
 
 
-    def parse_html(self, url: str):
-        url_parsed = urlparse(url)
-        self.get(url)
-        current_url_parsed = urlparse(self.driver_manager.driver.current_url)
-        # check if it is pdf
-        if current_url_parsed.path.endswith("pdf"):
-            return download_and_read_pdf(url,self.datadump_directory_path, self), []
-        # select all text from dev with class section
-        main = self.driver_manager.driver.find_element(By.XPATH, "//main")
-        text = main.text
-        # find all links and process them
-        links = main.find_elements(By.XPATH, ".//a")
-        links_data = []
-        total_links = []
-        for temp_link in links:
-            try:
-                link_href = temp_link.get_attribute("href")
-                link_name = temp_link.text
-                links_data.append((link_href, link_name))
-            except selenium.common.exceptions.StaleElementReferenceException:
-                continue
-
-        if len(links_data) != len(links):
-            logger.warning(f"Links length mismatch: Found {len(links)} vs obtained {len(links_data)}")
-        
-        for link_href, link_name in links_data:
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
-                    continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            total_links.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link_name,
-                "full_extracted_text": link_text,
-            })
-        return text, total_links
-
+    def process_url(self, url: str, year:str):
+        allowed_outside = False
+        urlType, extension = self.clasify_url(url)
+        extType = classify_extension(extension)
+        if extType == ExtensionType.FILE:
+                main_uuid = self.download_and_upload_file(url, extension, year=str(year))
+                if main_uuid is None:
+                    return None
+                return main_uuid, []
+        elif extType == ExtensionType.WEBPAGE:
+            self.get(url)
+            main = self.driver_manager.driver.find_element(By.XPATH, "//main")
+            main_uuid = self.process_html_page(year)
+            def get_links():
+                links_data = []
+                for temp_link in main.find_elements(By.XPATH, ".//a"):
+                    try:
+                        link_href = temp_link.get_attribute("href")
+                        if link_href is None:
+                            continue
+                        parsed_link = urlparse(link_href)
+                        link_name = temp_link.text
+                    except selenium.common.exceptions.StaleElementReferenceException:
+                        continue
+                    if any([ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS]):
+                        continue
+                    links_data.append((link_name, link_href))
+                return links_data
+            links_output = self.process_links(
+                get_links,
+                year=str(year),
+            )
+            return main_uuid, links_output
+        else:
+            if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                logger.error(f"Unknown file type: {url}", extra={
+                    "url": url,
+                    "urlType": urlType,
+                    "extension_type": extension
+                })
+            return None
 
 
     def process_all_years(self):
 
         all_urls = self.get_all_db_urls()
         data = self.fetch_all_data()
-        
 
-        result = []
-        total_categories = []
-        total_links = []
         for d in data:
-            publication_name = d["type"]["publication_name"]
-            taxonomy_list = d["Taxonomy"]
+            publication_name = d["type"].get("publication_name", None) if d["type"] is not None else None
+            taxonomy_list = d.get("Taxonomy")
             taxonnomies = taxonomy_list.split("|") if taxonomy_list is not None else []
             timestamp = pd.to_datetime(d["pub_timestamp"], unit='s')
             categories = self.get_categories(taxonnomies, publication_name)
             document_types_urls = {
-                os.path.splitext(urlparse(self.bank_config.URL + url["id"]).path)[1][1:]: self.bank_config.URL + url["id"]
+                os.path.splitext(urlparse(self.bank_config.URL + url["id"]).path)[1].lstrip('.'): self.bank_config.URL + url["id"][1:]
                 for url in d["documentTypes"]
             }
             if len(document_types_urls) == 0:
                 continue
+            total_links = []
             if "pdf" in document_types_urls:
                 temp_url = document_types_urls["pdf"]
-                if temp_url in all_urls:
-                    logger.debug(f"PDF already in db: {temp_url}")
-                    continue
-                logger.info(f"Processing PDF: {temp_url}")
-                text = download_and_read_pdf(temp_url,self.datadump_directory_path, self)
-                result.append({
-                    "file_url": temp_url,
-                    "date_published": timestamp,
-                    "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text
-                })
             elif "html" in document_types_urls or "htm" in document_types_urls:
                 temp_url = document_types_urls.get("html", None)
                 if temp_url is None:
                     temp_url = document_types_urls["htm"]
-                if temp_url in all_urls:
-                    logger.debug(f"HTML/HTM already in db: {temp_url}")
-                    continue
-                logger.info(f"Processing HTML: {temp_url}")
-                text, links = self.parse_html(temp_url)
-                result.append({
-                    "file_url": temp_url,
-                    "date_published": timestamp,
-                    "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text
-                })
-                total_links.extend(links)
             else:
                 temp_url = sorted(list(document_types_urls.values()))[0]
-                if temp_url in all_urls:
-                    logger.debug(f"URL already in db: {temp_url}")
-                    continue
-                logger.info(f"Processing URL: {temp_url}")
-                result.append({
+            if temp_url in all_urls:
+                logger.debug(f"Href is already in db: {temp_url}")
+                continue
+            logger.info(f"Processing {temp_url}")
+            ret = self.process_url(temp_url, year=str(timestamp.year))
+            if ret is None:
+                continue
+            main_uuid, links_output = ret
+            total_links = [
+                {
                     "file_url": temp_url,
-                    "date_published": timestamp,
-                    "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": None
-                })
-            total_categories.extend(
-                [
-                    {
-                        "file_url": temp_url,
-                        "category_name": x.value
-                    }
-                    for x in categories
-                ]
-            )
-
-        self.add_all_atomic(result, total_categories, total_links)
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_uuid": link_uuid,
+                } for (link, link_text, link_uuid) in links_output
+            ]
+            result = {
+                "file_url": temp_url,
+                "date_published": timestamp,
+                "scraping_time": pd.Timestamp.now(),
+                "file_uuid": main_uuid,
+            }
+            total_categories = [
+                {
+                    "file_url": temp_url,
+                    "category_name": x.value
+                }
+                for x in categories
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
 
