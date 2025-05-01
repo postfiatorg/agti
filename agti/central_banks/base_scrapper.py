@@ -152,7 +152,7 @@ class BaseBankScraper:
         """Sleep for a random time between min and max sleep time."""
         time.sleep(random.uniform(self.scraper_config.SLEEP_MIN, self.scraper_config.SLEEP_MAX))
 
-    def get(self, url):
+    def get(self, url, raise_exception=True):
         parsed_url = urlparse(url)
         # random sleep time to mimic human behavior
         self.random_sleep()
@@ -203,7 +203,8 @@ class BaseBankScraper:
             logger.debug(f"Headers: {self.driver_manager.headers}")
             logger.debug(f"Cookies: {self.cookies}")
             logger.debug(f"Proxy: {self.driver_manager.driver.proxy}")
-            raise Exception(f"Failed to load page: {url}")
+            if raise_exception:
+                raise Exception(f"Failed to load page: {url}")
             return False
         if self.cookies is None and parsed_url.netloc == self.bank_config.NETLOC:
             try:
@@ -677,6 +678,7 @@ class BaseBankScraper:
         ]
         
         result = []
+        processed_paths = [urlparse(self.driver_manager.driver.current_url).path]
         for link_text, link in all_links:
             if link.startswith("tel:") or link.startswith("mailto:"):
                 continue
@@ -686,13 +688,15 @@ class BaseBankScraper:
                 continue
             current_url_parsed = urlparse(self.driver_manager.driver.current_url)
             if link_parsed.fragment != "":
-                if link_parsed.netloc == self.bank_config.NETLOC and link_parsed.path == current_url_parsed.path:
+                if link_parsed.netloc == self.bank_config.NETLOC and \
+                    any([link_parsed.path == p for p in processed_paths]):
                     logger.debug(f"Link has fragment to the same page: {link}", extra={
                         "link": link,
                         "link_text": link_text,
                         "current_url": self.driver_manager.driver.current_url
                     })
                     continue
+            processed_paths.append(link_parsed.path)
             urlType, extension = self.clasify_url(link, allow_outside=allow_outside)
             if extension is None:
                 if (urlType == URLType.EXTERNAL and allow_outside) or urlType == URLType.INTERNAL:
@@ -717,7 +721,13 @@ class BaseBankScraper:
                     continue
             elif urlType == URLType.INTERNAL:
                 # we now it is webpage and we process internal links only
-                self.get(link)
+                success = self.get(link, raise_exception=False)
+                if not success:
+                    logger.error(f"Failed to retrieve internal link: {link}", extra={
+                        "link": link,
+                        "link_text": link_text
+                    })
+                    continue
                 # save it as pdf
                 filepath = self.save_page_as_pdf()
             else:
