@@ -103,7 +103,7 @@ class EnglandBankScrapper(BaseBankScraper):
         def f_get_links():
             links = []
             for link in main.find_elements(By.XPATH, ".//a"):
-                link_text = link.get_attribute("textContent")
+                link_text = link.get_attribute("textContent").strip()
                 link_url = link.get_attribute("href")
                 if link_url is None:
                     continue

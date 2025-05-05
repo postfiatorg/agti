@@ -180,7 +180,7 @@ class CanadaBankScrapper(BaseBankScraper):
                     for link in main.find_elements(By.XPATH, ".//a"):
                         try:
                             link_url = link.get_attribute("href")
-                            link_text = link.get_attribute("textContent")
+                            link_text = link.get_attribute("textContent").strip()
                             if link_url is None:
                                 continue
                             # filter search links

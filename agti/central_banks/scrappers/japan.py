@@ -711,6 +711,14 @@ class JapanBankScrapper(BaseBankScraper):
     ########################## 
     def parse_html(self, url: str, year):
         self.get(url)
+        if "www.imes.boj.or.jp" in urlparse(url):
+            # find the iframe and switch to it
+            try:
+                iframe = self.driver_manager.driver.find_element(By.TAG_NAME, "iframe")
+                self.driver_manager.driver.switch_to.frame(iframe)
+            except selenium.common.exceptions.NoSuchElementException:
+                logger.warning(f"No iframe found in {url}")
+                return None
         try:
             main = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container'] | //main")
         except selenium.common.exceptions.NoSuchElementException:
@@ -720,7 +728,7 @@ class JapanBankScrapper(BaseBankScraper):
         def f_get_links():
             links = []
             for link in main.find_elements(By.XPATH, ".//a"):
-                link_text = link.get_attribute("textContent")
+                link_text = link.get_attribute("textContent").strip()
                 link_url = link.get_attribute("href")
                 if link_url is None:
                     continue
@@ -862,11 +870,6 @@ class JapanBankScrapper(BaseBankScraper):
 
     
     def process_all_years(self):
-        main_id, links = self.parse_html(
-            "https://www.imes.boj.or.jp/research/abstracts/english/me15-1-4.html",
-            2023,
-        )
-        return
         self.process_statistics()
         self.process_research_and_studies()
         self.process_international_finance()

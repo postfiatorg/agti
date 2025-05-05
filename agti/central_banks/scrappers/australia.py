@@ -63,13 +63,13 @@ class AustraliaBankScrapper(BaseBankScraper):
             def f_get_linsk():
                 links = []
                 for link in main_content.find_elements(By.XPATH, ".//a"):
-                    link_text = link.get_attribute("textContent")
+                    link_text = link.get_attribute("textContent").strip()
                     link_url = link.get_attribute("href")
                     if link_url is None:
                         continue
                     links.append((link_text, link_url))
                 return links
-            links_output = self.process_links(f_get_linsk, year = date.year)
+            links_output = self.process_links(f_get_linsk, year=date.year)
 
             result = {
                     "date_published": date,
@@ -1551,7 +1551,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         def f_get_links():
             links = []
             for link in content.find_elements(By.XPATH, ".//a"):
-                link_text = link.get_attribute("textContent")
+                link_text = link.get_attribute("textContent").strip()
                 link_url = link.get_attribute("href")
                 links.append((link_text, link_url))
             return links
