@@ -718,7 +718,6 @@ class JapanBankScrapper(BaseBankScraper):
                 self.driver_manager.driver.switch_to.frame(iframe)
             except selenium.common.exceptions.NoSuchElementException:
                 logger.warning(f"No iframe found in {url}")
-                return None
         try:
             main = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container'] | //main")
         except selenium.common.exceptions.NoSuchElementException:
