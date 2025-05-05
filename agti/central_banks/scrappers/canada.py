@@ -147,28 +147,28 @@ class CanadaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(file_url)
             extType = classify_extension(extension)
             if extType == ExtensionType.FILE:
-                main_uuid = self.download_and_upload_file(file_url, extension, year=str(year))
-                if main_uuid is None:
+                main_id = self.download_and_upload_file(file_url, extension, year=str(year))
+                if main_id is None:
                     continue
                 result = {
                     "file_url": file_url,
                     "date_published": date,
                     "date_published_str": date_str,
                     "scraping_time": pd.Timestamp.now(),
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = []
             elif extType == ExtensionType.WEBPAGE and urlType == URLType.EXTERNAL:
                 continue
             elif extType == ExtensionType.WEBPAGE and urlType == URLType.INTERNAL:
                 self.get(file_url)
-                main_uuid = self.process_html_page(year)
+                main_id = self.process_html_page(year)
                 result = {
                     "file_url": file_url,
                     "date_published": date,
                     "date_published_str": date_str,
                     "scraping_time": pd.Timestamp.now(),
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
 
                 def get_links():
@@ -201,8 +201,8 @@ class CanadaBankScrapper(BaseBankScraper):
                         "file_url": file_url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else:
                 logger.error(f"Unknown extension type: {extension} for file_url: {file_url}")

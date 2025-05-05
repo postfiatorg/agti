@@ -104,14 +104,14 @@ const callback = arguments[0];
         urlType, extension = self.clasify_url(url)
         extType = classify_extension(extension)
         if extType == ExtensionType.FILE:
-                main_uuid = self.download_and_upload_file(url, extension, year=str(year))
-                if main_uuid is None:
+                main_id = self.download_and_upload_file(url, extension, year=str(year))
+                if main_id is None:
                     return None
-                return main_uuid, []
+                return main_id, []
         elif extType == ExtensionType.WEBPAGE:
             self.get(url)
             main = self.driver_manager.driver.find_element(By.XPATH, "//main")
-            main_uuid = self.process_html_page(year)
+            main_id = self.process_html_page(year)
             def get_links():
                 links_data = []
                 for temp_link in main.find_elements(By.XPATH, ".//a"):
@@ -131,7 +131,7 @@ const callback = arguments[0];
                 get_links,
                 year=str(year),
             )
-            return main_uuid, links_output
+            return main_id, links_output
         else:
             if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                 logger.error(f"Unknown file type: {url}", extra={
@@ -175,20 +175,20 @@ const callback = arguments[0];
             ret = self.process_url(temp_url, year=str(timestamp.year))
             if ret is None:
                 continue
-            main_uuid, links_output = ret
+            main_id, links_output = ret
             total_links = [
                 {
                     "file_url": temp_url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             result = {
                 "file_url": temp_url,
                 "date_published": timestamp,
                 "scraping_time": pd.Timestamp.now(),
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {

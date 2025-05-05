@@ -8,16 +8,15 @@ import time
 import random
 import boto3
 from urllib.parse import urlparse
-import uuid
+import hashlib
 import pandas as pd
 import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
 import urllib3
-from agti.agti.central_banks.utils import classify_extension, get_status
+from agti.agti.central_banks.utils import classify_extension, get_hash_for_url, get_status
 from agti.utilities.settings import CredentialManager
-from agti.utilities.db_manager import DBConnectionManager
-from selenium.common.exceptions import NoSuchElementException
+from botocore.exceptions import ClientError
 from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, SupportedScrapers, URLType
 from selenium.webdriver.common.by import By
 
@@ -432,8 +431,8 @@ class BaseBankScraper:
 
     def download_file(self, url, extension):
         # NOTE: This is a temporary fix to disable PDF processing for quick local testing
-        uuid_str = str(uuid.uuid4())
-        filename = f"{uuid_str}.{extension}"
+        id_str = get_hash_for_url(url)
+        filename = f"{id_str}.{extension}"
         filepath = Path(os.path.join(self.datadump_directory_path, filename))
 
         headers = self.get_headers()
@@ -492,8 +491,9 @@ class BaseBankScraper:
             str: The path of the saved PDF file.
         """
         # Generate a unique filename for the PDF
-        uuid_str = str(uuid.uuid4())
-        filename = f"{uuid_str}.pdf"
+        url = self.driver_manager.driver.current_url
+        id_str = get_hash_for_url(url)
+        filename = f"{id_str}.pdf"
         filepath = Path(os.path.join(self.datadump_directory_path, filename))
 
             # 4. Define print options
@@ -566,14 +566,31 @@ class BaseBankScraper:
         1. Upload the file to S3 bucket.
         path: /country_code_alpha_3/{year}/
         """
+        # create key
         filename = filepath.name
-        # Upload to S3
         if year is None:
             year = "unknown"
-        self.bucket.upload_file(filepath, f"{self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/{filename}")
+        key = f"{self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/{filename}"
+
+        # check if file exists in S3
+        try:
+            self.bucket.Object(key).load()
+            logger.info(f"File already exists in S3: {key}")
+            if remove_file:
+                os.remove(filepath)
+            return True
+        except ClientError as e:
+            error_code = e.response["Error"]["Code"]
+            if error_code == "404":
+                logger.error(f"Unable to check existence of {key}: {e}")
+                # we upload the file anyway
+            
+        # Upload the file to S3
+        self.bucket.upload_file(filepath, key)
         # Remove local file if specified
         if remove_file:
             os.remove(filepath)
+        
         logger.info(f"Uploaded {filename} to S3 bucket {self.bucket.name} at path {self.bank_config.COUNTRY_CODE_ALPHA_3}/{year}/")
         return True
     

@@ -59,14 +59,14 @@ class AustraliaBankScrapper(BaseBankScraper):
             time_tag = self.driver_manager.driver.find_element(By.XPATH, "//time")
             date = pd.to_datetime(time_tag.text)
             main_content = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']")
-            main_uuid = self.process_html_page(date.year)
+            main_id = self.process_html_page(date.year)
             links_output = self.process_links(lambda : main_content.find_elements(By.XPATH, ".//a"), year = date.year)
 
             result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid
+                    "file_id": main_id
             }
             # categories
             total_categories = [
@@ -80,8 +80,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             self.add_all_atomic([result], total_categories, total_links)
         
@@ -136,20 +136,20 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_uuid, links_output = self.parse_html(url, year=str(date.year))
+            main_id, links_output = self.parse_html(url, year=str(date.year))
             result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_links = [
                 {
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             # categories
             total_categories = [
@@ -198,16 +198,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                 if filepath is None:
                     continue
                 total_links = []
-                main_uuid = filepath.stem
+                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, year=str(year))
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
@@ -222,7 +222,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {
@@ -256,20 +256,20 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for (date, url) in to_process:
             logger.info(f"Processing: {url}")
-            main_uuid, links_output = self.parse_html(url, year=str(date.year))
+            main_id, links_output = self.parse_html(url, year=str(date.year))
             total_links = [
                 {
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories =  [
                 {
@@ -315,20 +315,20 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_uuid, links_output = self.parse_html(url, year=str(date.year))
+            main_id, links_output = self.parse_html(url, year=str(date.year))
             result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_links = [
                 {
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             for (main_link, main_link_text) in temp_links:
                 if url == main_link:
@@ -346,9 +346,9 @@ class AustraliaBankScrapper(BaseBankScraper):
                             "extension_type": extension
                         })
                         continue
-                    link_uuid = filepath.stem
+                    link_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    link_uuid, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
                 else:
                     if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                         logger.error(f"Unknown file type: {main_link}", extra={
@@ -362,7 +362,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "link_url": main_link,
                     "link_name": main_link_text,
-                    "file_uuid": link_uuid,
+                    "file_id": link_id,
                 })
                     
             # categories
@@ -415,17 +415,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
                     continue
-                main_uuid = filepath.stem
+                main_id = filepath.stem
                 total_links = []
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else: 
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
@@ -440,7 +440,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {
@@ -516,17 +516,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
                     continue
-                main_uuid = filepath.stem
+                main_id = filepath.stem
                 total_links = []
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else:
                 if allowed_outside or url_parsed.netloc == self.bank_config.NETLOC:
@@ -541,7 +541,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories =[
                 {
@@ -584,20 +584,20 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_uuid, links_output = self.parse_html(url, year=str(date.year))
+            main_id, links_output = self.parse_html(url, year=str(date.year))
             result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_links = [
                 {
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             for (main_link, main_link_text) in temp_links:
                 if url == main_link:
@@ -615,9 +615,9 @@ class AustraliaBankScrapper(BaseBankScraper):
                             "extension_type": extension
                         })
                         continue
-                    link_uuid = filepath.stem
+                    link_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    link_uuid, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
                 else:
                     if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                         logger.error(f"Unknown file type: {main_link}", extra={
@@ -631,7 +631,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "link_url": main_link,
                     "link_name": main_link_text,
-                    "file_uuid": link_uuid,
+                    "file_id": link_id,
                 })
             # categories
             total_categories = [
@@ -686,17 +686,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                             "extension_type": extension
                         })
                         continue
-                    main_uuid = filepath.stem
+                    main_id = filepath.stem
                     total_links = []
                 elif extType == ExtensionType.WEBPAGE:
-                    main_uuid, links_output = self.parse_html(article_url, year=str(date.year))
+                    main_id, links_output = self.parse_html(article_url, year=str(date.year))
                     total_links = [
                         {
                             "file_url": article_url,
                             "link_url": link,
                             "link_name": link_text,
-                            "file_uuid": link_uuid,
-                        } for (link, link_text, link_uuid) in links_output
+                            "file_id": link_id,
+                        } for (link, link_text, link_id) in links_output
                     ]
                 else:
                     if allowed_outside or urlparse(article_url).netloc == self.bank_config.NETLOC:
@@ -710,7 +710,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": article_url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_categories = [
                     {
@@ -754,20 +754,20 @@ class AustraliaBankScrapper(BaseBankScraper):
             
             for date, url, temp_links in to_process:
                 logger.info(f"Processing: {url}")
-                main_uuid, links_output = self.parse_html(url, year=str(date.year))
+                main_id, links_output = self.parse_html(url, year=str(date.year))
                 result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 for (main_link, main_link_text) in temp_links:
                     if url == main_link:
@@ -785,9 +785,9 @@ class AustraliaBankScrapper(BaseBankScraper):
                                 "extension_type": extension
                             })
                             continue
-                        link_uuid = filepath.stem
+                        link_id = filepath.stem
                     elif extType == ExtensionType.WEBPAGE:
-                        link_uuid, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                        link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
                     else:
                         if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                             logger.error(f"Unknown file type: {main_link}", extra={
@@ -801,7 +801,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                         "file_url": url,
                         "link_url": main_link,
                         "link_name": main_link_text,
-                        "file_uuid": link_uuid,
+                        "file_id": link_id,
                     })
                 # categories
                 total_categories = [
@@ -839,21 +839,21 @@ class AustraliaBankScrapper(BaseBankScraper):
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 total_categories = [
                     {
@@ -892,21 +892,21 @@ class AustraliaBankScrapper(BaseBankScraper):
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 total_categories = [
                     {
@@ -950,20 +950,20 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date, url, categories in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(date.year)
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 total_categories = [
                     {
@@ -991,21 +991,21 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 total_categories = [{
                     "file_url": url,
@@ -1036,21 +1036,21 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 total_categories = [{
                     "file_url": url,
@@ -1107,21 +1107,21 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date_txt = None
             else:
                 year = str(pd.to_datetime(date_txt).year)
-            main_uuid, links_output = self.parse_html(url, year=year)
+            main_id, links_output = self.parse_html(url, year=year)
             result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_links = [
                 {
                     "file_url": url,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             total_categories = [
                 {
@@ -1200,16 +1200,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                 filepath = self.download_and_upload_file(url, extension, year=year)
                 if filepath is None:
                     continue
-                main_uuid = filepath.stem
+                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year=year)
                 total_links.extend([
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ])
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
@@ -1223,7 +1223,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             if url in to_process_links:
                 for link_url, link_text in to_process_links[url]:
@@ -1239,9 +1239,9 @@ class AustraliaBankScrapper(BaseBankScraper):
                                 "extension_type": extension
                             })
                             continue
-                        link_uuid = filepath.stem
+                        link_id = filepath.stem
                     elif extType == ExtensionType.WEBPAGE:
-                        link_uuid, _ = self.parse_html(link_url, year=year, parse_links=False)
+                        link_id, _ = self.parse_html(link_url, year=year, parse_links=False)
                     else:
                         if allowed_outside or urlparse(link_url).netloc == self.bank_config.NETLOC:
                             logger.error(f"Unknown file type: {link_url}", extra={
@@ -1255,7 +1255,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                         "file_url": url,
                         "link_url": link_url,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
+                        "file_id": link_id,
                     })
             total_categories = [{
                 "file_url": url,
@@ -1300,16 +1300,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                 filepath = self.download_and_upload_file(url, extension, year=str(date.year))
                 if filepath is None:
                     continue
-                main_uuid = filepath.stem
+                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=str(date.year))
+                main_id, links_output = self.parse_html(url, year=str(date.year))
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
@@ -1323,7 +1323,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {
@@ -1366,16 +1366,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                             "extension_type": extension
                         })
                         continue
-                    main_uuid = filepath.stem
+                    main_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    main_uuid, links_output = self.parse_html(url, year=str(year))
+                    main_id, links_output = self.parse_html(url, year=str(year))
                     total_links = [
                         {
                             "file_url": url,
                             "link_url": link,
                             "link_name": link_text,
-                            "file_uuid": link_uuid,
-                        } for (link, link_text, link_uuid) in links_output
+                            "file_id": link_id,
+                        } for (link, link_text, link_id) in links_output
                     ]
                 else:
                     if urlparse(url).netloc == self.bank_config.NETLOC:
@@ -1390,7 +1390,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 
             else:
@@ -1400,21 +1400,21 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.warning(f"No data found for year: {year} and url: {rba_ar_url.format(year)}")
                     continue
                 logger.info(f"Processing: {url}")
-                main_uuid, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, year=str(year))
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "file_uuid": main_uuid,
+                    "file_id": main_id,
                 }
                 allowed_outside = False
                 for a_tag in ul.find_elements(By.XPATH, ".//a"):
@@ -1431,14 +1431,14 @@ class AustraliaBankScrapper(BaseBankScraper):
                                 "extension_type": a_extension
                             })
                             continue
-                        link_uuid = filepath.stem
+                        link_id = filepath.stem
                     elif a_extType == ExtensionType.WEBPAGE:
-                        link_uuid, _ = self.parse_html(a_url, year=str(year), parse_links=False)
+                        link_id, _ = self.parse_html(a_url, year=str(year), parse_links=False)
                         total_links.append({
                             "file_url": url,
                             "link_url": a_url,
                             "link_name": a_tag.text,
-                            "file_uuid": link_uuid,
+                            "file_id": link_id,
                         })
                     else:
                         if allowed_outside or urlparse(a_url).netloc == self.bank_config.NETLOC:
@@ -1482,16 +1482,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                 filepath = self.download_and_upload_file(url, extension, year=str(year))
                 if filepath is None:
                     continue
-                main_uuid = filepath.stem
+                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_uuid, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, year=str(year))
                 total_links = [
                     {
                         "file_url": url,
                         "link_url": link,
                         "link_name": link_text,
-                        "file_uuid": link_uuid,
-                    } for (link, link_text, link_uuid) in links_output
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
                 ]
             else:
                 if urlparse(url).netloc == self.bank_config.NETLOC:
@@ -1507,7 +1507,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 "date_published_str": str(year),
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {
@@ -1538,7 +1538,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         except NoSuchElementException:
             logger.warning(f"No content found for url: {url}")
             return None
-        file_uuid = self.process_html_page(year)
+        file_id = self.process_html_page(year)
         def f_get_links():
             links = []
             for link in content.find_elements(By.XPATH, ".//a"):
@@ -1550,7 +1550,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             processed_links = self.process_links(f_get_links, year=year)
         else:
             processed_links = []
-        return file_uuid, processed_links
+        return file_id, processed_links
         
     
 
@@ -1578,12 +1578,12 @@ class AustraliaBankScrapper(BaseBankScraper):
             to_process.append([date, href])
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            main_uuid, links_output = self.parse_html(href, year=str(date.year))
+            main_id, links_output = self.parse_html(href, year=str(date.year))
             result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
-                "file_uuid": main_uuid,
+                "file_id": main_id,
             }
             total_categories = [
                 {
@@ -1596,8 +1596,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": href,
                     "link_url": link,
                     "link_name": link_text,
-                    "file_uuid": link_uuid,
-                } for (link, link_text, link_uuid) in links_output
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
             ]
             self.add_all_atomic([result], total_categories, total_links)
             
