@@ -151,19 +151,25 @@ class BaseBankScraper:
         """Sleep for a random time between min and max sleep time."""
         time.sleep(random.uniform(self.scraper_config.SLEEP_MIN, self.scraper_config.SLEEP_MAX))
 
+    def refresh_session(self):
+        """Refresh the session by deleting all cookies and resetting the driver."""
+        self.driver_manager.driver.delete_all_cookies()
+        self.cookies = None
+        self.driver_manager.reset_session()
+        self.session_counter = 0
+        new_headers = self.driver_manager.headers
+        logger.debug("Refreshing headers", extra={"new_headers": new_headers})
+
     def get(self, url, raise_exception=True):
+        refreshed_headers_before_first_get = False
         parsed_url = urlparse(url)
         # random sleep time to mimic human behavior
         self.random_sleep()
         # we assume that get is only called on htm or htm pages
         # 2 requrements to refresh session, count > interval + netloc and url.netloc == NETLOC and it is not 
         if self.session_counter > self.scraper_config.SESSION_REFRESH_INTERVAL and parsed_url.netloc == self.bank_config.NETLOC:
-            self.driver_manager.driver.delete_all_cookies()
-            self.cookies = None
-            self.driver_manager.reset_session()
-            self.session_counter = 0
-            new_headers = self.driver_manager.headers
-            logger.debug("Refreshing headers", extra={"new_headers": new_headers})
+            self.refresh_session()
+            refreshed_headers_before_first_get = True
         success = False
         for i in range(4):
             if i > 0:
@@ -197,7 +203,7 @@ class BaseBankScraper:
                 logger.warning(f"Failed to load page: {url}, response code: {response}")
                 # we have to wait for a while
                 self.random_sleep()
-        if not success:
+        if not success and not refreshed_headers_before_first_get:
             logger.error(f"Failed to load page: {url}")
             logger.debug(f"Headers: {self.driver_manager.headers}")
             logger.debug(f"Cookies: {self.cookies}")
@@ -205,6 +211,15 @@ class BaseBankScraper:
             if raise_exception:
                 raise Exception(f"Failed to load page: {url}")
             return False
+        elif refreshed_headers_before_first_get and not success:
+            # we shall go to main url refresh there session
+            logger.debug(f"Failed to load page: {url} after refreshing headers before first get")
+            # go to main page
+            self.driver_manager.driver.get(self.bank_config.URL)
+            self.refresh_session()
+            self.initialize_cookies()
+            # we try again
+            return self.get(url, raise_exception=raise_exception)
         if self.cookies is None and parsed_url.netloc == self.bank_config.NETLOC:
             try:
                 self.initialize_cookies()

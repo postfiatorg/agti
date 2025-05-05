@@ -86,6 +86,9 @@ class SCRAPERCONFIG:
     SLEEP_MIN: float = 0
     SLEEP_MAX: float = 3
     DISABLE_PDF_PARSING: bool = False
+    # must be always bigger than 3
+    # more precise bigger than BaseBankScraper get function repeat time
+    # which is 3 times currently
     SESSION_REFRESH_INTERVAL: int = 10
 
     def __post_init__(self):

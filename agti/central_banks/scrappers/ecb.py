@@ -104,10 +104,10 @@ const callback = arguments[0];
         urlType, extension = self.clasify_url(url)
         extType = classify_extension(extension)
         if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=str(year))
-                if main_id is None:
-                    return None
-                return main_id, []
+            main_id = self.download_and_upload_file(url, extension, year=str(year))
+            if main_id is None:
+                return None
+            return main_id, []
         elif extType == ExtensionType.WEBPAGE:
             self.get(url)
             main = self.driver_manager.driver.find_element(By.XPATH, "//main")
