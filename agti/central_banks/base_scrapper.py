@@ -581,7 +581,7 @@ class BaseBankScraper:
             return True
         except ClientError as e:
             error_code = e.response["Error"]["Code"]
-            if error_code == "404":
+            if error_code != "404":
                 logger.error(f"Unable to check existence of {key}: {e}")
                 # we upload the file anyway
             
