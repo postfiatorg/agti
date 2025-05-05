@@ -367,6 +367,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 total_categories = categories.copy()
                 # get a tag
                 href = a.get_attribute("href")
+                if href == "https://www.snb.ch/public/en/rss/claims":
+                    continue
                 if xpath_category is not None:
                     category = self.map_category_str(a.find_element(By.XPATH, xpath_category).text.strip())
                     if category is None:

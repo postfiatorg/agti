@@ -662,6 +662,14 @@ class BaseBankScraper:
                     "proxies": proxies,
                 })
                 break
+        if resp.status_code != 200:
+            logger.exception(f"Failed to get file type for {url}, status code: {resp.status_code}", extra={
+                "url": url,
+                "headers": headers,
+                "cookies": cookies,
+                "proxies": proxies,
+            })
+            return None
         ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
         # if ctype has text/html we return page, otherwise we return file
         ctype_extension = mimetypes.guess_extension(ctype).lstrip(".").lower()
