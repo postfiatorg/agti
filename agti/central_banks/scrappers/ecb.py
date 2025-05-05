@@ -120,7 +120,7 @@ const callback = arguments[0];
                         if link_href is None:
                             continue
                         parsed_link = urlparse(link_href)
-                        link_name = temp_link.text
+                        link_name = temp_link.get_attribute("textContent")
                     except selenium.common.exceptions.StaleElementReferenceException:
                         continue
                     if any([ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS]):

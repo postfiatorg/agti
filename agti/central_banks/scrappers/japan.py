@@ -720,7 +720,7 @@ class JapanBankScrapper(BaseBankScraper):
         def f_get_links():
             links = []
             for link in main.find_elements(By.XPATH, ".//a"):
-                link_text = link.text
+                link_text = link.get_attribute("textContent")
                 link_url = link.get_attribute("href")
                 if link_url is None:
                     continue
@@ -862,6 +862,11 @@ class JapanBankScrapper(BaseBankScraper):
 
     
     def process_all_years(self):
+        main_id, links = self.parse_html(
+            "https://www.imes.boj.or.jp/research/abstracts/english/me15-1-4.html",
+            2023,
+        )
+        return
         self.process_statistics()
         self.process_research_and_studies()
         self.process_international_finance()
