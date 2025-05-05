@@ -97,6 +97,8 @@ def get_status(logs, target_url):
         without_fragment_target_url + "?",
         parsed_target_url._replace(scheme="https").geturl(),
         parsed_target_url._replace(scheme="http").geturl(),
+        parsed_target_url._replace(path=parsed_target_url.path + "/").geturl(),
+        parsed_target_url._replace(path=parsed_target_url.path.rstrip("/")).geturl(),
     ]
     for log in logs:
         if log["message"]:
