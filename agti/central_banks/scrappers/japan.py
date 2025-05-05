@@ -2,13 +2,14 @@ import pandas as pd
 import selenium
 from selenium.webdriver.common.by import By
 import logging
+from agti.agti.central_banks.types import ExtensionType
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import download_and_read_pdf
+from ..utils import classify_extension, download_and_read_pdf
 from ..utils import Categories
 from urllib.parse import urlparse
 
@@ -21,7 +22,12 @@ __all__ = ["JapanBankScrapper"]
 # NOTE! before running read_html check for any pdf links and download them
 # there can be also some zips or any other files, but we are not going to handle them
 class JapanBankScrapper(BaseBankScraper):
-
+    IGNORED_PATHS = [
+        "/help.htm",
+        "/about/abouthp.htm",
+        "/mailing/index.htm",
+        "/about/services/contact.htm",
+    ]
 
 
     ##########################
@@ -703,69 +709,76 @@ class JapanBankScrapper(BaseBankScraper):
     ##########################
     # Helper function
     ########################## 
-    def read_html(self, url: str):
+    def parse_html(self, url: str, year):
         self.get(url)
-        url_parsed = urlparse(url)
         try:
-            element = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container']")
+            main = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container'] | //main")
         except selenium.common.exceptions.NoSuchElementException:
             logger.warning(f"No content found in {url}")
-            return None, []
-        text = element.text
-        if len(text) == 0:
-            raise ValueError("No text found in HTML file")
-        # find all links and download them
-        links = element.find_elements(By.XPATH, ".//a")
-        links_output = []
-        for link in links:
-            link_href = link.get_attribute("href")
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
+            return None
+        file_id = self.process_html_page(year)
+        def f_get_links():
+            links = []
+            for link in main.find_elements(By.XPATH, ".//a"):
+                link_text = link.text
+                link_url = link.get_attribute("href")
+                if link_url is None:
                     continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            links_output.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link.text,
-                "full_extracted_text": link_text,
-            })
-        return text, links_output
+                parsed_link = urlparse(link_url)
+                if any(ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS):
+                                continue
+                links.append((link_text, link_url))
+            return links
+        processed_links = self.process_links(f_get_links, year=year)
+        return file_id, processed_links
     
     def extract_data_update_tables(self, to_process, tags):
-        result = []
-        total_tags = []
-        total_links = []
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            if urlparse(href).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(href,self.datadump_directory_path, self)
-            elif href.endswith("htm") or href.endswith("html"):
-                text, links_output = self.read_html(href)
-                total_links.extend(links_output)
+            urlType, extension = self.clasify_url(href)
+            total_links = []
+            allowed_outside = False
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(href, extension, year=str(date.year))
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": href,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, links_output = self.parse_html(href, str(date.year))
+                result = {
+                    "file_url": href,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
+                total_links = [
+                    {
+                        "file_url": href,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
             else:
-                text = None
-            
-            result.append({
-                "file_url": href,
-                "full_extracted_text": text,
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-            })
-            total_tags.extend(
-                [{
+                if allowed_outside or urlparse(href).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {href}", extra={
+                        "url": href,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            total_categories = [{
                 "file_url": href,
                 "category_name": tag,
-                } for tag in tags]
-            )
-        self.add_all_atomic(result,total_tags,total_links)
+                } for tag in tags
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
     def find_hrefs_tab_table_iter(self,
         f_url,
