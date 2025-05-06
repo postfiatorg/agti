@@ -330,7 +330,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
         links_output = self.process_links(
                 get_links,
-                year=str(year),
+                year=year,
             )
         total_links = [
                 {
