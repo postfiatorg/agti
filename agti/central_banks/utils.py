@@ -79,14 +79,6 @@ def pageBottom(driver):
         time.sleep(0.001)
         a+=5
 
-def recusive_lower_keys(d):
-    if isinstance(d, dict):
-        return {k.lower(): recusive_lower_keys(v) for k, v in d.items()}
-    elif isinstance(d, list):
-        return [recusive_lower_keys(i) for i in d]
-    else:
-        return d
-
 def get_status(logs, target_url):
     parsed_target_url = urlparse(target_url)
     # get clean url without fragment
@@ -100,20 +92,18 @@ def get_status(logs, target_url):
         parsed_target_url._replace(path=parsed_target_url.path + "/").geturl(),
         parsed_target_url._replace(path=parsed_target_url.path.rstrip("/")).geturl(),
     ]
+    target_url_req_id = -1
     for log in logs:
-        if log["message"]:
-            d = json.loads(log["message"])
-            d = recusive_lower_keys(d)
-            try:
-                content_type = (
-                    "text/html"
-                    in d["message"]["params"]["response"]["headers"]["content-type"]
-                )
-                response_received = d["message"]["method"] == "Network.responseReceived"
-                if content_type and response_received and any([
-                    d["message"]["params"]["response"]["url"] == url
-                    for url in possible_urls
-                ]):
-                    return d["message"]["params"]["response"]["status"]
-            except KeyError:
-                pass
+        msg = json.loads(log["message"])["message"]
+        method = msg.get("method")
+        params = msg.get("params", {})
+        if method == "Network.requestWillBeSent" and params.get("request", {}).get("url") in possible_urls:
+            target_url_req_id = params.get("requestId")
+        elif method == "Network.responseReceived":
+            req_id = params.get("requestId")
+            resp = params.get("response", {})
+            if req_id == target_url_req_id:
+                status = resp.get("status")
+                if status:
+                    return status
+    return None

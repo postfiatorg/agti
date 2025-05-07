@@ -1,15 +1,12 @@
 import logging
+import sys
 import time
 from urllib.parse import urlparse
 import pandas as pd
-from agti.utilities.db_manager import DBConnectionManager
-from agti.utilities.settings import CredentialManager
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
+import time
+import requests
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
-from selenium import webdriver
 from ..base_scrapper import BaseBankScraper
 from ..utils import Categories, download_and_read_pdf
 
@@ -19,7 +16,20 @@ logger = logging.getLogger(__name__)
 __all__ = ["NorgesBankScrapper"]
 
 class NorgesBankScrapper(BaseBankScraper):
-
+    IGNORED_WHOLE_PATHS = [
+        "/en/news-events/news/",
+        "/en/news-events/news",
+        "/en/news-events/",
+        "/en/news-events",
+        "/en/news-events/publications/",
+        "/en/news-events/publications",
+        "/en/news-events/calendar/",
+        "/en/news-events/calendar",
+        "",
+        "/",
+        "/en/",
+        "/en",
+    ]
     def initialize_cookies(self, go_to_url = False):
         current_url = self.driver_manager.driver.current_url
         # go to main page
@@ -43,97 +53,118 @@ class NorgesBankScrapper(BaseBankScraper):
     def process_all_years(self):
 
 
-        # News & Events
-        ## News and publications (id:107500)
-        news_events_categories = {
-            "Press releases": (80,[Categories.NEWS_AND_EVENTS]),
-            "New Items": (71,[Categories.NEWS_AND_EVENTS]),
-            "Speeches": (69,[Categories.NEWS_AND_EVENTS]),
-            "Submissions": (81,[Categories.OTHER, Categories.NEWS_AND_EVENTS]),
-            "Balance sheet": (82,[Categories.RESEARCH_AND_DATA, Categories.NEWS_AND_EVENTS]),
-            "Circulars": (83,[Categories.OTHER,Categories.NEWS_AND_EVENTS]),
-            "Articles and opinion pieces": (68,[Categories.OTHER,Categories.NEWS_AND_EVENTS]),
+        self.process_meetings()
 
+        # News & Events
+        ## News and publications (id:145875)
+        news_events_categories = {
+            "press releases": [Categories.NEWS_AND_EVENTS],
+            "new items": [Categories.NEWS_AND_EVENTS],
+            "speeches": [Categories.NEWS_AND_EVENTS],
+            "submissions": [Categories.OTHER, Categories.NEWS_AND_EVENTS],
+            "balance sheets": [Categories.RESEARCH_AND_DATA, Categories.NEWS_AND_EVENTS],
+            "circulars": [Categories.OTHER, Categories.NEWS_AND_EVENTS],
+            "articles and opinion pieces": [Categories.OTHER, Categories.NEWS_AND_EVENTS],
+            "news items": [Categories.NEWS_AND_EVENTS],
+            "articles and opinion pieces": [Categories.OTHER, Categories.NEWS_AND_EVENTS],
         }
-        for name, (category_number, categories) in news_events_categories.items():
-            logger.info(f"Processing category: {name} ({category_number})")
-            self.process_id(107500, categories, category_filter=category_number)
-            logger.info(f"Finished processing category: {name} ({category_number})")
+        logger.info(f"Processing News")
+            
+        self.process_id(145875, news_events_categories)
         
-        ## Publications (id: 107501)
+        ## Publications (id: 145877)
         ### reports
         publications = {
-            "Norway's financial system": (115, [
+            "norway's financial system": [
                 Categories.FINANCIAL_STABILITY_AND_REGULATION, 
                 Categories.RESEARCH_AND_DATA
-            ]),
-            "Documentation Note": (146, [Categories.OTHER]),
-            "Financial Infrastructure Report": (67, [
+            ],
+            "documentation note": [
+                Categories.OTHER
+            ],
+            "financial infrastructure report": [
                 Categories.FINANCIAL_STABILITY_AND_REGULATION, 
                 Categories.RESEARCH_AND_DATA
-            ]),
-            "Financial Stability Report": (66, [
+            ],
+            "financial stability report": [
                 Categories.FINANCIAL_STABILITY_AND_REGULATION, 
                 Categories.RESEARCH_AND_DATA
-            ]),
-            "Management of foreign exchange reserves": (96, [
+            ],
+            "management of foreign exchange reserves": [
                 Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS, 
                 Categories.MONETARY_POLICY
-            ]),
-            "Expectations Survey": (105, [Categories.RESEARCH_AND_DATA]),
-            "Market surveys": (97, [
+            ],
+            "expectations survey": [
+                Categories.RESEARCH_AND_DATA
+            ],
+            "market surveys": [
                 Categories.RESEARCH_AND_DATA, 
                 Categories.FINANCIAL_STABILITY_AND_REGULATION
-            ]),
-            "Norges Bank Papers": (95, [Categories.RESEARCH_AND_DATA]),
-            "Monetary Policy Report": (65, [Categories.MONETARY_POLICY]),
-            "Regional Network reports": (100, [
+            ],
+            "norges bank papers": [
+                Categories.RESEARCH_AND_DATA
+            ],
+            "monetary policy report": [
+                Categories.MONETARY_POLICY
+            ],
+            "regional network reports": [
                 Categories.RESEARCH_AND_DATA, 
                 Categories.INSTITUTIONAL_AND_GOVERNANCE
-            ]),
-            "Norges Bank’s Survey of Bank Lending": (98, [Categories.RESEARCH_AND_DATA]),
-            "Annual Report": (103, [Categories.INSTITUTIONAL_AND_GOVERNANCE])
+            ],
+            "norges bank’s survey of bank lending": [
+                Categories.RESEARCH_AND_DATA
+            ],
+            "annual report": [
+                Categories.INSTITUTIONAL_AND_GOVERNANCE
+            ],
+            "working papers": [
+                Categories.RESEARCH_AND_DATA
+            ],
+            "staff memo": [
+                Categories.INSTITUTIONAL_AND_GOVERNANCE, 
+                Categories.RESEARCH_AND_DATA
+            ],
+            "occasional papers": [
+                Categories.RESEARCH_AND_DATA
+            ],
+            "government debt management memo": [
+                Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS, 
+                Categories.INSTITUTIONAL_AND_GOVERNANCE
+            ],
+            "external evaluations": [
+                Categories.INSTITUTIONAL_AND_GOVERNANCE
+            ],
+            "annual reports for retail payment services": [
+                Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS, 
+                Categories.INSTITUTIONAL_AND_GOVERNANCE
+            ],
+            "economic commentaries": [
+                Categories.RESEARCH_AND_DATA
+            ],
+
         }
-        for name, (category_number, categories) in publications.items():
-            logger.info(f"Processing category: {name} ({category_number})")
-            self.process_id(107501, categories, category_filter=category_number)
-            logger.info(f"Finished processing category: {name} ({category_number})")
 
-        ### papers
-        papers = {
-            "Occasional Papers": (101, [Categories.RESEARCH_AND_DATA]),
-            "Staff Memo": (64, [Categories.INSTITUTIONAL_AND_GOVERNANCE, Categories.OTHER]),
-            "Government Debt Management Memo": (133, [Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS, Categories.INSTITUTIONAL_AND_GOVERNANCE]),
-            "Working Papers": (102, [Categories.RESEARCH_AND_DATA]),
-            "External evaluations": (116, [Categories.INSTITUTIONAL_AND_GOVERNANCE])
-        }
-        for name, (category_number, categories) in papers.items():
-            logger.info(f"Processing category: {name} ({category_number})")
-            self.process_id(107501, categories, category_filter=category_number)
-            logger.info(f"Finished processing category: {name} ({category_number})")
-
-        
-        # monetary policy MEETINGS (78157)
-        self.process_id(78157, [Categories.MONETARY_POLICY])
+        logger.info(f"Processing Publications")
+        self.process_id(145877, publications)
 
 
 
 
 
-
-
-
-    def process_id(self, id: int, categories: list[Categories], category_filter=0):
+    def process_meetings(self):
+        # Monetary policy meetings (still uses old api), maybe we will need to change this later
+        logger.info(f"Processing Monetary policy meetings")
         all_urls = self.get_all_db_urls()
         all_categories = self.get_all_db_categories()
-        # Process a single ID
-        logger.info(f"Processing ID: {id}")
+
+        categories = [
+            Categories.MONETARY_POLICY,
+        ]
+
         page = 1
-        
         while True:
             output = []
-            page_url = self.api_url(id, page,category_filter=category_filter)
-            logger.info(f"Fetching page {page} from URL: {page_url}")
+            page_url = f"https://www.norges-bank.no/api/NewsList/LoadMoreAndFilter?currentPageId=78157&page={page}&clickedCategoryFilter=0&clickedYearFilter=0&language=en"
             self.get(page_url)
             xpath_articles = "//article[@class='article-list__item']"
             articles = self.driver_manager.driver.find_elements(By.XPATH, xpath_articles)
@@ -160,62 +191,216 @@ class NorgesBankScrapper(BaseBankScraper):
                 output.append(
                     (href, date)
                 )
+
             if page == 1 and len(articles) == 0:
-                raise ValueError(f"No articles found for ID: {id} and category_filter: {category_filter}")
+                raise ValueError(f"No articles found for Meetings")
+            
 
+            # process each article
 
-            # process
-            result = []
-            total_links = []
-            total_categories = []
             for href, date in output:
-                href_parsed = urlparse(href)
                 logger.info(f"Processing: {href}")
                 self.get(href)
-                xpath_start = "//div[@class='article publication-start'] | //article[@class='article']"
-                content = self.driver_manager.driver.find_element(By.XPATH, xpath_start)
-                article_text = content.text
-                # process links
-                links = content.find_elements(By.XPATH, ".//a")
-                for link in links:
-                    link_text = None
-                    link_href = link.get_attribute("href")
-                    if link_href is None:
-                        continue
-                    link_href_parsed = urlparse(link_href)
-                    if link_href_parsed.fragment != '':
-                        if href_parsed[:3] == link_href_parsed[:3]:
-                            # we ignore links to the same page (fragment identifier)
-                            continue
-                        # NOTE: we do not parse the text yet
-                    if link_href_parsed.path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-                    total_links.append({
-                        "file_url": href,
-                        "link_url": link_href,
-                        "link_name": link.text,
-                        "full_extracted_text": link_text,
-                    })
-                result.append({
+                # open all datails html tag
+                self.open_all_details()
+                main_id = self.process_html_page(str(date.year))
+                if main_id is None:
+                    continue
+                result = {
                     "file_url": href,
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": article_text,
-                })
-                total_categories.extend([
+                    "file_id": main_id,
+                }
+                content = None
+                xpaths = [
+                    "//div[@class='article publication-start']",
+                    "//article[@class='article']",
+                ]
+                for xpath in xpaths:
+                    elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)
+                    if elements:
+                        content = elements[0]
+                        break
+                def f_get_links():
+                    if content is None:
+                        return []
+                    links = []
+                    for link in content.find_elements(By.XPATH, ".//a"):
+                        link_text = link.get_attribute("textContent").strip()
+                        link_url = link.get_attribute("href")
+                        if link_url is None:
+                            continue
+                        parsed_link = urlparse(link_url)
+                        if any(ignored_path == parsed_link.path for ignored_path in self.IGNORED_WHOLE_PATHS):
+                            continue
+                        links.append((link_text, link_url))
+                    return links
+                processed_links = self.process_links(f_get_links, year=str(date.year))
+                total_links = [
                     {
                         "file_url": href,
-                        "category_name": cat.value,
-                    } for cat in categories
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
-            
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+                total_categories = [
+                    {
+                        "file_url": href,
+                        "category_name": category.value,
+                    } for category in categories
+                ]
+                self.add_all_atomic([result], total_categories, total_links)
+
+
+
             page += 1
+
+
+    def open_all_details(self):
+        self.driver_manager.driver.execute_script("""
+            document.querySelectorAll('details').forEach(d => {
+                d.open = true;                  // set the DOM property
+                // or: d.setAttribute('open','');  // add the HTML attribute
+            });
+            """)
+
+
+
+
+
+    def process_id(self, id: int, categories_mapper: dict[str,Categories], category_filter=0):
+        all_urls = self.get_all_db_urls()
+        # Process a single ID
+        logger.info(f"Processing ID: {id}")
+        totalHits = sys.maxsize
+        current_hits = 0
+        
+        while current_hits < totalHits:
+            page_url = self.api_url(id, current_hits)
+            logger.info(f"Fetching {current_hits}")
+            # we use request
+            headers = self.get_headers()
+            cookies = self.get_cookies_for_request()
+            proxies = self.get_proxies()
+            for i in range(3):
+                try:
+                    resp = requests.get(page_url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60)
+                    resp.raise_for_status()
+                except requests.exceptions.HTTPError:
+                    logger.exception(f"HTTPError getting filetype for {page_url}", extra={
+                        "url": page_url,
+                        "headers": headers,
+                        "cookies": cookies,
+                        "proxies": proxies,
+                    })
+                    cookies = None
+                    logger.info("Trying again with new proxy")
+                    if self.driver_manager.proxy_provider is not None:
+                        new_proxies = self.driver_manager.proxy_provider.get_proxy()
+                        proxies = {
+                            "http": new_proxies,
+                            "https": new_proxies
+                        }
+                except Exception as e:
+                    logger.exception(f"General getting filetype from {page_url}", extra={
+                        "url": page_url,
+                        "headers": headers,
+                        "cookies": cookies,
+                        "proxies": proxies,
+                    })
+                    break
+            if resp.status_code != 200:
+                logger.exception(f"Failed to get file type for {page_url}, status code: {resp.status_code}", extra={
+                    "url": page_url,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                return
+            fetched_json = resp.json()
+            totalHits = fetched_json["totalHits"]
+
+            for hit in fetched_json["hits"]:
+                total_url = f"https://{self.bank_config.NETLOC}{hit['url']}"
+                if total_url in all_urls:
+                    logger.debug(f"Already processed {total_url}")
+                    continue
+                logger.info(f"Processing: {total_url}")
+
+                date = pd.to_datetime(hit["date"])
+                self.get(total_url)
+                self.open_all_details()
+                main_id = self.process_html_page(str(date.year))
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": total_url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+                xpaths = [
+                    "//div[@class='article publication-start']",
+                    "//article[@class='article']",
+                    "//main"
+                ]
+                content = None
+                for xpath in xpaths:
+                    elements = self.driver_manager.driver.find_elements(By.XPATH, xpath)
+                    if elements:
+                        content = elements[0]
+                        break
+                
+                
+                def f_get_links():
+                    if content is None:
+                        return []
+                    links = []
+                    for link in content.find_elements(By.XPATH, ".//a"):
+                        link_text = link.get_attribute("textContent").strip()
+                        link_url = link.get_attribute("href")
+                        if link_url is None:
+                            continue
+                        parsed_link = urlparse(link_url)
+                        if any(ignored_path == parsed_link.path for ignored_path in self.IGNORED_WHOLE_PATHS):
+                            continue
+                        links.append((link_text, link_url))
+                    return links
+                
+                processed_links = self.process_links(f_get_links, year=str(date.year))
+                total_links = [
+                    {
+                        "file_url": total_url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+                total_categories = []
+                if hit["tag"].lower() in categories_mapper:
+                    total_categories = [
+                        {
+                            "file_url": total_url,
+                            "category_name": cat.value,
+                        } for cat in categories_mapper[hit["tag"].lower()]
+                    ]
+                else:
+                    logger.warning(f"Unknown category: {hit['tag'].lower()} total_url: {total_url}")
+                self.add_all_atomic([result], total_categories, total_links)
+            
+            # increment the current hits
+            current_hits += 10 # the api returns 10 hits at a time
+            self.random_sleep()
+            
 
 
         
 
     @staticmethod
-    def api_url(id: int, page: int, category_filter: int = 0) -> str:
+    def api_url(id: int, skip: int = 0) -> str:
         # API URL for Norges Bank
-        return f"https://www.norges-bank.no/api/NewsList/LoadMoreAndFilter?currentPageId={id}&page={page}&clickedCategoryFilter={category_filter}&clickedYearFilter=0&language=en"
+        return f"https://www.norges-bank.no/api/aktuelt?includeFacets=False&language=en&rootPageId={id}&skip={skip}"
+    
+    
