@@ -672,7 +672,7 @@ class BaseBankScraper:
             return None
         ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
         # if ctype has text/html we return page, otherwise we return file
-        ctype_extension = mimetypes.guess_extension(ctype).lstrip(".").lower()
+        ctype_extension = mimetypes.guess_extension(ctype)
         if ctype_extension is None:
             logger.warning(f"Unknown content type: {ctype} for url: {url}", extra={
                 "url": url,
@@ -680,7 +680,8 @@ class BaseBankScraper:
                 "cookies": cookies,
                 "proxies": proxies,
             })
-        return ctype_extension
+            return None
+        return ctype_extension.lstrip(".").lower()
     
 
     def clasify_url(self, link, allow_outside=False):
