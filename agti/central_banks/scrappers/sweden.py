@@ -719,46 +719,13 @@ class SwedenBankScrapper(BaseBankScraper):
             
 
     def process_all_years(self):
-        # Create debug directory if it doesn't exist
-        debug_dir = os.path.join(self.datadump_directory_path, "debug", "sweden")
-        os.makedirs(debug_dir, exist_ok=True)
-        # Process each section with error handling
-        sections = [
-            ("monetary_policy", self.process_monetary_policy),
-            ("financial_stability", self.process_financial_stability),
-            ("payments_cash", self.process_payments_cash),
-            ("news", self.process_news),
-            ("speeches_presentations", self.prcoess_speeches_presentations),
-            ("publications", self.process_publications),
-            ("consultation_responses", self.process_consultation_responses)
-        ]
-        
-        for section_name, section_func in sections:
-            try:
-                section_func()
-            except (TimeoutException, NoSuchElementException, WebDriverException) as e:
-                # Capture error information
-                timestamp = int(time.time())
-                error_name = type(e).__name__
-                
-                # Save screenshot
-                screenshot_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.png")
-                self.driver_manager.driver.save_screenshot(screenshot_path)
-                
-                # Save HTML source
-                html_path = os.path.join(debug_dir, f"{section_name}_{error_name}_{timestamp}.html")
-                with open(html_path, "w", encoding="utf-8") as f:
-                    f.write(self.driver_manager.driver.page_source)
-                
-                # Log the error
-                logger.error(
-                    f"Error in {section_name}: {error_name} - {str(e)}. "
-                    f"Debug files saved to {screenshot_path} and {html_path}",
-                    exc_info=True
-                )
-                
-                # Continue with next section
-                raise
+        self.process_monetary_policy()
+        self.process_financial_stability()
+        self.process_payments_cash()
+        self.process_news()
+        self.prcoess_speeches_presentations()
+        self.process_publications()
+        self.process_consultation_responses()
 
 
 
