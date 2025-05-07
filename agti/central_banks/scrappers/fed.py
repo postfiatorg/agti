@@ -8,12 +8,13 @@ import requests
 import re
 import selenium
 from selenium.webdriver.common.by import By
+from agti.agti.central_banks.types import ExtensionType
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories, classify_extension, download_and_read_pdf
 from ..base_scrapper import BaseBankScraper
 import pdfplumber
 
@@ -26,7 +27,18 @@ class FEDBankScrapper(BaseBankScraper):
     We use  "For use at" initial text to detect correct tolerances for pdfplumber.
     Plus, we use it for extracting exact datetime.
     """
-
+    IGNORED_PATHS = [
+        "/aboutthefed/contact-us-topics.htm",
+        "/faqs.htm",
+        "/videos.htm",
+        "/careers.htm",
+        "/azindex.htm",
+        "/sitemap.htm",
+        "/calendar.htm",
+        "/newsevents.htm",
+        "/default.htm",
+        "/monetarypolicy.htm",
+    ]
 
     def process_news_events(self):
         all_urls = self.get_all_db_urls()
@@ -67,24 +79,21 @@ class FEDBankScrapper(BaseBankScraper):
                 continue
             to_process.append((url, date, categories))
         
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            text, links = self.read_html(url)
-            total_links.extend(links)
-            result.append({
+            main_id, total_links = self.read_html(url, str(date.year))
+            result ={
                 "file_url": url,
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories = [
                 {"file_url": url, "category_name": category}
                 for category in categories
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
         # speeches
         ret = requests.get("https://www.federalreserve.gov/json/ne-speeches.json")
@@ -112,24 +121,21 @@ class FEDBankScrapper(BaseBankScraper):
                 continue
             to_process.append((url, date, categories))
         
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            text, links = self.read_html(url)
-            total_links.extend(links)
-            result.append({
+            main_id, total_links = self.read_html(url, str(date.year))
+            result = {
                 "file_url": url,
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
+                "file_id": main_id,
+            }
             total_categories.extend([
                 {"file_url": url, "category_name": category}
                 for category in categories
             ])
-        self.add_all_atomic(result, total_categories, total_links)
+            self.add_all_atomic([result], total_categories, total_links)
 
         # Testimony of Federal Reserve Officials
         ret = requests.get("https://www.federalreserve.gov/json/ne-testimony.json")
@@ -158,19 +164,18 @@ class FEDBankScrapper(BaseBankScraper):
             to_process.append((url, date, categories))
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            text, links = self.read_html(url)
-            total_links.extend(links)
-            result.append({
+            main_id, total_links = self.read_html(url, str(date.year))
+            result = {
                 "file_url": url,
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
+                "file_id": main_id,
+            }
             total_categories.extend([
                 {"file_url": url, "category_name": category}
                 for category in categories
             ])
-        self.add_all_atomic(result, total_categories, total_links)
+            self.add_all_atomic([result], total_categories, total_links)
 
 
         # conferences
@@ -229,40 +234,43 @@ class FEDBankScrapper(BaseBankScraper):
                 continue
             to_process.append((url, date))
         
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date in to_process:
             # if url does not start with https://www.federalreserve.gov, we add it
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
-
-            if urlparse(total_url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(total_url,self.datadump_directory_path, self)
-                links = []
-            elif total_url.endswith(".html") or total_url.endswith(".htm"):
-                text, links = self.read_html(total_url)
+            urlType, extension = self.clasify_url(total_url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(total_url, extension, year=str(date.year))
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": total_url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(total_url, str(date.year))
+                result = {
+                    "file_url": total_url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text = None
-                links = []
-            total_links.extend(links)
-            if url in links_to_process:
-                for link_url in links_to_process[url]:
-                    link_url = urljoin("https://www.federalreserve.gov", link_url)
-                    total_links.append({
-                        "file_url": total_url,
-                        "link_url": link_url,
-                        "link_name": "PDF",
-                        "full_extracted_text": download_and_read_pdf(link_url,self.datadump_directory_path, self)
+                if allowed_outside or urlparse(total_url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {total_url}", extra={
+                        "url": total_url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value})
-            result.append({
-                "file_url": total_url,
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+            total_categories = [{"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
         # memos
         ret = requests.get("https://www.federalreserve.gov/monetarypolicy/materials/assets/final-memos.json")
@@ -310,43 +318,43 @@ class FEDBankScrapper(BaseBankScraper):
                 continue
             to_process.append((url, date))
         
-        result = []
-        total_categories = []
-        total_links = []
         for url, date in to_process:
             # if url does not start with https://www.federalreserve.gov, we add it
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
 
-            if urlparse(total_url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(total_url,self.datadump_directory_path, self)
-                links = []
-            elif total_url.endswith(".html") or total_url.endswith(".htm"):
-                text, links = self.read_html(total_url)
+            urlType, extension = self.clasify_url(total_url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(total_url, extension, year=str(date.year))
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": total_url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(total_url, str(date.year))
+                result = {
+                    "file_url": total_url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text = None
-                links = []
-            total_links.extend(links)
-            if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_url = urljoin("https://www.federalreserve.gov", link_url)
-                    text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
-                        "file_url": total_url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": text
+                if allowed_outside or urlparse(total_url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {total_url}", extra={
+                        "url": total_url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value})
-            result.append({
-                "file_url": total_url,
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+            total_categories = [{"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
 
@@ -406,39 +414,43 @@ class FEDBankScrapper(BaseBankScraper):
                     a_link = urljoin("https://www.federalreserve.gov", a_link)
                     links_to_process[total_url].append((a_name, a_link))
         
-        result = []
-        total_categories = []
-        total_links = []
         for url, date_txt in to_process:
-            exact_date = None
-            text = None
-            if urlparse(url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(url,self.datadump_directory_path, self, evaluate_tolerances=self.evaluate_tolerances)
-                links = []
+            logger.info(f"Processing: {url}")
+            year = date_txt.split(" ")[-1]
+            urlType, extension = self.clasify_url(url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(url, extension, year=year)
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": url,
+                    "date_published_str": date_txt,
+                    "date_published": None,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(url, year)
+                result = {
+                    "file_url": url,
+                    "date_published_str": date_txt,
+                    "date_published": None,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text, links = self.read_html(url)
-            total_links.extend(links)
-            if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self, evaluate_tolerances=self.evaluate_tolerances)
-                        exact_date = self.get_exact_date(link_text)
-                    total_links.append({
-                        "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": url, "category_name": Categories.MONETARY_POLICY.value})
-            result.append({
-                "file_url": url,
-                "date_published_str": date_txt if exact_date is None else None,
-                "date_published": exact_date,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+            total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
         ## Beige Book
@@ -484,36 +496,42 @@ class FEDBankScrapper(BaseBankScraper):
                         continue
                     links_to_process[url].append((a_name, a_link))
 
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date in to_process:
-            text = None
-            if urlparse(url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(url,self.datadump_directory_path, self)
-                links = []
+            logger.info(f"Processing: {url}")
+            urlType, extension = self.clasify_url(url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(url, extension, year=str(date.year))
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(url, str(date.year))
+                result = {
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text, links = self.read_html(url)
-            total_links.extend(links)
-            if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
-                        "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": url, "category_name": Categories.MONETARY_POLICY.value})
-            result.append({
-                "file_url": url,
-                "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+
+            total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
         # Federal Reserve Balance Sheet Developments
@@ -544,37 +562,42 @@ class FEDBankScrapper(BaseBankScraper):
                 a_link = urljoin("https://www.federalreserve.gov", a_link)
                 links_to_process[url].append((a_name, a_link))
 
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date_txt in to_process:
-            text = None
-            if urlparse(url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(url,self.datadump_directory_path, self)
-                links = []
+            year = date_txt.split(" ")[1]
+            urlType, extension = self.clasify_url(url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(url, extension, year=year)
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(url, year)
+                result = {
+                    "file_url": url,
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text, links = self.read_html(url)
-            total_links.extend(links)
-            if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
-                        "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": url, "category_name": Categories.MONETARY_POLICY.value})
-            result.append({
-                "file_url": url,
-                "date_published_str": date_txt,
-                "date_published": None,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+
+            total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_supervision_and_regulation(self):
@@ -626,33 +649,31 @@ class FEDBankScrapper(BaseBankScraper):
                         ]
                     )
         
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
-            text, links = self.read_html(url)
-            total_links.extend(links)
+            year = date_txt.split(" ")[1]
+            main_id, _ = self.read_html(url, year, parse_links=False)
+            total_links = []
             if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
+                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                total_links = [
+                    {
                         "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
-                    })
-            total_categories.append({"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
-            result.append({
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+            total_categories = [{"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
+            result = {
                 "file_url": url,
                 "date_published_str": date_txt,
                 "date_published": None,
                 "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                "file_id": main_id,
+            }
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_financial_stability(self):
@@ -694,28 +715,28 @@ class FEDBankScrapper(BaseBankScraper):
         total_links = []
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
-            text, links = self.read_html(url)
-            total_links.extend(links)
+            year = date_txt.split(" ")[1]
+            main_id, _ = self.read_html(url, year, parse_links=False)
+            total_links = []
             if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
+                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                total_links = [
+                    {
                         "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
-                    })
-            total_categories.append({"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
-            result.append({
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+            total_categories = [{"file_url": url, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
+            result = {
                 "file_url": url,
                 "date_published_str": date_txt,
                 "date_published": None,
                 "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                "file_id": main_id,
+            }
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_payments_system(self):
@@ -761,37 +782,53 @@ class FEDBankScrapper(BaseBankScraper):
                     for name, href in a_tags if href != url
                 ]
 
-        result = []
-        total_categories = []
-        total_links = []
+
         for url, date_txt in to_process:
-            logger.info(f"Processing: {url}")
-            if urlparse(url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(url,self.datadump_directory_path, self)
-                links = []
-            else:
-                text, links = self.read_html(url)
-            total_links.extend(links)
-            if url in links_to_process:
-                for (link_name, link_url) in links_to_process[url]:
-                    link_text = None
-                    if urlparse(link_url).path.lower().endswith('.pdf'):
-                        link_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    total_links.append({
+            year = date_txt.split(" ")[1]
+            urlType, extension = self.clasify_url(url)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(url, extension, year=year)
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": url,
+                    "date_published": None,
+                    "date_published_str": date_txt,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, _ = self.read_html(url, year, parse_links=False)
+                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                total_links = [
+                    {
                         "file_url": url,
-                        "link_url": link_url,
-                        "link_name": link_name,
-                        "full_extracted_text": link_text
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+                result = {
+                    "file_url": url,
+                    "date_published": None,
+                    "date_published_str": date_txt,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
+            else:
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_categories.append({"file_url": url, "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value})
-            result.append({
-                "file_url": url,
-                "date_published_str": date_txt,
-                "date_published": None,
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                continue
+
+            total_categories = [{"file_url": url, "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_economic_reserach(self):
@@ -814,7 +851,7 @@ class FEDBankScrapper(BaseBankScraper):
                 tag_times = paper.find_elements(By.XPATH, ".//time")
                 if len(tag_times) == 0:
                     continue
-                date_txt = pd.to_datetime(tag_times[0].get_attribute("datetime"))
+                date_txt = tag_times[0].get_attribute("datetime")
                 href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
                 if href in all_urls:
                     logger.debug(f"Url is already in db: {href}")
@@ -828,12 +865,11 @@ class FEDBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_categories)
                     continue
                 to_process.append((href, date_txt))
-            result = []
-            total_links = []
+
             for url, date_txt in to_process:
+                year = date_txt.split(" ")[1]
                 logger.info(f"Processing: {url}")
-                text, links = self.read_html(url)
-                total_links.extend(links)
+                main_id, total_links = self.read_html(url, year)
                 
                 total_categories = [
                     {
@@ -842,14 +878,14 @@ class FEDBankScrapper(BaseBankScraper):
                     } for category in cat
                 ]
                 
-                result.append({
+                result = {
                     "file_url": url,
                     "date_published_str": date_txt,
                     "date_published": None,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text,
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                    "file_id": main_id,
+                }
+                self.add_all_atomic([result], total_categories, total_links)
 
 
         # FEDS Notes
@@ -868,7 +904,7 @@ class FEDBankScrapper(BaseBankScraper):
                 tag_times = paper.find_elements(By.XPATH, ".//time")
                 if len(tag_times) == 0:
                     continue
-                date = pd.to_datetime(tag_times[0].get_attribute("datetime"))
+                date = tag_times[0].get_attribute("datetime")
                 href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
                 if href in all_urls:
                     logger.debug(f"Url is already in db: {href}")
@@ -882,12 +918,10 @@ class FEDBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_categories)
                     continue
                 to_process.append((href, date))
-            result = []
-            total_links = []
+
             for url, date in to_process:
                 logger.info(f"Processing: {url}")
-                text, links = self.read_html(url)
-                total_links.extend(links)
+                text, total_links = self.read_html(url, str(date.year))
                 
                 total_categories = [
                     {
@@ -934,12 +968,11 @@ class FEDBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_categories)
                     continue
                 to_process.append((href, date))
-            result = []
-            total_links = []
+
             for url, date in to_process:
+                year = str(date.year)
                 logger.info(f"Processing: {url}")
-                text, links = self.read_html(url)
-                total_links.extend(links)
+                main_id, total_links = self.read_html(url, year)
                 
                 total_categories = [
                     {
@@ -947,13 +980,13 @@ class FEDBankScrapper(BaseBankScraper):
                         "category_name": category
                     } for category in cat
                 ]
-                result.append({
+                result = {
                     "file_url": url,
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text,
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                    "file_id": main_id,
+                }
+                self.add_all_atomic([result], total_categories, total_links)
 
 
 
@@ -986,9 +1019,6 @@ class FEDBankScrapper(BaseBankScraper):
                     ])
                     continue
                 to_process.append(href)
-            result = []
-            total_links = []
-            total_categories = []
             for href in to_process:
                 logger.info(f"Processing: {href}")
                 # get date
@@ -1011,16 +1041,15 @@ class FEDBankScrapper(BaseBankScraper):
                     date_txt = date_txt.split('\n')[0]
                 date = pd.to_datetime(date_txt)
 
-                text, links = self.read_html(href, load_page=False)
-                total_links.extend(links)
-                total_categories.append({"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
-                result.append({
+                main_id, total_links = self.read_html(href, str(year), load_page=False)
+                total_categories = [{"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
+                result = {
                     "file_url": href,
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
-                    "full_extracted_text": text,
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                    "file_id": main_id,
+                }
+                self.add_all_atomic([result], total_categories, total_links)
         
         # Enforcement Actions & Legal Developments
         # download csv to pandas Dataframe from "https://www.federalreserve.gov/supervisionreg/files/enforcementactions.csv"
@@ -1045,81 +1074,43 @@ class FEDBankScrapper(BaseBankScraper):
                 ])
                 continue
             logger.info(f"Processing: {href}")
-            if urlparse(href).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(href,self.datadump_directory_path, self)
-                links = []
+            urlType, extension = self.clasify_url(href)
+            allowed_outside = False
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(href, extension)
+                if main_id is None:
+                    continue
+                result = {
+                    "file_url": href,
+                    "date_published": row["Effective Date"],
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": main_id,
+                }
+            elif extType == ExtensionType.WEBPAGE:
+                file_id, total_links = self.read_html(href, str(row["Effective Date"].year))
+                result = {
+                    "file_url": href,
+                    "date_published": row["Effective Date"],
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_id": file_id,
+                }
             else:
-                text, links = self.read_html(href)
-            total_links.extend(links)
-            total_categories.append({"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value})
-            result.append({
-                "file_url": href,
-                "date_published": row["Effective Date"],
-                "scraping_time": pd.Timestamp.now(),
-                "full_extracted_text": text,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+                if allowed_outside or urlparse(href).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {href}", extra={
+                        "url": href,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            total_categories = [{"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
+            self.add_all_atomic([result], total_categories, total_links)
 
         
-            
-
-
-
-
-
-
-
-
-
-
-                    
-             
-
-    def get_pdf_links(self, text):
-        pattern = r'<a\s+href="([^"]+)">([^<]+)</a>'
-        a_elements = re.findall(pattern, text)
-        out = []
-        for href, text in a_elements:
-            # it can be "PDF" or " PDF" (with space :) ).
-            if "PDF" in text:
-                out.append(href)
-        if len(out) == 0:
-            return None
-        if len(out) > 1:
-            raise ValueError("Multiple PDF links found in text")
-        return out[0]
-
-    def get_exact_date(self, text):
-        pattern = r"For use at (\d{1,2}:\d{2}) (a\.m\.|p\.m\.)\,? (EST|EDT|E\.S\.T\.|E\.D\.T\.)\s([a-zA-Z]+|[a-zA-Z]+\s[a-zA-Z]+) (\d|\d\d), (\d\d\d\d)"
-        initial_text = text[:200]
-        finded = re.findall(pattern, initial_text)
-        if len(finded) == 0:
-            return None
-        groups = finded[0]
-        clock = groups[0]  # 10:00
-        ampm = groups[1]  # a.m.
-        month = groups[3].split('\n')[1] if '\n' in groups[3] else groups[3]
-        day = groups[4]
-        year = groups[5]
-        # convert to pandas with clock
-        return pd.to_datetime(f"{month} {day}, {year} {clock} {ampm}")
-
-    @staticmethod
-    def evaluate_tolerances(pdf_path):
-        with pdfplumber.open(pdf_path) as pdf:
-            page = pdf.pages[0]
-            for x_tol in range(1, 10):
-                for y_tol in range(1, 10):
-                    text = page.extract_text(
-                        x_tolerance=x_tol, y_tolerance=y_tol)
-                    if "For use at" in text:
-                        return x_tol, y_tol
-        raise ValueError("No correct tolerances found")
-    
-    def read_html(self, url: str, load_page=True):
+    def read_html(self, url: str, year:str, load_page=True, parse_links=True):
         if load_page:
             self.get(url)
-        url_parsed = urlparse(url)
         
         elements = self.driver_manager.driver.find_elements(By.XPATH, "//*[@id='content']")
         if len(elements) == 0:
@@ -1128,33 +1119,33 @@ class FEDBankScrapper(BaseBankScraper):
         if len(elements) == 0:
             raise ValueError(f"No content found in HTML file, {url}")
         element = elements[0]
-        text = element.text
-        if len(text) == 0:
-            raise ValueError("No text found in HTML file")
+        
+        main_id = self.process_html_page(year)
+        if not parse_links:
+            return main_id, []
         # find all links and download them
-        links = element.find_elements(By.XPATH, ".//a")
-        links_output = []
-        for link in links:
-            link_href = link.get_attribute("href")
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
+        def f_get_links():
+            links = []
+            for link in element.find_elements(By.XPATH, ".//a"):
+                link_text = link.get_attribute("textContent").strip()
+                link_url = link.get_attribute("href")
+                if link_url is None:
                     continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            links_output.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link.text,
-                "full_extracted_text": link_text,
-            })
-        return text, links_output
+                parsed_link = urlparse(link_url)
+                if any(ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS):
+                                continue
+                links.append((link_text, link_url))
+            return links
+        processed_links = self.process_links(f_get_links, year=year)
+        total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in processed_links
+                ]
+        return main_id,  total_links
     
     def process_all_years(self):
         self.process_FOMC()

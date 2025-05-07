@@ -722,6 +722,13 @@ class BaseBankScraper:
         for link_text, link in all_links:
             if link.startswith("tel:") or link.startswith("mailto:"):
                 continue
+            if link.endswith("#"):
+                logger.debug(f"Link ends with #: {link}", extra={
+                    "link": link,
+                    "link_text": link_text,
+                    "current_url": self.driver_manager.driver.current_url
+                })
+                continue
             # ignore links, which have fragment ot the same page
             link_parsed = urlparse(link)
             if link_parsed.path == "" or link_parsed.path == "/":
