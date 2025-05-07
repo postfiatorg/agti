@@ -256,6 +256,7 @@ class NorgesBankScrapper(BaseBankScraper):
 
 
             page += 1
+            self.random_sleep()
 
 
     def open_all_details(self):
