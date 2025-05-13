@@ -3,35 +3,34 @@ from urllib.parse import urlparse
 import pandas as pd
 import logging
 from selenium.webdriver.common.by import By
-import urllib
+import selenium
+from agti.agti.central_banks.types import ExtensionType
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories, classify_extension, download_and_read_pdf
 
 logger = logging.getLogger(__name__)
 __all__ = ["SwitzerlandBankScrapper"]
 
 class SwitzerlandBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "CHE"
-    COUNTRY_NAME = "Switzerland"
-    NETLOC = "www.snb.ch"
-
-
+    IGNORED_PATHS = [
+        "/contact",
+        "/career",
+    ]
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+            self.driver_manager.driver.get(self.bank_config.URL)
             self.driver_manager.driver.execute_script("window.localStorage.clear();")
         else:
             self.driver_manager.driver.execute_script("window.localStorage.clear();")
             # refresh page
             self.driver_manager.driver.refresh()
-        
         wait = WebDriverWait(self.driver_manager.driver, 10)
-        xpath = "//button[@class='a-button a-button--primary a-button--size-4 h-typo-button-small js-m-gdpr-banner__button-all']"
+        xpath = "//div[@data-g-name='GdprBanner']//button[normalize-space(.)='Accept']"
         repeat = 3
         for i in range(repeat):
             try:
@@ -45,6 +44,15 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 logger.warning(f"Could not click cookie banner", exc_info=True)
                 if i == repeat - 1:
                     raise e
+                
+        # add own cookie 
+        # Name: SNB-Access-Restriction, Value: GMBF, Domain:www.snb.ch, Path: /, Expiration: Session
+        self.driver_manager.driver.add_cookie({
+            'name': 'SNB-Access-Restriction',
+            'value': 'GMBF',
+            'domain': 'www.snb.ch',
+            'path': '/',
+        })
         self.cookies = self.driver_manager.driver.get_cookies()
 
             
@@ -72,9 +80,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 continue
             to_process.append(href)
 
-        result = []
-        total_categories = []
-        total_links = []
+
         for href in to_process:
             self.get(href)
             if href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1996-2017":
@@ -83,6 +89,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                         return "https://www.snb.ch/en/news-publications/annual-report/annual-report-1996-2017"
                     return None
                 self.process_teasor_list(f_url)
+                continue
                 
             elif href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1907-1995":
                 a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//ul[@class='link-teaser-list']//a")
@@ -98,17 +105,18 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                             self.add_to_categories(total_categories)
                         continue
                     logger.info(f"Processing: {href}")
-                    text = download_and_read_pdf(href,self.datadump_directory_path, self)
-                    result.append({
+                    file_id = self.download_and_upload_file(href, "pdf", year=None)
+                    result = {
                         "date_published": None,
                         "scraping_time": pd.Timestamp.now(),
                         "file_url": href,
-                        "full_extracted_text": text,
-                    })
-                    total_categories.append({
+                        "file_id": file_id,
+                    }
+                    total_categories = [{
                         "file_url": href,
                         "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value,
-                    })
+                    }]
+                    self.add_all_atomic([result], total_categories, [])
             else:
                 a = self.driver_manager.driver.find_element(By.XPATH, "//a[.//span[contains(text(), 'Complete annual report')]]")
                 href2 = a.get_attribute("href")
@@ -122,19 +130,18 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_categories)
                     continue
                 logger.info(f"Processing: {href2}")
-                date, text, links = self.extract_date_text_or_pdf(href2)
-                total_categories.append({
+                file_id, date, total_links = self.extract_date_text_or_pdf(href2)
+                total_categories = [{
                     "file_url": href2,
                     "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value,
-                })
-                result.append({
+                }]
+                result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": href2,
-                    "full_extracted_text": text,
-                })
-                total_links.extend(links)
-        self.add_all_atomic(result, total_categories, total_links)
+                    "file_id": file_id,
+                }
+                self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_monetary_policy_decisions(self):
@@ -156,6 +163,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 span = tag.find_element(By.XPATH, ".//span")
                 if current_url is None:
                     current_url = tag.get_attribute("href")
+                    links_to_process[current_url] = []
                     if current_url in all_urls:
                         logger.debug(f"URL already in db: {current_url}")
                         if (current_url, Categories.MONETARY_POLICY.value) not in all_categories:
@@ -164,42 +172,42 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                                 "category_name": Categories.MONETARY_POLICY.value,
                             }])
                         continue
-                    links_to_process[current_url] = []
                     to_process.append(current_url)
                 else:
                     # other are links
                     link_url = tag.get_attribute("href")
                     link_name = span.get_attribute("innerText").strip()
-                    links_to_process[current_url].append((link_url, link_name))
+                    links_to_process[current_url].append((link_name, link_url))
             else:
                 raise ValueError("Unknown tag")
             
-        result = []
-        total_categories = []
-        total_links = []
         for url in to_process:
             logger.info(f"Processing: {url}")
-            date, text, links = self.extract_date_text_or_pdf(url)
-            result.append({
+            main_id, date, total_links = self.extract_date_text_or_pdf(url)
+            year = str(date.year) if date is not None else None
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": text,
-            })
-            total_links.extend(links)
-            for link_url, link_name in links_to_process[url]:
-                _, text, _ = self.extract_date_text_or_pdf(link_url)
-                total_links.append({
+                "file_id": main_id,
+            }
+            processed_links = links_output = self.process_links(
+                lambda: links_to_process[url],
+                year=str(year),
+            )
+            total_links.extend([
+                {
                     "file_url": url,
-                    "link_url": link_url,
-                    "link_name": link_name,
-                    "full_extracted_text": text,
-                })
-            total_categories.append({
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ])
+            total_categories = [{
                 "file_url": url,
                 "category_name": Categories.MONETARY_POLICY.value,
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+            }]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def process_news_on_the_website(self):
@@ -275,7 +283,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
     
 
-    def extract_date_text_or_pdf(self, url: str) -> dict:
+    def extract_date_text_or_pdf(self, url: str) -> tuple:
+        # main_id, date, links_output
         self.get(url)
         try:
             # span with class="h-typo-tiny"
@@ -284,14 +293,15 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             date = pd.to_datetime(span_date.text, format="%B %d, %Y")
         except:
             date = None
+        year = str(date.year) if date is not None else None
 
         download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='Download']]")
         if len(download_buttons) > 1:
             raise ValueError("More than one download button found")
         if len(download_buttons) == 1:
             pdf_href = download_buttons[0].get_attribute("href")
-            text = download_and_read_pdf(pdf_href,self.datadump_directory_path)
-            return date, text, []
+            file_id = self.download_and_upload_file(pdf_href, "pdf", year=year)
+            return file_id, date, []
         
         # try to find german or french
         download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
@@ -299,29 +309,38 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             raise ValueError("More than two download button found for german or french")
         if len(download_buttons) > 0:
             pdf_href = download_buttons[0].get_attribute("href")
-            text = download_and_read_pdf(pdf_href,self.datadump_directory_path)
-            return date, text, []
-        xpath = "//main//article"
-        try:
-            text = self.driver_manager.driver.find_element(By.XPATH, xpath).text
-        except:
-            return date, None, []
-        # add links
-        a_tags = self.driver_manager.driver.find_elements(By.XPATH, f"{xpath}//a")
-        links = []
-        for a in a_tags:
-            link = a.get_attribute("href")
-            name = a.text
-            extracted_link_text = None
-            if urlparse(link).path.lower().endswith('.pdf'):
-                extracted_link_text = download_and_read_pdf(link,self.datadump_directory_path, self)
-            links.append({
-                "file_url": url,
-                "link_url": link,
-                "link_name": name,
-                "full_extracted_text": extracted_link_text
-            })
-        return date, text, links
+            file_id = self.download_and_upload_file(pdf_href, "pdf", year=year)
+            return file_id, date, []
+        main_id = self.process_html_page(year)
+        def get_links():
+            links_data = []
+            for temp_link in self.driver_manager.driver.find_elements(By.XPATH, "//main//article//a"):
+                try:
+                    link_href = temp_link.get_attribute("href")
+                    if link_href is None:
+                        continue
+                    parsed_link = urlparse(link_href)
+                    link_name = temp_link.get_attribute("textContent").strip()
+                except selenium.common.exceptions.StaleElementReferenceException:
+                    continue
+                if any([ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS]):
+                    continue
+                links_data.append((link_name, link_href))
+            return links_data
+
+        links_output = self.process_links(
+                get_links,
+                year=year,
+            )
+        total_links = [
+                {
+                    "file_url": url,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+        return main_id, date, total_links
 
         
     
@@ -348,6 +367,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 total_categories = categories.copy()
                 # get a tag
                 href = a.get_attribute("href")
+                if href == "https://www.snb.ch/public/en/rss/claims":
+                    continue
                 if xpath_category is not None:
                     category = self.map_category_str(a.find_element(By.XPATH, xpath_category).text.strip())
                     if category is None:
@@ -370,32 +391,40 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             page += 1
         if not found_any:
             raise ValueError("No data found")
-        result = []
-        total_categories = []
-        total_links = []
+        
         for url in to_process:
             logger.info(f"Processing: {url}")
-            if urlparse(url).path.lower().endswith('.pdf'):
-                text = download_and_read_pdf(url,self.datadump_directory_path, self)
-                date = None
-
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url)
+            extType = classify_extension(extension)
+            date = None
+            total_links = []
+            if extType == ExtensionType.FILE:
+                main_id = self.download_and_upload_file(url, extension, year=None)
+                if main_id is None:
+                    raise ValueError(f"Could not download file: {url}")
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, date, total_links = self.extract_date_text_or_pdf(url)
             else:
-                date, text, links = self.extract_date_text_or_pdf(url)
-            if text is None:
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
                 continue
-            total_links.extend(links)
 
-            result.append({
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": text,
-            })
-            total_categories.extend([{
+                "file_id": main_id,
+            }
+            total_categories = [{
                 "file_url": url,
                 "category_name": c.value,
-            } for c in url_categories[url]])
-        self.add_all_atomic(result, total_categories, total_links)
+            } for c in url_categories[url]]
+            self.add_all_atomic([result], total_categories, total_links)
 
     def map_category_str(self, category: str) -> Categories | None:
         mapping = {
@@ -416,7 +445,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             'Media': Categories.NEWS_AND_EVENTS,
             'Research TV': Categories.RESEARCH_AND_DATA,
             'Speech': Categories.NEWS_AND_EVENTS,
-            'Circular letter': Categories.INSTITUTIONAL_AND_GOVERNANCE
+            'Circular letter': Categories.INSTITUTIONAL_AND_GOVERNANCE,
+            'Research': Categories.RESEARCH_AND_DATA,
         }
         return mapping[category]
 

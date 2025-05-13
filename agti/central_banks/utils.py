@@ -1,11 +1,15 @@
 import os
 import logging
+from pathlib import Path
+from urllib.parse import urlparse
 import requests
-import pdfplumber
+import hashlib
 import time
 import enum
 import re
 import json
+
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
 
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
@@ -20,107 +24,29 @@ class Categories(enum.Enum):
 
 
 logger = logging.getLogger(__name__)
-logging.getLogger("pdfminer.cmapdb").setLevel(logging.ERROR)
+
+
+def get_hash_for_url(url):
+    """
+    Get the hash for a given URL.
+    """
+    return hashlib.sha1(url.encode()).hexdigest()
 
 def download_and_read_pdf(url, save_dir, base_scraper, evaluate_tolerances=None):
-    """Download and extract text from a PDF file."""
+    raise NotImplementedError("This function is not supported in this version.")
 
-    # NOTE: This is a temporary fix to disable PDF processing for quick local testing
-    if os.getenv("DISABLE_PDF_PARSING", "false").lower() == "true":
-        time.sleep(0.1) # Simulate processing
-        return "Processing pdf disabled"
-
-
-    filename = os.path.basename(url)
-    filepath = os.path.join(save_dir, filename)
-    
+def classify_extension(ext):
     """
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.6834.110 Safari/537.36",
-        "Accept": "application/pdf",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "TE": "Trailers",
-        "Cache-Control": "max-age=0",
-        "Pragma": "no-cache",
-        "DNT": "1",  # Do Not Track
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Sec-GPC": "1"  # Global Privacy Control
-    }
+    Classify the file extension into static or dynamic.
     """
-    
-    text = None
-
-    headers = base_scraper.get_headers()
-    cookies = base_scraper.get_cookies_for_request()
-    proxies = base_scraper.get_proxies()
-    for i in range(3):
-        try:
-            
-            with requests.get(url, headers=headers, cookies=cookies, proxies=proxies, stream=True, timeout=100) as r:
-                r.raise_for_status()
-                try:
-                    with open(filepath, "wb") as f:
-                        for chunk in r.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                except Exception as stream_error:
-                    raise stream_error
-            extract_kwargs = {}
-            if evaluate_tolerances:
-                x_tol, y_tol = evaluate_tolerances(filepath)
-                extract_kwargs["x_tolerance"] = x_tol
-                extract_kwargs["y_tolerance"] = y_tol
-
-            with pdfplumber.open(filepath) as pdf:
-                text = ""
-                for page in pdf.pages:
-                    # pass x_tol and y_tol to extract_text method if they are not None
-                    text += page.extract_text(**extract_kwargs).replace('\x00','')
-
-
-        except requests.exceptions.HTTPError:
-            logger.exception("Error downloading and reading PDF", extra={
-                "url": url,
-                "filepath": filepath,
-                "headers": headers,
-                "cookies": cookies,
-                "proxies": proxies,
-                "tolerances": evaluate_tolerances})
-            cookies = None
-            logger.info("Trying again with new proxy")
-            if base_scraper.driver_manager.proxy_provider is not None:
-                new_proxies = base_scraper.driver_manager.proxy_provider.get_proxy()
-                proxies = {
-                    "http": new_proxies,
-                    "https": new_proxies
-                }
-        except Exception as e:
-            logger.exception("Error downloading and reading PDF", extra={
-                "url": url,
-                "filepath": filepath,
-                "headers": headers,
-                "cookies": cookies,
-                "proxies": proxies,
-                "tolerances": evaluate_tolerances})
-            break
-        finally:
-            if os.path.exists(filepath):
-                os.remove(filepath)
-    if text is not None and len(text) == 0:
-        logger.error("No text extracted from PDF", extra={
-            "url": url,
-            "filepath": filepath,
-            "headers": headers,
-            "cookies": cookies,
-            "proxies": proxies,
-            "tolerances": evaluate_tolerances})
+    if ext is None or len(ext) == 0:
         return None
-    return text
+    if ext in STATIC_PAGE_EXTENSIONS:
+        return ExtensionType.WEBPAGE
+    elif ext in DYNAMIC_PAGE_EXTENSIONS:
+        return ExtensionType.WEBPAGE
+    else:
+        return ExtensionType.FILE
     
 def get_cookies_headers(driver):
     # Get cookies from browser & unpack into a dictionary.
@@ -153,17 +79,31 @@ def pageBottom(driver):
         time.sleep(0.001)
         a+=5
 
-def get_status(logs):
+def get_status(logs, target_url):
+    parsed_target_url = urlparse(target_url)
+    # get clean url without fragment
+    without_fragment_target_url = parsed_target_url._replace(fragment="").geturl()
+    possible_urls = [
+        target_url,
+        without_fragment_target_url,
+        without_fragment_target_url + "?",
+        parsed_target_url._replace(scheme="https").geturl(),
+        parsed_target_url._replace(scheme="http").geturl(),
+        parsed_target_url._replace(path=parsed_target_url.path + "/").geturl(),
+        parsed_target_url._replace(path=parsed_target_url.path.rstrip("/")).geturl(),
+    ]
+    target_url_req_id = -1
     for log in logs:
-        if log["message"]:
-            d = json.loads(log["message"])
-            try:
-                content_type = (
-                    "text/html"
-                    in d["message"]["params"]["response"]["headers"]["content-type"]
-                )
-                response_received = d["message"]["method"] == "Network.responseReceived"
-                if content_type and response_received:
-                    return d["message"]["params"]["response"]["status"]
-            except:
-                pass
+        msg = json.loads(log["message"])["message"]
+        method = msg.get("method")
+        params = msg.get("params", {})
+        if method == "Network.requestWillBeSent" and params.get("request", {}).get("url") in possible_urls:
+            target_url_req_id = params.get("requestId")
+        elif method == "Network.responseReceived":
+            req_id = params.get("requestId")
+            resp = params.get("response", {})
+            if req_id == target_url_req_id:
+                status = resp.get("status")
+                if status:
+                    return status
+    return None

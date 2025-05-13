@@ -20,14 +20,17 @@ logger = logging.getLogger(__name__)
 __all__ = ["EnglandBankScrapper"]
 
 class EnglandBankScrapper(BaseBankScraper):
-    COUNTRY_CODE_ALPHA_3 = "ENG"
-    COUNTRY_NAME = "England"
     MAX_OLD_YEAR = 2000
-    NETLOC = "www.bankofengland.co.uk"
+    IGNORED_PATHS = [
+        "/subscribe-to-emails",
+        "/contact",
+        "/news",
+        "/search",
+    ]
 
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
-            self.driver_manager.driver.get(f"https://{self.NETLOC}")
+            self.driver_manager.driver.get(self.bank_config.URL)
         wait = WebDriverWait(self.driver_manager.driver, 10)
         xpath = "//button[@class='cookie__button btn btn-default']"
         repeat = 3
@@ -90,39 +93,27 @@ class EnglandBankScrapper(BaseBankScraper):
         logger.debug(f"Filters applied to topic: {topic}")
     
 
-    def parse_html(self, url: str):
+    def parse_html(self, url: str, year):
         # find main with id="main-content"
         self.get(url)
-        url_parsed = urlparse(url)
         xpath = "//main[@id='main-content']"
         main = self.driver_manager.driver.find_element(By.XPATH, xpath)
-        text = main.text
-        if len(text) == 0:
-            raise ValueError("No text found in HTML file")
-        # all links
-        links_output = []
-        links = main.find_elements(By.XPATH, ".//a")
-        for link in links:
-            link_href = link.get_attribute("href")
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
+
+        file_id = self.process_html_page(year)
+        def f_get_links():
+            links = []
+            for link in main.find_elements(By.XPATH, ".//a"):
+                link_text = link.get_attribute("textContent").strip()
+                link_url = link.get_attribute("href")
+                if link_url is None:
                     continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            links_output.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link.text,
-                "full_extracted_text": link_text,
-            })
-        return text, links_output
+                parsed_link = urlparse(link_url)
+                if any(ignored_path in parsed_link.path for ignored_path in self.IGNORED_PATHS):
+                                continue
+                links.append((link_text, link_url))
+            return links
+        processed_links = self.process_links(f_get_links, year=year)
+        return file_id, processed_links
 
 
 
@@ -173,32 +164,32 @@ class EnglandBankScrapper(BaseBankScraper):
                 if not self.go_to_next_page():
                     break
 
-
-
-            result = []
-            total_categories = []
-            total_links = []
             for tag, href, date in to_process:
-                total_categories.extend([
+                total_categories = [
                     {"file_url": href, "category_name": category.value}
                     for category in get_categories(tag)
                     if (href, category.value) not in all_categories
-                ])
+                ]
                 if href in all_urls:
                     logger.debug(f"Href is already in db: {href}")
                     continue
                 logger.info(f"Processing: {href}")
-                text, links = self.parse_html(href)
-                total_links.extend(links)
-                result.append({
+                main_id, links_output = self.parse_html(href, year=str(date.year))
+                result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": href,
-                    "full_extracted_text": text,
-                })
-                
-
-            self.add_all_atomic(result,total_categories,total_links)
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
+                        "file_url": href,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                self.add_all_atomic([result],total_categories,total_links)
 
 
     def get_current_page_number(self):

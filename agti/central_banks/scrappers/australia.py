@@ -6,6 +6,7 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import urllib
+from agti.agti.central_banks.types import ExtensionType
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -13,7 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories, classify_extension, download_and_read_pdf
 from sqlalchemy import text
 
 
@@ -35,9 +36,6 @@ class AustraliaBankScrapper(BaseBankScraper):
     That is why we fetch the minutes only.
 
     """
-    COUNTRY_CODE_ALPHA_3 = "AUS"
-    COUNTRY_NAME = "Australia"
-    NETLOC = "www.rba.gov.au"
 
 
     # Monetary Policy link
@@ -52,35 +50,49 @@ class AustraliaBankScrapper(BaseBankScraper):
         to_process = [
             link.get_attribute("href") for link in links
         ]
-        result = []
-        total_links = []
-        total_categories = []
         for url in to_process:
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
+            logger.info(f"Processing: {url}")
             self.get(url)
             time_tag = self.driver_manager.driver.find_element(By.XPATH, "//time")
             date = pd.to_datetime(time_tag.text)
             main_content = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']")
-            text = main_content.text
-            # all links
-            links_output = self.process_links(url, main_content)
-            total_links.extend(links_output)
-            result.append({
+            main_id = self.process_html_page(date.year)
+            def f_get_linsk():
+                links = []
+                for link in main_content.find_elements(By.XPATH, ".//a"):
+                    link_text = link.get_attribute("textContent").strip()
+                    link_url = link.get_attribute("href")
+                    if link_url is None:
+                        continue
+                    links.append((link_text, link_url))
+                return links
+            links_output = self.process_links(f_get_linsk, year=date.year)
+
+            result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "file_id": main_id
+            }
             # categories
-            total_categories.append(
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.MONETARY_POLICY.value
                 }
-            )
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            total_links = [
+                {
+                    "file_url": url,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
         
         
         ## Monetary Policy Decision
@@ -130,36 +142,26 @@ class AustraliaBankScrapper(BaseBankScraper):
                 link_url = link.get_attribute("href")
                 founded_links.append((link_url, link.text))
             to_process.append((date, url, founded_links))
-        result = []
-        total_links = []
-        total_categories = []
+
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            text, links_output = self.parse_html(url)
-            links_href = [x["link_url"] for x in links_output]
-            for (main_link, main_link_text) in temp_links:
-                if main_link not in links_href:
-                    parsed_link = urlparse(main_link)
-                    # if it is pdf
-                    extracted_text = None
-                    if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self)
-                    links_output.append({
-                        "file_url": url,
-                        "link_url": main_link,
-                        "link_name": main_link_text,
-                        "full_extracted_text": extracted_text,
-                    })
-            total_links.extend(links_output)
-                    
-            result.append({
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+            main_id, links_output = self.parse_html(url, year=str(date.year))
+            result = {
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_url": url,
+                "file_id": main_id,
+            }
+            total_links = [
+                {
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
             # categories
-            total_categories.extend([
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
@@ -168,8 +170,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
         ### publications
         self.get("https://www.rba.gov.au/payments-and-infrastructure/central-bank-digital-currency/publications.html")
@@ -184,32 +186,54 @@ class AustraliaBankScrapper(BaseBankScraper):
             date_txt = publication.find_element(By.XPATH, ".//span[@class='date']/span[@class='date']").text
             to_process.append((date_txt, url))
 
-        result = []
-        total_links = []
-        total_categories = []
         for date_txt, url in to_process:
             logger.info(f"Processing: {url}")
             date = None
+            year = None
             date_txt = date_txt.strip()
             # if date start with number it has day otherwise it has month and year only
             if date_txt[0].isdigit():
                 date = pd.to_datetime(date_txt)
+                year = date.year
                 date_txt = None
-            url_parsed = urlparse(url)
-            extracted_text = None
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
             else:
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-            result.append({
+                # we are missing the day, so we can not use it as date
+                year = pd.to_datetime(date_txt).year
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=str(year))
+                if filepath is None:
+                    continue
+                total_links = []
+                main_id = filepath.stem
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=str(year))
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+            else:
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
@@ -218,9 +242,9 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
-
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
+        
         ########################################
         ## Resources
 
@@ -238,20 +262,25 @@ class AustraliaBankScrapper(BaseBankScraper):
             to_process.append((date, url))
 
 
-        result = []
-        total_links = []
-        total_categories = []
+
         for (date, url) in to_process:
             logger.info(f"Processing: {url}")
-            extracted_text, links_output = self.parse_html(url)
-            total_links.extend(links_output)
-            result.append({
+            main_id, links_output = self.parse_html(url, year=str(date.year))
+            total_links = [
+                {
+                    "file_url": url,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories =  [
                 {
                     "file_url": url,
                     "category_name": Categories.NEWS_AND_EVENTS.value
@@ -260,9 +289,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
-
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
         ### Speeches
         self.get("https://www.rba.gov.au/payments-and-infrastructure/resources/speeches.html")
@@ -270,52 +298,84 @@ class AustraliaBankScrapper(BaseBankScraper):
         speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         to_process = []
         for speech in speeches:
+            # ul/li/a
+            links = speech.find_elements(By.XPATH, ".//ul/li/a")
             try:
                 url = speech.find_element(By.XPATH, ".//h3//a").get_attribute("href")
             except NoSuchElementException:
-                logger.warning(f"No href found for speech: {speech.text} for Payments and Infrastructure - Resources - Speeches")
-                continue
+                # find first html link from links select some representative from the list
+                urls = [x.get_attribute("href") for x in links if x.get_attribute("href").endswith(".html")]
+                if len(urls) > 0:
+                    url = urls[0]
+                else:
+                    logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
+                    continue
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
             date = pd.to_datetime(speech.find_element(By.XPATH, ".//time").get_attribute("datetime"))
-            # ul/li/a
-            links = speech.find_elements(By.XPATH, ".//ul/li/a")
+            
             founded_links = []
             for link in links:
                 link_url = link.get_attribute("href")
                 founded_links.append((link_url, link.text))
             to_process.append((date, url, founded_links))
-        result = []
-        total_links = []
-        total_categories = []
+
+
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            text, links_output = self.parse_html(url)
-            links_href = [x["link_url"] for x in links_output]
-            for (main_link, main_link_text) in temp_links:
-                if main_link not in links_href:
-                    parsed_link = urlparse(main_link)
-                    # if it is pdf
-                    extracted_text = None
-                    if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self)
-                    links_output.append({
-                        "file_url": url,
-                        "link_url": main_link,
-                        "link_name": main_link_text,
-                        "full_extracted_text": extracted_text,
-                    })
-            total_links.extend(links_output)
-                    
-            result.append({
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+            main_id, links_output = self.parse_html(url, year=str(date.year))
+            result = {
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_url": url,
+                "file_id": main_id,
+            }
+            total_links = [
+                {
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            for (main_link, main_link_text) in temp_links:
+                if url == main_link:
+                    continue
+                allowed_outside = False
+                urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                extType = classify_extension(extension)
+                if extType == ExtensionType.FILE:
+                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
+                    if filepath is None:
+                        logger.error(f"Failed to download file: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                        continue
+                    link_id = filepath.stem
+                elif extType == ExtensionType.WEBPAGE:
+                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                else:
+                    if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
+                        logger.error(f"Unknown file type: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                    continue
+                total_links.append({
+                    "file_url": url,
+                    "link_url": main_link,
+                    "link_name": main_link_text,
+                    "file_id": link_id,
+                })
+                    
             # categories
-            total_categories.extend([
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.NEWS_AND_EVENTS.value
@@ -328,8 +388,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
         ### Publications
         self.get("https://www.rba.gov.au/payments-and-infrastructure/resources/publications/")
@@ -344,32 +404,54 @@ class AustraliaBankScrapper(BaseBankScraper):
             date_txt = publication.find_element(By.XPATH, ".//time").get_attribute("datetime")
             to_process.append((date_txt, url))
         
-        result = []
-        total_links = []
-        total_categories = []
         for date_txt, url in to_process:
             logger.info(f"Processing: {url}")
             date = None
+            year = None
             date_txt = date_txt.strip()
             # if date has just one "-" it is not a date
             if date_txt.count("-") == 2:
                 date = pd.to_datetime(date_txt)
                 date_txt = None
-            url_parsed = urlparse(url)
-            extracted_text = None
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
-            else:
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-            result.append({
+                year = str(date.year)
+            elif date_txt.count("-") == 1:
+                # we are missing the day, so we can not use it as date
+                year = str(pd.to_datetime(date_txt).year)
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=year)
+                if filepath is None:
+                    continue
+                main_id = filepath.stem
+                total_links = []
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=year)
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+            else: 
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
@@ -378,8 +460,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.CURRENCY_AND_FINANCIAL_INSTRUMENTS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     # Financial Stability
@@ -421,34 +503,56 @@ class AustraliaBankScrapper(BaseBankScraper):
             except NoSuchElementException:
                 date_txt = None
             to_process.append((date_txt, url))
-
-        result = []
-        total_links = []
-        total_categories = []
         for date_txt, url in to_process:
             logger.info(f"Processing: {url}")
             date = None
+            year = None
             if date_txt is not None:
                 date_txt = date_txt.strip()
                 # if date has just one "-" it is not a date
                 if date_txt[0].isdigit():
                     date = pd.to_datetime(date_txt)
                     date_txt = None
+                    year = str(date.year)
+                else:
+                    year = str(pd.to_datetime(date_txt).year)
             url_parsed = urlparse(url)
             extracted_text = None
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            extType = classify_extension(extension)
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=year)
+                if filepath is None:
+                    continue
+                main_id = filepath.stem
+                total_links = []
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=year)
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
             else:
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-            result.append({
+                if allowed_outside or url_parsed.netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories =[
                 {
                     "file_url": url,
                     "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
@@ -457,61 +561,89 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
-            
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
         # Speeches
         self.get("https://www.rba.gov.au/fin-stability/resources/speeches.html")
         to_process = []
         xpath = "//div[@id='list-speeches']/div[contains(@class, 'py')]"
         speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath)
         for speech in speeches:
+            links = speech.find_elements(By.XPATH, ".//ul/li/a")
             try:
                 url = speech.find_element(By.XPATH, ".//h3//a").get_attribute("href")
             except NoSuchElementException:
-                logger.warning(f"No href found for speech: {speech.text} for Payments and Infrastructure - Resources - Speeches")
-                continue
+                # find first html link from links
+                urls = [x.get_attribute("href") for x in links if x.get_attribute("href").endswith(".html")]
+                if len(urls) > 0:
+                    url = urls[0]
+                else:
+                    logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
+                    continue
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
             date = pd.to_datetime(speech.find_element(By.XPATH, ".//time").get_attribute("datetime"))
             # ul/li/a
-            links = speech.find_elements(By.XPATH, ".//ul/li/a")
             founded_links = []
             for link in links:
                 link_url = link.get_attribute("href")
                 founded_links.append((link_url, link.text))
             to_process.append((date, url, founded_links))
-        result = []
-        total_links = []
-        total_categories = []
+
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            text, links_output = self.parse_html(url)
-            links_href = [x["link_url"] for x in links_output]
-            for (main_link, main_link_text) in temp_links:
-                if main_link not in links_href:
-                    parsed_link = urlparse(main_link)
-                    # if it is pdf
-                    extracted_text = None
-                    if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self)
-                    links_output.append({
-                        "file_url": url,
-                        "link_url": main_link,
-                        "link_name": main_link_text,
-                        "full_extracted_text": extracted_text,
-                    })
-            total_links.extend(links_output)
-                    
-            result.append({
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+            main_id, links_output = self.parse_html(url, year=str(date.year))
+            result = {
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_url": url,
+                "file_id": main_id,
+            }
+            total_links = [
+                {
                     "file_url": url,
-                    "full_extracted_text": text,
-            })
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            for (main_link, main_link_text) in temp_links:
+                if url == main_link:
+                    continue
+                allowed_outside = False
+                urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                extType = classify_extension(extension)
+                if extType == ExtensionType.FILE:
+                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
+                    if filepath is None:
+                        logger.error(f"Failed to download file: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                        continue
+                    link_id = filepath.stem
+                elif extType == ExtensionType.WEBPAGE:
+                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                else:
+                    if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
+                        logger.error(f"Unknown file type: {main_link}", extra={
+                            "url": url,
+                            "link_url": main_link,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                    continue
+                total_links.append({
+                    "file_url": url,
+                    "link_url": main_link,
+                    "link_name": main_link_text,
+                    "file_id": link_id,
+                })
             # categories
-            total_categories.extend([
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": Categories.NEWS_AND_EVENTS.value
@@ -528,8 +660,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value
                 }
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
     def processing_media_releases(self):
@@ -549,26 +681,53 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date = pd.to_datetime(article.find_element(By.XPATH, ".//time").get_attribute("datetime"))
                 to_process.append((date, article_url))
             
-            result = []
-            total_links = []
-            total_categories = []
             for date, article_url in to_process:
                 logger.info(f"Processing: {article_url}")
-                extracted_text, links_output = self.parse_html(article_url)
-                total_links.extend(links_output)
-                result.append({
+                allowed_outside = False
+                urlType, extension = self.clasify_url(article_url, allow_outside=allowed_outside)
+                extType = classify_extension(extension)
+                if extType == ExtensionType.FILE:
+                    filepath = self.download_and_upload_file(article_url, extension, year=str(date.year))
+                    if filepath is None:
+                        logger.error(f"Failed to download file: {article_url}", extra={
+                            "url": article_url,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                        continue
+                    main_id = filepath.stem
+                    total_links = []
+                elif extType == ExtensionType.WEBPAGE:
+                    main_id, links_output = self.parse_html(article_url, year=str(date.year))
+                    total_links = [
+                        {
+                            "file_url": article_url,
+                            "link_url": link,
+                            "link_name": link_text,
+                            "file_id": link_id,
+                        } for (link, link_text, link_id) in links_output
+                    ]
+                else:
+                    if allowed_outside or urlparse(article_url).netloc == self.bank_config.NETLOC:
+                        logger.error(f"Unknown file type: {article_url}", extra={
+                            "url": article_url,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                    continue
+                result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": article_url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.extend([
+                    "file_id": main_id,
+                }
+                total_categories = [
                     {
                         "file_url": article_url,
                         "category_name": Categories.NEWS_AND_EVENTS.value
                     }
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
+                ]   
+                self.add_all_atomic([result], total_categories, total_links)
 
     def processing_speeches(self):
         main_releases_url = "https://www.rba.gov.au/speeches/{}/"
@@ -580,59 +739,87 @@ class AustraliaBankScrapper(BaseBankScraper):
             speeches = self.driver_manager.driver.find_elements(By.XPATH, xpath_speeches)
             to_process = []
             for speech in speeches:
+                # ul/li/a
+                links = speech.find_elements(By.XPATH, ".//ul/li/a")
                 try:
                     url = speech.find_element(By.XPATH, ".//h3//a").get_attribute("href")
                 except NoSuchElementException:
-                    logger.warning(f"No href found for speech: {speech.text} for Payments and Infrastructure - Resources - Speeches")
-                    continue
+                    # find first html link from links
+                    urls = [x.get_attribute("href") for x in links if x.get_attribute("href").endswith(".html")]
+                    if len(urls) > 0:
+                        url = urls[0]
+                    else:     
+                        logger.warning(f"No href found for speech: '{speech.get_attribute('textContent')}' for Payments and Infrastructure - Resources - Speeches")
+                        continue
                 if url in all_urls:
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 date = pd.to_datetime(speech.find_element(By.XPATH, ".//time").get_attribute("datetime"))
-                # ul/li/a
-                links = speech.find_elements(By.XPATH, ".//ul/li/a")
                 founded_links = []
                 for link in links:
                     link_url = link.get_attribute("href")
                     founded_links.append((link_url, link.text))
                 to_process.append((date, url, founded_links))
             
-            result = []
-            total_links = []
-            total_categories = []
             for date, url, temp_links in to_process:
                 logger.info(f"Processing: {url}")
-                text, links_output = self.parse_html(url)
-                links_href = [x["link_url"] for x in links_output]
-                for (main_link, main_link_text) in temp_links:
-                    if main_link not in links_href:
-                        parsed_link = urlparse(main_link)
-                        # if it is pdf
-                        extracted_text = None
-                        if parsed_link.path.endswith("pdf"):
-                            extracted_text = download_and_read_pdf(main_link,self.datadump_directory_path, self)
-                        links_output.append({
-                            "file_url": url,
-                            "link_url": main_link,
-                            "link_name": main_link_text,
-                            "full_extracted_text": extracted_text,
-                        })
-                total_links.extend(links_output)
-                        
-                result.append({
-                        "date_published": date,
-                        "scraping_time": pd.Timestamp.now(),
+                main_id, links_output = self.parse_html(url, year=str(date.year))
+                result = {
+                    "date_published": date,
+                    "scraping_time": pd.Timestamp.now(),
+                    "file_url": url,
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
                         "file_url": url,
-                        "full_extracted_text": text,
-                })
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                for (main_link, main_link_text) in temp_links:
+                    if url == main_link:
+                        continue
+                    allowed_outside = False
+                    urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                    extType = classify_extension(extension)
+                    if extType == ExtensionType.FILE:
+                        filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
+                        if filepath is None:
+                            logger.error(f"Failed to download file: {main_link}", extra={
+                                "url": url,
+                                "link_url": main_link,
+                                "urlType": urlType,
+                                "extension_type": extension
+                            })
+                            continue
+                        link_id = filepath.stem
+                    elif extType == ExtensionType.WEBPAGE:
+                        link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                    else:
+                        if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
+                            logger.error(f"Unknown file type: {main_link}", extra={
+                                "url": url,
+                                "link_url": main_link,
+                                "urlType": urlType,
+                                "extension_type": extension
+                            })
+                        continue
+                    total_links.append({
+                        "file_url": url,
+                        "link_url": main_link,
+                        "link_name": main_link_text,
+                        "file_id": link_id,
+                    })
                 # categories
-                total_categories.extend([
+                total_categories = [
                     {
                         "file_url": url,
                         "category_name": Categories.NEWS_AND_EVENTS.value
                     }
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
+                ]
+                self.add_all_atomic([result], total_categories, total_links)
             
     def process_publications(self):
         all_urls = self.get_all_db_urls()
@@ -657,21 +844,27 @@ class AustraliaBankScrapper(BaseBankScraper):
                 if "Boxes" in date_txt:
                     continue
                 to_process.append((date_txt, url))
-            result = []
-            total_links = []
-            total_categories = []
+
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-                result.append({
+                year = str(pd.to_datetime(date_txt).year)
+                main_id, links_output = self.parse_html(url, year=year)
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.extend([
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                total_categories = [
                     {
                         "file_url": url,
                         "category_name": Categories.MONETARY_POLICY.value
@@ -680,8 +873,8 @@ class AustraliaBankScrapper(BaseBankScraper):
                         "file_url": url,
                         "category_name": Categories.RESEARCH_AND_DATA.value
                     }
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
+                ]
+                self.add_all_atomic([result], total_categories, total_links)
                 
 
 
@@ -701,31 +894,40 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 date_txt = a_tag.text
-                if "Boxes" in date_txt:
+                if "Boxes" in date_txt or "Focus Topics" in date_txt:
                     continue
                 to_process.append((date_txt, url))
-            result = []
-            total_links = []
-            total_categories = []
+
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-                result.append({
+                year = str(pd.to_datetime(date_txt).year)
+                main_id, links_output = self.parse_html(url, year=year)
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.extend([
+                    "file_id": main_id,
+                }
+                total_links = [
                     {
                         "file_url": url,
-                        "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                total_categories = [
+                    {
+                        "file_url": url,
+                        "category_name": Categories.MONETARY_POLICY.value
+                    },
+                    {
+                        "file_url": url,
+                        "category_name": Categories.RESEARCH_AND_DATA.value
                     }
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
-        
+                ]
+                self.add_all_atomic([result], total_categories, total_links)
         ## Bulletin
         logger.info("Processing Bulletin")
         current_year = pd.Timestamp.now().year
@@ -753,26 +955,32 @@ class AustraliaBankScrapper(BaseBankScraper):
                     ],[])
                 to_process.append((date, url, categories))
         
-            result = []
-            total_links = []
-            total_categories = []
+
             for date, url, categories in to_process:
                 logger.info(f"Processing: {url}")
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-                result.append({
+                year = str(date.year)
+                main_id, links_output = self.parse_html(url, year=year)
+                result = {
                     "date_published": date,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.extend([
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                total_categories = [
                     {
                         "file_url": url,
                         "category_name": category.value
                     } for category in categories
-                ])
-            self.add_all_atomic(result, total_categories, total_links)
+                ]
+                self.add_all_atomic([result], total_categories, total_links)
         
         
         # 2010 -> 2014
@@ -780,7 +988,6 @@ class AustraliaBankScrapper(BaseBankScraper):
             self.get(main_url.format(year))
             month_xpath = "//div[@id='content']//section//li/a"
             data_list = self.driver_manager.driver.find_elements(By.XPATH, month_xpath)
-            print(len(data_list))
             to_process = []
             for a_tag in data_list:
                 url = a_tag.get_attribute("href")
@@ -789,25 +996,31 @@ class AustraliaBankScrapper(BaseBankScraper):
                     continue
                 date_txt = a_tag.text
                 to_process.append((date_txt, url))
-            result = []
-            total_links = []
-            total_categories = []
+
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-                result.append({
+                year = str(pd.to_datetime(date_txt).year)
+                main_id, links_output = self.parse_html(url, year=year)
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.append({
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                total_categories = [{
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                }]
+                self.add_all_atomic([result], total_categories, total_links)
         
             
         # 1985 -> 2009
@@ -828,25 +1041,31 @@ class AustraliaBankScrapper(BaseBankScraper):
                     date_txt = f"{month} {year}"
                 to_process.append((date_txt, url))
 
-            result = []
-            total_links = []
-            total_categories = []
+
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
-                extracted_text, links_output = self.parse_html(url)
-                total_links.extend(links_output)
-                result.append({
+                year = str(pd.to_datetime(date_txt).year)
+                main_id, links_output = self.parse_html(url, year=year)
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.append({
+                    "file_id": main_id,
+                }
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                total_categories = [{
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                }]
+                self.add_all_atomic([result], total_categories, total_links)
         
         # Reserach
         ## Research Discussion Papers
@@ -885,32 +1104,41 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date_txt = result.find_element(By.XPATH, ".//div[@class='info']/span[@class='date']").text
                 to_process.append((date_txt, url, categories))
             page_number += 1
-        result = []
-        total_links = []
-        total_categories = []
+
         for date_txt, url, categories in to_process:
             logger.info(f"Processing: {url}")
-            extracted_text, links_output = self.parse_html(url)
-            total_links.extend(links_output)
+            year = None
             date = None
             date_txt = date_txt.strip()
             if date_txt[0].isdigit():
                 date = pd.to_datetime(date_txt)
+                year = str(date.year)
                 date_txt = None
-            result.append({
+            else:
+                year = str(pd.to_datetime(date_txt).year)
+            main_id, links_output = self.parse_html(url, year=year)
+            result = {
                 "date_published": date,
                 "date_published_str": date_txt,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_links = [
+                {
+                    "file_url": url,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            total_categories = [
                 {
                     "file_url": url,
                     "category_name": category.value
                 } for category in categories
-            ])
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
 
         
         ## Conferences
@@ -970,43 +1198,83 @@ class AustraliaBankScrapper(BaseBankScraper):
                 process_lis(ul)
 
                 
-        result = []
-        total_links = []
-        total_categories = []
         for date, url in to_process:
             logger.info(f"Processing: {url}")
-            url_parsed = urlparse(url)
-            links_output = []
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
-            else:
-                extracted_text, links_output = self.parse_html(url)
-            if url in to_process_links:
-                for link_url, link_text in to_process_links[url]:
-                    parsed_link = urlparse(link_url)
-                    # if it is pdf
-                    extracted_text = None
-                    if parsed_link.path.endswith("pdf"):
-                        extracted_text = download_and_read_pdf(link_url,self.datadump_directory_path, self)
-                    links_output.append({
+            year = str(date.year)
+            allowed_outside = False
+            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=year)
+                if filepath is None:
+                    continue
+                main_id = filepath.stem
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=year)
+                total_links.extend([
+                    {
                         "file_url": url,
-                        "link_url": link_url,
+                        "link_url": link,
                         "link_name": link_text,
-                        "full_extracted_text": extracted_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ])
+            else:
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
                     })
-            total_links.extend(links_output)
-            result.append({
+                continue
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.append({
+                "file_id": main_id,
+            }
+            if url in to_process_links:
+                for link_url, link_text in to_process_links[url]:
+                    urlType, extension = self.clasify_url(link_url, allow_outside=allowed_outside)
+                    extType = classify_extension(extension)
+                    if extType == ExtensionType.FILE:
+                        filepath = self.download_and_upload_file(link_url, extension, year=year)
+                        if filepath is None:
+                            logger.error(f"Failed to download file: {link_url}", extra={
+                                "url": url,
+                                "link_url": link_url,
+                                "urlType": urlType,
+                                "extension_type": extension
+                            })
+                            continue
+                        link_id = filepath.stem
+                    elif extType == ExtensionType.WEBPAGE:
+                        link_id, _ = self.parse_html(link_url, year=year, parse_links=False)
+                    else:
+                        if allowed_outside or urlparse(link_url).netloc == self.bank_config.NETLOC:
+                            logger.error(f"Unknown file type: {link_url}", extra={
+                                "url": url,
+                                "link_url": link_url,
+                                "urlType": urlType,
+                                "extension_type": extension
+                            })
+                        continue
+                    total_links.append({
+                        "file_url": url,
+                        "link_url": link_url,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    })
+            total_categories = [{
                 "file_url": url,
                 "category_name": Categories.RESEARCH_AND_DATA.value
-            })
-        self.add_all_atomic(result, total_categories, total_links)
+            }]
+            self.add_all_atomic([result], total_categories, total_links)
         
+
+
+
         ## Workshops
         worskshop_url = "https://www.rba.gov.au/publications/workshops/research/{}/"
         to_process = []
@@ -1031,35 +1299,56 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 to_process.append((date, url))
-        result = []
-        total_links = []
+
         for date, url in to_process:
             logger.info(f"Processing: {url}")
-            url_parsed = urlparse(url)
-            links_output = []
-            if url_parsed.path.endswith("pdf"):
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
+            urlType, extension = self.clasify_url(url)
+            extType = classify_extension(extension)
+            allowed_outside = False
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=str(date.year))
+                if filepath is None:
+                    continue
+                main_id = filepath.stem
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=str(date.year))
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
             else:
-                extracted_text, links_output = self.parse_html(url)
-            total_links.extend(links_output)
-            result.append({
+                if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-        self.add_all_atomic(result, [], total_links)
+                "file_id": main_id,
+            }
+            total_categories = [
+                {
+                    "file_url": url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                }
+            ]
+
+            self.add_all_atomic([result], total_categories, total_links)
 
 
-
-        
         # Reporting and Planning
         ## RBA Annual Report
         rba_ar_url = "https://www.rba.gov.au/publications/annual-reports/rba/{}/"
         current_year = pd.Timestamp.now().year
-        result = []
-        total_links = []
-        total_categories = []
+
         for year in range(1960, current_year + 1):
             date_txt = f"{year}"
             url = rba_ar_url.format(year)
@@ -1071,22 +1360,48 @@ class AustraliaBankScrapper(BaseBankScraper):
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report' or contains(text(),'Annual Report')]")
             if len(a_tags) > 0:
                 url = a_tags[0].get_attribute("href")
-                url_parsed = urlparse(url)
-                if not url_parsed.path.endswith("pdf"):
-                    logger.warning(f"Annual Report is not pdf: {url}")
-                    continue
                 if url in all_urls:
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 logger.info(f"Processing: {url}")
-                extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
-                result.append({
+                urlType, extension = self.clasify_url(url)
+                extType = classify_extension(extension)
+                if extType == ExtensionType.FILE:
+                    filepath = self.download_and_upload_file(url, extension, year=str(year))
+                    if filepath is None:
+                        logger.error(f"Failed to download file: {url}", extra={
+                            "url": url,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                        continue
+                    main_id = filepath.stem
+                elif extType == ExtensionType.WEBPAGE:
+                    main_id, links_output = self.parse_html(url, year=str(year))
+                    total_links = [
+                        {
+                            "file_url": url,
+                            "link_url": link,
+                            "link_name": link_text,
+                            "file_id": link_id,
+                        } for (link, link_text, link_id) in links_output
+                    ]
+                else:
+                    if urlparse(url).netloc == self.bank_config.NETLOC:
+                        logger.error(f"Unknown file type: {url}", extra={
+                            "url": url,
+                            "urlType": urlType,
+                            "extension_type": extension
+                        })
+                    continue
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
+                    "file_id": main_id,
+                }
+                
             else:
                 try:
                     ul = self.driver_manager.driver.find_element(By.XPATH, "//ul[@class='list-contents']")
@@ -1094,36 +1409,60 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.warning(f"No data found for year: {year} and url: {rba_ar_url.format(year)}")
                     continue
                 logger.info(f"Processing: {url}")
-                extracted_text = ul.text
-                links_to_process = []
-                for a_tag in ul.find_elements(By.XPATH, ".//a"):
-                    a_url = a_tag.get_attribute("href")
-                    links_to_process.append((a_url, a_tag.text))
-                result.append({
+                main_id, links_output = self.parse_html(url, year=str(year))
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+                result = {
                     "date_published": None,
                     "date_published_str": date_txt,
                     "scraping_time": pd.Timestamp.now(),
                     "file_url": url,
-                    "full_extracted_text": extracted_text,
-                })
-                total_categories.append({
+                    "file_id": main_id,
+                }
+                allowed_outside = False
+                for a_tag in ul.find_elements(By.XPATH, ".//a"):
+                    a_url = a_tag.get_attribute("href")
+                    a_urlType, a_extension = self.clasify_url(a_url)
+                    a_extType = classify_extension(a_extension)
+                    if a_extType == ExtensionType.FILE:
+                        filepath = self.download_and_upload_file(a_url, a_extension, year=str(year))
+                        if filepath is None:
+                            logger.error(f"Failed to download file: {a_url}", extra={
+                                "url": url,
+                                "link_url": a_url,
+                                "urlType": a_urlType,
+                                "extension_type": a_extension
+                            })
+                            continue
+                        link_id = filepath.stem
+                    elif a_extType == ExtensionType.WEBPAGE:
+                        link_id, _ = self.parse_html(a_url, year=str(year), parse_links=False)
+                        total_links.append({
+                            "file_url": url,
+                            "link_url": a_url,
+                            "link_name": a_tag.text,
+                            "file_id": link_id,
+                        })
+                    else:
+                        if allowed_outside or urlparse(a_url).netloc == self.bank_config.NETLOC:
+                            logger.error(f"Unknown file type: {a_url}", extra={
+                                "url": url,
+                                "link_url": a_url,
+                                "urlType": a_urlType,
+                                "extension_type": a_extension
+                            })
+                        continue
+            total_categories = [{
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
-                })
-                for a_url, a_text in links_to_process:
-                    a_url_parsed = urlparse(a_url)
-                    if a_url_parsed.path.endswith("pdf"):
-                        link_extracted_text = download_and_read_pdf(a_url,self.datadump_directory_path, self)
-                    else:
-                        link_extracted_text, _ = self.parse_html(a_url)
-                    #total_links.extend(link_total_sublinks)
-                    total_links.append({
-                        "file_url": url,
-                        "link_url": a_url,
-                        "link_name": a_text,
-                        "full_extracted_text": link_extracted_text,
-                    })
-        self.add_all_atomic(result, total_categories, total_links)
+                }]
+            self.add_all_atomic([result], total_categories, total_links)
 
 
 
@@ -1131,8 +1470,6 @@ class AustraliaBankScrapper(BaseBankScraper):
         ## PSB Annual Report
         psb_ar_url = "https://www.rba.gov.au/publications/annual-reports/psb/{}/"
         current_year = pd.Timestamp.now().year
-        result = []
-        total_categories = []
         for year in range(1999,current_year + 1):
             self.get(psb_ar_url.format(year))
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report']")
@@ -1143,76 +1480,87 @@ class AustraliaBankScrapper(BaseBankScraper):
                 logger.warning(f"No PSB Annual Report found for year: {year}")
                 continue
             url = a_tags[0].get_attribute("href")
-            parsed_url = urlparse(url)
-            if not parsed_url.path.endswith("pdf"):
-                logger.warning(f"PSB Annual Report is not pdf: {url}")
-                continue
             if url in all_urls:
                 logger.debug(f"Href is already in db: {url}")
                 continue
             logger.info(f"Processing: {url}")
-            extracted_text = download_and_read_pdf(url,self.datadump_directory_path, self)
-            result.append({
+            urlType, extension = self.clasify_url(url)
+            extType = classify_extension(extension)
+            total_links = []
+            if extType == ExtensionType.FILE:
+                filepath = self.download_and_upload_file(url, extension, year=str(year))
+                if filepath is None:
+                    continue
+                main_id = filepath.stem
+            elif extType == ExtensionType.WEBPAGE:
+                main_id, links_output = self.parse_html(url, year=str(year))
+                total_links = [
+                    {
+                        "file_url": url,
+                        "link_url": link,
+                        "link_name": link_text,
+                        "file_id": link_id,
+                    } for (link, link_text, link_id) in links_output
+                ]
+            else:
+                if urlparse(url).netloc == self.bank_config.NETLOC:
+                    logger.error(f"Unknown file type: {url}", extra={
+                        "url": url,
+                        "urlType": urlType,
+                        "extension_type": extension
+                    })
+                continue
+            
+            result = {
                 "date_published": None,
-                "date_published_str": f"{year}",
+                "date_published_str": str(year),
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": url,
-                "full_extracted_text": extracted_text,
-            })
-            total_categories.append({
-                "file_url": url,
-                "category_name": Categories.RESEARCH_AND_DATA.value
-            })
-            total_categories.append({
-                "file_url": url,
-                "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value
-            })
-        self.add_all_atomic(result, total_categories, [])
+                "file_id": main_id,
+            }
+            total_categories = [
+                {
+                    "file_url": url,
+                    "category_name": Categories.RESEARCH_AND_DATA.value
+                },
+                {
+                    "file_url": url,
+                    "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value
+                }
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
             
 
     
 
-    def process_links(self, url, html_tag):
-        url_parsed = urlparse(url)
-        links_output = []
-        links = html_tag.find_elements(By.XPATH, ".//a")
-        for link in links:
-            link_href = link.get_attribute("href")
-            if link_href is None:
-                continue
-            link_href_parsed = urlparse(link_href)
-            link_text = None
-            if link_href_parsed.fragment != '':
-                if url_parsed[:3] == link_href_parsed[:3]:
-                    # we ignore links to the same page (fragment identifier)
-                    continue
-                # NOTE: we do not parse the text yet
-            elif urlparse(link_href).path.lower().endswith('.pdf'):
-                link_text = download_and_read_pdf(link_href,self.datadump_directory_path, self)
-            # NOTE add support for different file types
-            links_output.append({
-                "file_url": url,
-                "link_url": link_href,
-                "link_name": link.text,
-                "full_extracted_text": link_text,
-            })
-        return links_output
 
 
 
-
-    def parse_html(self, url: str):
+    def parse_html(
+            self, url: str, 
+            year: str | None = None,
+            parse_links: bool = True):
         self.get(url)
         xpath = "//main[@id='content' or @id='main'] | //div[@id='content' or @id='main']"
         try:
             content = self.driver_manager.driver.find_element(By.XPATH, xpath)
         except NoSuchElementException:
             logger.warning(f"No content found for url: {url}")
-            return "", []
-        text = content.text
-        # all links
-        links_output = self.process_links(url, content)
-        return text, links_output
+            return None
+        file_id = self.process_html_page(year)
+        def f_get_links():
+            links = []
+            for link in content.find_elements(By.XPATH, ".//a"):
+                link_text = link.get_attribute("textContent").strip()
+                link_url = link.get_attribute("href")
+                links.append((link_text, link_url))
+            return links
+        if parse_links:
+            processed_links = self.process_links(f_get_links, year=year)
+        else:
+            processed_links = []
+        return file_id, processed_links
+        
     
 
     def process_list_by_year(self, year:int, f_url, categories):
@@ -1237,27 +1585,30 @@ class AustraliaBankScrapper(BaseBankScraper):
                 continue
 
             to_process.append([date, href])
-        result = []
-        total_links = []
-        total_categories = []
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            text, links = self.parse_html(href)
-            total_links.extend(links)
-            result.append({
+            main_id, links_output = self.parse_html(href, year=str(date.year))
+            result = {
                 "date_published": date,
                 "scraping_time": pd.Timestamp.now(),
                 "file_url": href,
-                "full_extracted_text": text if len(text) > 0 else None,
-            })
-            total_categories.extend([
+                "file_id": main_id,
+            }
+            total_categories = [
                 {
                     "file_url": href,
                     "category_name": category.value
                 } for category in categories
-            ])
-
-        self.add_all_atomic(result, total_categories, total_links)
+            ]
+            total_links = [
+                {
+                    "file_url": href,
+                    "link_url": link,
+                    "link_name": link_text,
+                    "file_id": link_id,
+                } for (link, link_text, link_id) in links_output
+            ]
+            self.add_all_atomic([result], total_categories, total_links)
             
 
 
