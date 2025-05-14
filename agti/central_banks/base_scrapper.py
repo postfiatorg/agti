@@ -7,7 +7,7 @@ import logging
 import time
 import random
 import boto3
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import hashlib
 import pandas as pd
 import requests
@@ -17,7 +17,7 @@ import urllib3
 from agti.agti.central_banks.utils import classify_extension, get_hash_for_url, get_status
 from agti.utilities.settings import CredentialManager
 from botocore.exceptions import ClientError
-from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, SupportedScrapers, URLType
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, LinkMetadata, MainMetadata, SupportedScrapers, URLType
 from selenium.webdriver.common.by import By
 
 
@@ -532,22 +532,23 @@ class BaseBankScraper:
             f.write(pdf_data)
         logger.info(f"Saved page as PDF: {filepath}")
         return filepath
-    
-    def download_and_upload_file(self, url, extension, year=None):
+
+    def download_and_upload_file(self, url, extension, metadata: MainMetadata | LinkMetadata, year=None):
         """
         Download a file from the given URL and upload it to S3.
         
         Args:
             url (str): The URL of the file to download.
             extension (str): The file extension.
+            metadata (MainMetadata | LinkMetadata): Metadata to include in the S3 object.
             year (str): The year for the S3 path.
-            
+
         Returns:
             bool: True if the file was downloaded and uploaded successfully, False otherwise.
         """
         filepath = self.download_file(url, extension)
         if filepath is not None:
-            done = self.upload_file_to_s3(filepath, year=year)
+            done = self.upload_file_to_s3(filepath, metadata, year=year)
             if done:
                 return filepath.stem
             else:
@@ -567,12 +568,19 @@ class BaseBankScraper:
 
 
 
-    def upload_file_to_s3(self, filepath: Path, year: str = None, remove_file: bool = True):
+    def upload_file_to_s3(
+            self,
+            filepath: Path,
+            metadata: MainMetadata | LinkMetadata,
+            year: str = None,
+            remove_file: bool = True
+        ):
         """
         Upload a file to S3 bucket.
         
         Args:
             filepath (Path): The path of the file to upload.
+            metadata (MainMetadata | LinkMetadata): Metadata to include in the S3 object.
             year (str): The year for the S3 path.
             remove_file (bool): Whether to remove the local file after upload.
             
@@ -599,9 +607,18 @@ class BaseBankScraper:
             if error_code != "404":
                 logger.error(f"Unable to check existence of {key}: {e}")
                 # we upload the file anyway
-            
+        
+        # guess content type of filepath
+        ctype = mimetypes.guess_type(filepath)[0]
         # Upload the file to S3
-        self.bucket.upload_file(filepath, key)
+        self.bucket.upload_file(
+            filepath,
+            key,
+            ExtraArgs={
+                "ContentType": ctype,
+                "Metadata": metadata.to_dict(),
+            }
+        )
         # Remove local file if specified
         if remove_file:
             os.remove(filepath)
@@ -610,10 +627,10 @@ class BaseBankScraper:
         return True
     
 
-    def process_html_page(self, year):
+    def process_html_page(self, metadata: MainMetadata | LinkMetadata, year):
         filepath = self.save_page_as_pdf()
         if filepath is not None:
-            if self.upload_file_to_s3(filepath, year=year):
+            if self.upload_file_to_s3(filepath, metadata, year=year):
                 return filepath.stem
             logger.error(f"Failed to upload file to S3: {filepath}", extra={
                 "year": year,
@@ -703,7 +720,7 @@ class BaseBankScraper:
         
 
 
-    def process_links(self, f_get_links, year = None, allow_outside=False):
+    def process_links(self, main_file_id, f_get_links, year = None, allow_outside=False):
         """
         Args:
             f_get_links (function): Function to get links from the page
@@ -781,9 +798,13 @@ class BaseBankScraper:
             else:
                 # we ignore external links
                 pass
-
+            metadata = LinkMetadata(
+                link_name=link_text,
+                main_file_id=main_file_id,
+                url=link,
+            )
             if filepath is not None:
-                if self.upload_file_to_s3(filepath, year=year):
+                if self.upload_file_to_s3(filepath, metadata, year=year):
                     result.append((link, link_text, filepath.stem))
                 else:
                     logger.error(f"Failed to upload file to S3: {filepath}", extra={
