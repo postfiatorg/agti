@@ -121,7 +121,7 @@ class SwedenBankScrapper(BaseBankScraper):
             ]
             def f_get_links():
                 return links
-            processed_links = self.process_links(f_get_links, year=str(date.year))
+            processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
             total_links = [
                 {
                     "file_url": main_report[1],

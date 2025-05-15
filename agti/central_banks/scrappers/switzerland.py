@@ -20,6 +20,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
     IGNORED_PATHS = [
         "/contact",
         "/career",
+        "/claims/rss",
+        "/rss/claims"
     ]
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
@@ -408,6 +410,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             raise ValueError("No data found")
         
         for url in to_process:
+            if any([ignored_path in url for ignored_path in self.IGNORED_PATHS]):
+                continue
             logger.info(f"Processing: {url}")
             allowed_outside = False
             urlType, extension = self.clasify_url(url)
