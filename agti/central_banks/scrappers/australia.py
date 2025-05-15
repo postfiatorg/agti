@@ -6,7 +6,7 @@ import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 import urllib
-from agti.agti.central_banks.types import ExtensionType
+from agti.agti.central_banks.types import ExtensionType, LinkMetadata, MainMetadata
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -59,8 +59,14 @@ class AustraliaBankScrapper(BaseBankScraper):
             time_tag = self.driver_manager.driver.find_element(By.XPATH, "//time")
             date = pd.to_datetime(time_tag.text)
             main_content = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='content']")
-            main_id = self.process_html_page(date.year)
-            def f_get_linsk():
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id = self.process_html_page(main_metadata, str(date.year))
+            def f_get_links():
                 links = []
                 for link in main_content.find_elements(By.XPATH, ".//a"):
                     link_text = link.get_attribute("textContent").strip()
@@ -69,11 +75,11 @@ class AustraliaBankScrapper(BaseBankScraper):
                         continue
                     links.append((link_text, link_url))
                 return links
-            links_output = self.process_links(f_get_linsk, year=date.year)
+            links_output = self.process_links(main_id, f_get_links, year=date.year)
 
             result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id
             }
@@ -145,10 +151,16 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_id, links_output = self.parse_html(url, year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -202,14 +214,20 @@ class AustraliaBankScrapper(BaseBankScraper):
             allowed_outside = False
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=date_txt,
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=str(year))
-                if filepath is None:
+
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(year))
+                if main_id is None:
                     continue
                 total_links = []
-                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, str(year), main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -229,7 +247,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             result = {
                 "date_published": date,
                 "date_published_str": date_txt,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -265,7 +283,13 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for (date, url) in to_process:
             logger.info(f"Processing: {url}")
-            main_id, links_output = self.parse_html(url, year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
             total_links = [
                 {
                     "file_url": url,
@@ -276,7 +300,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             ]
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -324,10 +348,16 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_id, links_output = self.parse_html(url, year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -346,18 +376,16 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
-                    if filepath is None:
-                        logger.error(f"Failed to download file: {main_link}", extra={
-                            "url": url,
-                            "link_url": main_link,
-                            "urlType": urlType,
-                            "extension_type": extension
-                        })
+                    link_id = self.download_and_upload_file(main_link, extension, year=str(date.year))
+                    if link_id is None:
                         continue
-                    link_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                    metadata = LinkMetadata(
+                        url=main_link,
+                        link_name=main_link_text,
+                        main_file_id=main_id,
+                    )
+                    link_id, _ = self.parse_html(main_link, str(date.year), metadata, parse_links=False)
                 else:
                     if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                         logger.error(f"Unknown file type: {main_link}", extra={
@@ -420,14 +448,19 @@ class AustraliaBankScrapper(BaseBankScraper):
             allowed_outside = False
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=date_txt,
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=year)
-                if filepath is None:
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
+                if main_id is None:
                     continue
-                main_id = filepath.stem
                 total_links = []
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -447,7 +480,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             result = {
                 "date_published": date,
                 "date_published_str": date_txt,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -517,18 +550,23 @@ class AustraliaBankScrapper(BaseBankScraper):
                 else:
                     year = str(pd.to_datetime(date_txt).year)
             url_parsed = urlparse(url)
-            extracted_text = None
+            
             allowed_outside = False
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=date_txt,
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=year)
-                if filepath is None:
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
+                if main_id is None:
                     continue
-                main_id = filepath.stem
                 total_links = []
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -548,7 +586,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             result = {
                 "date_published": date,
                 "date_published_str": date_txt,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -593,10 +631,16 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url, temp_links in to_process:
             logger.info(f"Processing: {url}")
-            main_id, links_output = self.parse_html(url, year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -614,19 +658,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 allowed_outside = False
                 urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
+                link_metadata = LinkMetadata(
+                    url=main_link,
+                    link_name=main_link_text,
+                    main_file_id=main_id,
+                )
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
-                    if filepath is None:
-                        logger.error(f"Failed to download file: {main_link}", extra={
-                            "url": url,
-                            "link_url": main_link,
-                            "urlType": urlType,
-                            "extension_type": extension
-                        })
+                    link_id = self.download_and_upload_file(main_link, extension, main_metadata, year=str(date.year))
+                    if link_id is None:
                         continue
-                    link_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                    link_id, _ = self.parse_html(main_link, str(date.year), link_metadata, parse_links=False)
                 else:
                     if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                         logger.error(f"Unknown file type: {main_link}", extra={
@@ -686,19 +728,19 @@ class AustraliaBankScrapper(BaseBankScraper):
                 allowed_outside = False
                 urlType, extension = self.clasify_url(article_url, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=article_url,
+                    date_published=str(date),
+                    scraping_time=str(scraping_time),
+                )
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_and_upload_file(article_url, extension, year=str(date.year))
-                    if filepath is None:
-                        logger.error(f"Failed to download file: {article_url}", extra={
-                            "url": article_url,
-                            "urlType": urlType,
-                            "extension_type": extension
-                        })
+                    main_id = self.download_and_upload_file(article_url, extension, main_metadata, year=str(date.year))
+                    if main_id is None:
                         continue
-                    main_id = filepath.stem
                     total_links = []
                 elif extType == ExtensionType.WEBPAGE:
-                    main_id, links_output = self.parse_html(article_url, year=str(date.year))
+                    main_id, links_output = self.parse_html(article_url, str(date.year), main_metadata)
                     total_links = [
                         {
                             "file_url": article_url,
@@ -717,7 +759,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     continue
                 result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": article_url,
                     "file_id": main_id,
                 }
@@ -763,10 +805,16 @@ class AustraliaBankScrapper(BaseBankScraper):
             
             for date, url, temp_links in to_process:
                 logger.info(f"Processing: {url}")
-                main_id, links_output = self.parse_html(url, year=str(date.year))
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published=str(date),
+                    scraping_time=str(scraping_time),
+                )
+                main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
                 result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -784,19 +832,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                     allowed_outside = False
                     urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
+                    link_metadata = LinkMetadata(
+                        url=main_link,
+                        link_name=main_link_text,
+                        main_file_id=main_id,
+                    )
                     if extType == ExtensionType.FILE:
-                        filepath = self.download_and_upload_file(main_link, extension, year=str(date.year))
-                        if filepath is None:
-                            logger.error(f"Failed to download file: {main_link}", extra={
-                                "url": url,
-                                "link_url": main_link,
-                                "urlType": urlType,
-                                "extension_type": extension
-                            })
+                        link_id = self.download_and_upload_file(main_link, extension, link_metadata, year=str(date.year))
+                        if link_id is None:
                             continue
-                        link_id = filepath.stem
                     elif extType == ExtensionType.WEBPAGE:
-                        link_id, _ = self.parse_html(main_link, year=str(date.year), parse_links=False)
+                        link_id, _ = self.parse_html(main_link, str(date.year), link_metadata, parse_links=False)
                     else:
                         if allowed_outside or urlparse(main_link).netloc == self.bank_config.NETLOC:
                             logger.error(f"Unknown file type: {main_link}", extra={
@@ -847,12 +893,18 @@ class AustraliaBankScrapper(BaseBankScraper):
 
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published_str=str(date_txt),
+                    scraping_time=str(scraping_time),
+                )
                 year = str(pd.to_datetime(date_txt).year)
-                main_id, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -900,12 +952,18 @@ class AustraliaBankScrapper(BaseBankScraper):
 
             for (date_txt,url) in to_process:
                 logger.info(f"Processing: {url}")
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published_str=str(date_txt),
+                    scraping_time=str(scraping_time),
+                )
                 year = str(pd.to_datetime(date_txt).year)
-                main_id, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -959,10 +1017,16 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date, url, categories in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(date.year)
-                main_id, links_output = self.parse_html(url, year=year)
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published=str(date),
+                    scraping_time=str(scraping_time),
+                )
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -1000,11 +1064,17 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_id, links_output = self.parse_html(url, year=year)
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published_str=str(date_txt),
+                    scraping_time=str(scraping_time),
+                )
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -1045,11 +1115,17 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date_txt, url in to_process:
                 logger.info(f"Processing: {url}")
                 year = str(pd.to_datetime(date_txt).year)
-                main_id, links_output = self.parse_html(url, year=year)
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=url,
+                    date_published_str=str(date_txt),
+                    scraping_time=str(scraping_time),
+                )
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -1116,11 +1192,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date_txt = None
             else:
                 year = str(pd.to_datetime(date_txt).year)
-            main_id, links_output = self.parse_html(url, year=year)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=str(date_txt),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(url, year, main_metadata)
             result = {
                 "date_published": date,
                 "date_published_str": date_txt,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -1204,14 +1286,19 @@ class AustraliaBankScrapper(BaseBankScraper):
             allowed_outside = False
             urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
             total_links = []
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=year)
-                if filepath is None:
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
+                if main_id is None:
                     continue
-                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=year)
+                main_id, links_output = self.parse_html(url, year, main_metadata)
                 total_links.extend([
                     {
                         "file_url": url,
@@ -1230,7 +1317,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 continue
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -1238,19 +1325,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 for link_url, link_text in to_process_links[url]:
                     urlType, extension = self.clasify_url(link_url, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
+                    link_metadata = LinkMetadata(
+                        url=link_url,
+                        link_name=link_text,
+                        main_file_id=main_id,
+                    )
                     if extType == ExtensionType.FILE:
-                        filepath = self.download_and_upload_file(link_url, extension, year=year)
-                        if filepath is None:
-                            logger.error(f"Failed to download file: {link_url}", extra={
-                                "url": url,
-                                "link_url": link_url,
-                                "urlType": urlType,
-                                "extension_type": extension
-                            })
+                        link_id = self.download_and_upload_file(link_url, extension, link_metadata, year=year)
+                        if link_id is None:
                             continue
-                        link_id = filepath.stem
                     elif extType == ExtensionType.WEBPAGE:
-                        link_id, _ = self.parse_html(link_url, year=year, parse_links=False)
+                        link_id, _ = self.parse_html(link_url, year, link_metadata, parse_links=False)
                     else:
                         if allowed_outside or urlparse(link_url).netloc == self.bank_config.NETLOC:
                             logger.error(f"Unknown file type: {link_url}", extra={
@@ -1305,13 +1390,18 @@ class AustraliaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(url)
             extType = classify_extension(extension)
             allowed_outside = False
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=str(date.year))
-                if filepath is None:
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(date.year))
+                if main_id is None:
                     continue
-                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=str(date.year))
+                main_id, links_output = self.parse_html(url, str(date.year), main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -1330,7 +1420,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 continue
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -1356,6 +1446,12 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
             self.get(url)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=date_txt,
+                scraping_time=str(scraping_time),
+            )
             # find a tag with "report" or "Annual Report" text 
             a_tags = self.driver_manager.driver.find_elements(By.XPATH, "//div[@id='content']//a[text()='Report' or text()='report' or contains(text(),'Annual Report')]")
             if len(a_tags) > 0:
@@ -1367,17 +1463,11 @@ class AustraliaBankScrapper(BaseBankScraper):
                 urlType, extension = self.clasify_url(url)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
-                    filepath = self.download_and_upload_file(url, extension, year=str(year))
-                    if filepath is None:
-                        logger.error(f"Failed to download file: {url}", extra={
-                            "url": url,
-                            "urlType": urlType,
-                            "extension_type": extension
-                        })
+                    main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(year))
+                    if main_id is None:
                         continue
-                    main_id = filepath.stem
                 elif extType == ExtensionType.WEBPAGE:
-                    main_id, links_output = self.parse_html(url, year=str(year))
+                    main_id, links_output = self.parse_html(url, str(year), main_metadata)
                     total_links = [
                         {
                             "file_url": url,
@@ -1397,7 +1487,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -1409,7 +1499,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.warning(f"No data found for year: {year} and url: {rba_ar_url.format(year)}")
                     continue
                 logger.info(f"Processing: {url}")
-                main_id, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, str(year), main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -1421,7 +1511,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": url,
                     "file_id": main_id,
                 }
@@ -1430,19 +1520,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                     a_url = a_tag.get_attribute("href")
                     a_urlType, a_extension = self.clasify_url(a_url)
                     a_extType = classify_extension(a_extension)
+                    link_metadata = LinkMetadata(
+                        url=a_url,
+                        link_name=a_tag.text,
+                        main_file_id=main_id,
+                    )
                     if a_extType == ExtensionType.FILE:
-                        filepath = self.download_and_upload_file(a_url, a_extension, year=str(year))
-                        if filepath is None:
-                            logger.error(f"Failed to download file: {a_url}", extra={
-                                "url": url,
-                                "link_url": a_url,
-                                "urlType": a_urlType,
-                                "extension_type": a_extension
-                            })
+                        link_id = self.download_and_upload_file(a_url, a_extension, link_metadata, year=str(year))
+                        if link_id is None:
                             continue
-                        link_id = filepath.stem
                     elif a_extType == ExtensionType.WEBPAGE:
-                        link_id, _ = self.parse_html(a_url, year=str(year), parse_links=False)
+                        link_id, _ = self.parse_html(a_url, str(year), link_metadata, parse_links=False)
                         total_links.append({
                             "file_url": url,
                             "link_url": a_url,
@@ -1487,13 +1575,18 @@ class AustraliaBankScrapper(BaseBankScraper):
             urlType, extension = self.clasify_url(url)
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=url,
+                date_published_str=str(year),
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                filepath = self.download_and_upload_file(url, extension, year=str(year))
-                if filepath is None:
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(year))
+                if main_id is None:
                     continue
-                main_id = filepath.stem
             elif extType == ExtensionType.WEBPAGE:
-                main_id, links_output = self.parse_html(url, year=str(year))
+                main_id, links_output = self.parse_html(url, str(year), main_metadata)
                 total_links = [
                     {
                         "file_url": url,
@@ -1514,7 +1607,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             result = {
                 "date_published": None,
                 "date_published_str": str(year),
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
@@ -1537,8 +1630,9 @@ class AustraliaBankScrapper(BaseBankScraper):
 
 
     def parse_html(
-            self, url: str, 
-            year: str | None = None,
+            self, url: str,
+            year: str,
+            metadata: MainMetadata | LinkMetadata,
             parse_links: bool = True):
         self.get(url)
         xpath = "//main[@id='content' or @id='main'] | //div[@id='content' or @id='main']"
@@ -1547,7 +1641,7 @@ class AustraliaBankScrapper(BaseBankScraper):
         except NoSuchElementException:
             logger.warning(f"No content found for url: {url}")
             return None
-        file_id = self.process_html_page(year)
+        file_id = self.process_html_page(metadata, year)
         def f_get_links():
             links = []
             for link in content.find_elements(By.XPATH, ".//a"):
@@ -1556,7 +1650,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 links.append((link_text, link_url))
             return links
         if parse_links:
-            processed_links = self.process_links(f_get_links, year=year)
+            processed_links = self.process_links(file_id, f_get_links, year=year)
         else:
             processed_links = []
         return file_id, processed_links
@@ -1587,10 +1681,20 @@ class AustraliaBankScrapper(BaseBankScraper):
             to_process.append([date, href])
         for date, href in to_process:
             logger.info(f"Processing: {href}")
-            main_id, links_output = self.parse_html(href, year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=href,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id, links_output = self.parse_html(
+                href,
+                str(date.year),
+                main_metadata,
+            )
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": href,
                 "file_id": main_id,
             }

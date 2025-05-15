@@ -107,7 +107,6 @@ const callback = arguments[0];
         main_metadata = MainMetadata(
             url=url,
             date_published=str(timestamp),
-            date_published_str=None,
             scraping_time=str(scraping_time),
         )
         if extType == ExtensionType.FILE:

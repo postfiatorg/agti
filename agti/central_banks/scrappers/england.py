@@ -6,6 +6,7 @@ import logging
 import copy
 import selenium
 from selenium.webdriver.common.by import By
+from agti.agti.central_banks.types import MainMetadata
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
@@ -93,13 +94,19 @@ class EnglandBankScrapper(BaseBankScraper):
         logger.debug(f"Filters applied to topic: {topic}")
     
 
-    def parse_html(self, url: str, year):
+    def parse_html(self, url: str, date: pd.Timestamp, scraping_time: pd.Timestamp):
         # find main with id="main-content"
         self.get(url)
+        year = str(date.year)
         xpath = "//main[@id='main-content']"
         main = self.driver_manager.driver.find_element(By.XPATH, xpath)
-
-        file_id = self.process_html_page(year)
+        main_metadata = MainMetadata(
+            url=url,
+            date_published=str(date),
+            date_published_str=None,
+            scraping_time=str(scraping_time),
+        )
+        file_id = self.process_html_page(main_metadata,year)
         def f_get_links():
             links = []
             for link in main.find_elements(By.XPATH, ".//a"):
@@ -112,7 +119,7 @@ class EnglandBankScrapper(BaseBankScraper):
                                 continue
                 links.append((link_text, link_url))
             return links
-        processed_links = self.process_links(f_get_links, year=year)
+        processed_links = self.process_links(file_id, f_get_links, year=year)
         return file_id, processed_links
 
 
@@ -174,10 +181,11 @@ class EnglandBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {href}")
                     continue
                 logger.info(f"Processing: {href}")
-                main_id, links_output = self.parse_html(href, year=str(date.year))
+                scraping_time = pd.Timestamp.now()
+                main_id, links_output = self.parse_html(href, date, scraping_time)
                 result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": href,
                     "file_id": main_id,
                 }

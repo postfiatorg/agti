@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from agti.agti.central_banks.types import ExtensionType
+from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from ..base_scrapper import BaseBankScraper
 from ..utils import Categories, classify_extension, download_and_read_pdf
 from selenium.common.exceptions import NoSuchElementException
@@ -97,21 +97,25 @@ class SwedenBankScrapper(BaseBankScraper):
             links = list(filter(lambda x: x[1] != main_report[1], values))
 
             logger.info(f"Processing {main_report[1]}")
-
-
-            main_id = self.download_and_upload_file(main_report[0], extension="pdf", year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=main_report[1],
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id = self.download_and_upload_file(main_report[1], "pdf", main_metadata, year=str(date.year))
             if main_id is None:
                 continue
             
             result = {
-                "file_url": main_report[0],
+                "file_url": main_report[1],
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories = [
                 {
-                    "file_url": main_report[0],
+                    "file_url": main_report[1],
                     "category_name": Categories.MONETARY_POLICY.value
                 }
             ]
@@ -120,7 +124,7 @@ class SwedenBankScrapper(BaseBankScraper):
             processed_links = self.process_links(f_get_links, year=str(date.year))
             total_links = [
                 {
-                    "file_url": main_report[0],
+                    "file_url": main_report[1],
                     "link_url": link,
                     "link_name": link_text,
                     "file_id": link_id,
@@ -161,7 +165,13 @@ class SwedenBankScrapper(BaseBankScraper):
             logger.info(f"Processing {href}")
             self.get(href)
             main_div = self.driver_manager.driver.find_element(By.XPATH, "//div[@id='main']")
-            main_id = self.process_html_page(str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=href,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id = self.process_html_page(main_metadata, str(date.year))
             def f_get_links():
                 links = []
                 for link in main_div.find_elements(By.XPATH, ".//a"):
@@ -174,7 +184,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         continue
                     links.append((link_text, link_url))
                 return links
-            processed_links = self.process_links(f_get_links, year=str(date.year))
+            processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
             total_links = [
                 {
                     "file_url": href,
@@ -186,7 +196,7 @@ class SwedenBankScrapper(BaseBankScraper):
             result = {
                 "file_url": href,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories = [
@@ -265,30 +275,33 @@ class SwedenBankScrapper(BaseBankScraper):
 
             links = list(filter(lambda x: x[1] != main_report[1], values))
             logger.info(f"Processing {main_report[1]}")
-            main_id = self.download_and_upload_file(main_report[1], extension="pdf", year=str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=main_report[1],
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
+            main_id = self.download_and_upload_file(main_report[1], "pdf", main_metadata, year=str(date.year))
             if main_id is None:
                 continue
-
-
-            
             result = {
-                "file_url": main_report[0],
+                "file_url": main_report[1],
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories = [
                 {
-                    "file_url": main_report[0],
+                    "file_url": main_report[1],
                     "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value
                 }
             ]
             def f_get_links():
                 return links
-            processed_links = self.process_links(f_get_links, year=str(date.year))
+            processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
             total_links = [
                 {
-                    "file_url": main_report[0],
+                    "file_url": main_report[1],
                     "link_url": link,
                     "link_name": link_text,
                     "file_id": link_id,
@@ -354,18 +367,24 @@ class SwedenBankScrapper(BaseBankScraper):
         for date, href, categories in to_process:
             logger.info(f"Processing {href}")
             self.get(href)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=href,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
             articles = self.driver_manager.driver.find_elements(By.XPATH, "//article")
             if len(articles) > 1:
                 raise Exception("More than one article found")
             article = articles[0]
             
-            main_id = self.process_html_page(str(date.year))
+            main_id = self.process_html_page(main_metadata, str(date.year))
             if main_id is None:
                 continue
             result = {
                 "file_url": href,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
 
@@ -381,7 +400,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         continue
                     links.append((link_text, link_url))
                 return links
-            processed_links = self.process_links(f_get_links, year=str(date.year))
+            processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
             
             total_links = [
                 {
@@ -453,13 +472,20 @@ class SwedenBankScrapper(BaseBankScraper):
         # archive
         single_url = "https://archive.riksbank.se/Documents/Rapporter/Fin_infra/2016/rap_finansiell_infrastruktur_160426_eng.pdf"
         if single_url not in all_urls:
-            main_id = self.download_and_upload_file(single_url, extension="pdf", year="2016")
+            scraping_time = pd.Timestamp.now()
+            published_date = pd.to_datetime("2016-04-26")
+            main_metadata = MainMetadata(
+                url=single_url,
+                date_published=str(published_date),
+                scraping_time=str(scraping_time),
+            )
+            main_id = self.download_and_upload_file(single_url, "pdf", main_metadata, year="2016")
             if main_id is not None:
                 result = [
                     {
                         "file_url":single_url,
-                        "date_published": pd.to_datetime("2016-04-26"),
-                        "scraping_time": pd.Timestamp.now(),
+                        "date_published": published_date,
+                        "scraping_time": scraping_time,
                         "file_id": main_id,
                     }
                 ]
@@ -495,13 +521,20 @@ class SwedenBankScrapper(BaseBankScraper):
 
         for single_url in archive_urls:
             if single_url not in all_urls:
-                main_id = self.upload_file(single_url, extension="pdf", year="2016")
+                scraping_time = pd.Timestamp.now()
+                published_date = pd.to_datetime("2016-11-16")
+                main_metadata = MainMetadata(
+                    url=single_url,
+                    date_published=str(published_date),
+                    scraping_time=str(scraping_time),
+                )
+                main_id = self.download_and_upload_file(single_url, "pdf", main_metadata, year="2016")
                 if main_id is None:
                     continue
                 result = {
                         "file_url":single_url,
-                        "date_published": pd.to_datetime("2016-11-16"),
-                        "scraping_time": pd.Timestamp.now(),
+                        "date_published": published_date,
+                        "scraping_time": scraping_time,
                         "file_id": main_id,
                     }
                 
@@ -656,8 +689,14 @@ class SwedenBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             processed_links = []
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=href,
+                date_published=str(date),
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(href, extension, year=year)
+                main_id = self.download_and_upload_file(href, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
             elif extType == ExtensionType.WEBPAGE:
@@ -665,7 +704,7 @@ class SwedenBankScrapper(BaseBankScraper):
                 pdf_xpath = "//a[contains(text(), 'Download PDF')] | //a[@class='report-page__download']"
                 pdf_links = self.driver_manager.driver.find_elements(By.XPATH, pdf_xpath)
                 if len(pdf_links) > 0:
-                    main_id = self.download_and_upload_file(href, extension, year=year)
+                    main_id = self.download_and_upload_file(href, extension, main_metadata, year=year)
                     if main_id is None:
                         continue
                 else:
@@ -682,8 +721,8 @@ class SwedenBankScrapper(BaseBankScraper):
                                             continue
                             links.append((link_text, link_url))
                         return links
-                    main_id = self.process_html_page(year)
-                    processed_links = self.process_links(f_get_links, year=year)
+                    main_id = self.process_html_page(main_metadata, year)
+                    processed_links = self.process_links(main_id, f_get_links, year=year)
             else:
                 if allowed_outside or urlparse(href).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {href}", extra={
@@ -696,7 +735,7 @@ class SwedenBankScrapper(BaseBankScraper):
             result = {
                 "file_url": href,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_links = [

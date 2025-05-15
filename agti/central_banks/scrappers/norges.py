@@ -7,6 +7,8 @@ import time
 import requests
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+
+from agti.agti.central_banks.types import MainMetadata
 from ..base_scrapper import BaseBankScraper
 from ..utils import Categories, download_and_read_pdf
 
@@ -203,13 +205,19 @@ class NorgesBankScrapper(BaseBankScraper):
                 self.get(href)
                 # open all datails html tag
                 self.open_all_details()
-                main_id = self.process_html_page(str(date.year))
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=href,
+                    date_published=str(date),
+                    scraping_time=str(scraping_time),
+                )
+                main_id = self.process_html_page(main_metadata,str(date.year))
                 if main_id is None:
                     continue
                 result = {
                     "file_url": href,
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 content = None
@@ -236,7 +244,7 @@ class NorgesBankScrapper(BaseBankScraper):
                             continue
                         links.append((link_text, link_url))
                     return links
-                processed_links = self.process_links(f_get_links, year=str(date.year))
+                processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
                 total_links = [
                     {
                         "file_url": href,
@@ -333,13 +341,19 @@ class NorgesBankScrapper(BaseBankScraper):
                 date = pd.to_datetime(hit["date"])
                 self.get(total_url)
                 self.open_all_details()
-                main_id = self.process_html_page(str(date.year))
+                scraping_time = pd.Timestamp.now()
+                main_metadata = MainMetadata(
+                    url=total_url,
+                    date_published=str(date),
+                    scraping_time=str(scraping_time),
+                )
+                main_id = self.process_html_page(main_metadata, str(date.year))
                 if main_id is None:
                     continue
                 result = {
                     "file_url": total_url,
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 xpaths = [
@@ -370,7 +384,7 @@ class NorgesBankScrapper(BaseBankScraper):
                         links.append((link_text, link_url))
                     return links
                 
-                processed_links = self.process_links(f_get_links, year=str(date.year))
+                processed_links = self.process_links(main_id, f_get_links, year=str(date.year))
                 total_links = [
                     {
                         "file_url": total_url,

@@ -611,13 +611,15 @@ class BaseBankScraper:
         # guess content type of filepath
         ctype = mimetypes.guess_type(filepath)[0]
         # Upload the file to S3
+        extra_args = {
+            "Metadata": metadata.to_dict(),
+        }
+        if ctype is not None:
+            extra_args["ContentType"] = ctype
         self.bucket.upload_file(
             filepath,
             key,
-            ExtraArgs={
-                "ContentType": ctype,
-                "Metadata": metadata.to_dict(),
-            }
+            ExtraArgs=extra_args,
         )
         # Remove local file if specified
         if remove_file:

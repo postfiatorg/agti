@@ -49,16 +49,11 @@ class URLType(Enum):
 @dataclass
 class Metadata:
     url: str
-
-    def verify(self) -> bool:
-        if not self.url:
-            raise ValueError("URL is missing")
         
     def _normalize(self):
         self.url = quote(self.url)
 
     def to_dict(self) -> dict:
-        self.verify()
         self._normalize()
         return {k: v for k, v in asdict(self).items() if v is not None}
 
@@ -68,13 +63,6 @@ class MainMetadata(Metadata):
     date_published: Optional[str] = None
     date_published_str: Optional[str] = None
 
-    def verify(self):
-        super().verify()
-        if not (self.date_published or self.date_published_str):
-            raise ValueError("Either date_published or date_published_str must be present")
-        if not self.scraping_time:
-            raise ValueError("scraping_time is missing")
-
 @dataclass
 class LinkMetadata(Metadata):
     link_name: str
@@ -83,13 +71,6 @@ class LinkMetadata(Metadata):
     def _normalize(self):
         super()._normalize()
         self.link_name = unicodedata.normalize("NFKD", self.link_name).encode("ascii", "ignore").decode("ascii")
-
-    def verify(self):
-        super().verify()
-        if not self.link_name:
-            raise ValueError("link_name is missing")
-        if not self.main_file_id:
-            raise ValueError("main_file_id is missing")
 @dataclass
 class BotoS3Config:
     REGION_NAME: str
