@@ -14,7 +14,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 from sqlalchemy import text
 
 
@@ -375,8 +375,13 @@ class AustraliaBankScrapper(BaseBankScraper):
                 allowed_outside = False
                 urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
+                link_metadata = LinkMetadata(
+                    url=main_link,
+                    link_name=main_link_text,
+                    main_file_id=main_id,
+                )
                 if extType == ExtensionType.FILE:
-                    link_id = self.download_and_upload_file(main_link, extension, year=str(date.year))
+                    link_id = self.download_and_upload_file(main_link, extension, link_metadata,  year=str(date.year))
                     if link_id is None:
                         continue
                 elif extType == ExtensionType.WEBPAGE:

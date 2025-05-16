@@ -13,7 +13,7 @@ from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories
 
 
 logger = logging.getLogger(__name__)

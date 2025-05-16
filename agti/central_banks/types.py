@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Optional
 import unicodedata
 from urllib.parse import quote
+from agti.agti.central_banks.utils import clean_text
 from agti.agti.utilities.db_manager import DBConnectionManager
 
 
@@ -70,6 +71,7 @@ class LinkMetadata(Metadata):
 
     def _normalize(self):
         super()._normalize()
+        self.link_name = clean_text(self.link_name)
         self.link_name = unicodedata.normalize("NFKD", self.link_name).encode("ascii", "ignore").decode("ascii")
 @dataclass
 class BotoS3Config:

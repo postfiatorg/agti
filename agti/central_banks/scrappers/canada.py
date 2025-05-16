@@ -10,7 +10,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 from agti.agti.central_banks.types import ExtensionType, MainMetadata, URLType
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 
 __all__ = ["CanadaBankScrapper"]
 

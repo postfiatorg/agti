@@ -12,7 +12,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 from selenium.common.exceptions import NoSuchElementException
 
 logger = logging.getLogger(__name__)

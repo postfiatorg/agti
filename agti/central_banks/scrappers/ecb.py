@@ -9,7 +9,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf, pageBottom
+from ..utils import Categories, classify_extension
 
 
 

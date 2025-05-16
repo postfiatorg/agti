@@ -10,7 +10,7 @@ from selenium.webdriver.common.by import By
 
 from agti.agti.central_banks.types import MainMetadata
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, download_and_read_pdf
+from ..utils import Categories
 
 
 logger = logging.getLogger(__name__)
