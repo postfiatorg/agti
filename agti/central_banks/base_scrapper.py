@@ -14,7 +14,8 @@ import requests
 from sqlalchemy import text
 from selenium.webdriver.support import expected_conditions as EC
 import urllib3
-from agti.agti.central_banks.utils import classify_extension, clean_text, get_hash_for_url, get_status
+from agti.agti.central_banks.utils import classify_extension, get_hash_for_url, get_status
+from agti.agti.central_banks.common import clean_text
 from agti.utilities.settings import CredentialManager
 from botocore.exceptions import ClientError
 from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, LinkMetadata, MainMetadata, SupportedScrapers, URLType

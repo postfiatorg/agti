@@ -6,7 +6,7 @@ from enum import Enum
 from typing import Optional
 import unicodedata
 from urllib.parse import quote
-from agti.agti.central_banks.utils import clean_text
+from agti.agti.central_banks.common import clean_text
 from agti.agti.utilities.db_manager import DBConnectionManager
 
 
