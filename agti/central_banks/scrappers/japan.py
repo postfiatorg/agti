@@ -613,7 +613,7 @@ class JapanBankScrapper(BaseBankScraper):
                     if href in all_urls:
                         logger.debug(f"Href is already in db: {href}")
                         continue
-                    to_process.append((None, href))
+                    to_process.append((None, href, year))
 
             self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -753,7 +753,16 @@ class JapanBankScrapper(BaseBankScraper):
         return result, processed_links
     
     def extract_data_update_tables(self, to_process, tags):
-        for date, href in to_process:
+        if len(to_process) == 0:
+            return
+        for item_to_process in to_process:
+            if len(item_to_process) == 2:
+                date, href = item_to_process
+                year = str(date.year)
+            elif len(item_to_process) == 3:
+                _, href, year = item_to_process
+                if not isinstance(year, str):
+                    year = str(year)
             logger.info(f"Processing: {href}")
             urlType, extension = self.clasify_url(href)
             total_links = []
@@ -766,7 +775,7 @@ class JapanBankScrapper(BaseBankScraper):
                 scraping_time=str(scraping_time),
             )
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(href, extension, main_metadata, year=str(date.year))
+                main_id = self.download_and_upload_file(href, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
                 result = {

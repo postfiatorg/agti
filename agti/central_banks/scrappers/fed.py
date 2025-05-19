@@ -913,12 +913,12 @@ class FEDBankScrapper(BaseBankScraper):
                     if len(total_categories) > 0:
                         self.add_to_categories(total_categories)
                     continue
-                to_process.append((href, date))
+                to_process.append((href, date, year))
 
-            for url, date in to_process:
+            for url, date, year in to_process:
                 logger.info(f"Processing: {url}")
                 scraping_time = pd.Timestamp.now()
-                text, total_links = self.read_html(url, str(date.year), scraping_time, date=date)
+                text, total_links = self.read_html(url, str(year), scraping_time, date=date)
                 
                 total_categories = [
                     {

@@ -1114,19 +1114,18 @@ class AustraliaBankScrapper(BaseBankScraper):
                         logger.debug(f"Href is already in db: {url}")
                         continue
                     date_txt = f"{month} {year}"
-                to_process.append((date_txt, url))
+                to_process.append((date_txt, url, year))
 
 
-            for date_txt, url in to_process:
+            for date_txt, url, year in to_process:
                 logger.info(f"Processing: {url}")
-                year = str(pd.to_datetime(date_txt).year)
                 scraping_time = pd.Timestamp.now()
                 main_metadata = MainMetadata(
                     url=url,
                     date_published_str=str(date_txt),
                     scraping_time=str(scraping_time),
                 )
-                main_id, links_output = self.parse_html(url, year, main_metadata)
+                main_id, links_output = self.parse_html(url, str(year), main_metadata)
                 result = {
                     "date_published": None,
                     "date_published_str": date_txt,
