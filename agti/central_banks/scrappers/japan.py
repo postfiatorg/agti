@@ -709,9 +709,10 @@ class JapanBankScrapper(BaseBankScraper):
     ##########################
     # Helper function
     ########################## 
-    def parse_html(self, url: str, date):
+    def parse_html(self, url: str, date, year:str = None):
         self.get(url)
-        year = str(date.year)
+        if year is None:
+            year = str(date.year)
         if "www.imes.boj.or.jp" in urlparse(url):
             # find the iframe and switch to it
             try:
@@ -727,13 +728,15 @@ class JapanBankScrapper(BaseBankScraper):
         scraping_time = pd.Timestamp.now()
         main_metadata = MainMetadata(
             url=url,
-            date_published=str(date),
+            date_published=str(date) if date is not None else None,
+            date_published_str=year if date is None else None,
             scraping_time=str(scraping_time),
         )
         file_id = self.process_html_page(main_metadata, year)
         result = {
             "file_url": url,
-            "date_published": date,
+            "date_published": date if date is not None else None,
+            "date_published_str": year if date is None else None,
             "scraping_time": scraping_time,
             "file_id": file_id,
         }
@@ -760,7 +763,8 @@ class JapanBankScrapper(BaseBankScraper):
                 date, href = item_to_process
                 year = str(date.year)
             elif len(item_to_process) == 3:
-                _, href, year = item_to_process
+                # this case date == None
+                date, href, year = item_to_process
                 if not isinstance(year, str):
                     year = str(year)
             logger.info(f"Processing: {href}")
@@ -771,7 +775,7 @@ class JapanBankScrapper(BaseBankScraper):
             scraping_time = pd.Timestamp.now()
             main_metadata = MainMetadata(
                 url=href,
-                date_published=str(date),
+                date_published=str(date) if date is not None else None,
                 scraping_time=str(scraping_time),
             )
             if extType == ExtensionType.FILE:
@@ -780,12 +784,13 @@ class JapanBankScrapper(BaseBankScraper):
                     continue
                 result = {
                     "file_url": href,
-                    "date_published": date,
+                    "date_published": date if date is not None else None,
+                    "date_published_str": year if date is None else None,
                     "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
             elif extType == ExtensionType.WEBPAGE:
-                result, links_output = self.parse_html(href, date)
+                result, links_output = self.parse_html(href, date, year=year)
                 if result is None:
                     continue
                 total_links = [
