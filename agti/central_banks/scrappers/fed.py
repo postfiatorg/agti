@@ -8,15 +8,10 @@ import requests
 import re
 import selenium
 from selenium.webdriver.common.by import By
-from agti.agti.central_banks.types import ExtensionType
-from agti.utilities.settings import CredentialManager
-from agti.utilities.settings import PasswordMapLoader
-from agti.utilities.db_manager import DBConnectionManager
-from selenium.webdriver.support.ui import WebDriverWait
+from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from selenium.webdriver.support import expected_conditions as EC
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 from ..base_scrapper import BaseBankScraper
-import pdfplumber
 
 logger = logging.getLogger(__name__)
 
@@ -82,11 +77,12 @@ class FEDBankScrapper(BaseBankScraper):
 
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            main_id, total_links = self.read_html(url, str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_id, total_links = self.read_html(url, str(date.year),scraping_time,date = date)
             result ={
                 "file_url": url,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories = [
@@ -124,11 +120,12 @@ class FEDBankScrapper(BaseBankScraper):
 
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            main_id, total_links = self.read_html(url, str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_id, total_links = self.read_html(url, str(date.year), scraping_time, date=date)
             result = {
                 "file_url": url,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories.extend([
@@ -164,11 +161,12 @@ class FEDBankScrapper(BaseBankScraper):
             to_process.append((url, date, categories))
         for url, date, categories in to_process:
             logger.info(f"Processing: {url}")
-            main_id, total_links = self.read_html(url, str(date.year))
+            scraping_time = pd.Timestamp.now()
+            main_id, total_links = self.read_html(url, str(date.year),scraping_time, date=date)
             result = {
                 "file_url": url,
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories.extend([
@@ -243,24 +241,18 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(total_url, extension, year=str(date.year))
+                main_metadata = MainMetadata(
+                    url=total_url,
+                    scraping_time=str(scraping_time),
+                    date_published=str(date),
+                )
+                main_id = self.download_and_upload_file(total_url, extension, main_metadata, year=str(date.year))
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": total_url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(total_url, str(date.year))
-                result = {
-                    "file_url": total_url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(total_url, str(date.year),scraping_time, date=date)
             else:
                 if allowed_outside or urlparse(total_url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {total_url}", extra={
@@ -269,6 +261,12 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
+            result = {
+                "file_url": total_url,
+                "date_published": date,
+                "scraping_time": pd.Timestamp.now(),
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -327,24 +325,18 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(total_url, extension, year=str(date.year))
+                main_metadata = MainMetadata(
+                    url=total_url,
+                    scraping_time=str(scraping_time),
+                    date_published=str(date),
+                )
+                main_id = self.download_and_upload_file(total_url, extension, main_metadata, year=str(date.year))
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": total_url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(total_url, str(date.year))
-                result = {
-                    "file_url": total_url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(total_url, str(date.year))
             else:
                 if allowed_outside or urlparse(total_url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {total_url}", extra={
@@ -353,6 +345,12 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
+            result = {
+                "file_url": total_url,
+                "date_published": date,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": total_url, "category_name": Categories.MONETARY_POLICY.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -421,26 +419,18 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=year)
+                main_metadata = MainMetadata(
+                    url=url,
+                    scraping_time=str(scraping_time),
+                    date_published_str=date_txt,
+                )
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": url,
-                    "date_published_str": date_txt,
-                    "date_published": None,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(url, year)
-                result = {
-                    "file_url": url,
-                    "date_published_str": date_txt,
-                    "date_published": None,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(url, year, scraping_time,date_txt=date_txt)
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {url}", extra={
@@ -449,6 +439,13 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
+            result = {
+                "file_url": url,
+                "date_published_str": date_txt,
+                "date_published": None,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -503,24 +500,18 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=str(date.year))
+                main_metadata = MainMetadata(
+                    url=url,
+                    scraping_time=str(scraping_time),
+                    date_published=str(date),
+                )
+                main_id = self.download_and_upload_file(url, extension, main_metadata,  year=str(date.year))
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(url, str(date.year))
-                result = {
-                    "file_url": url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(url, str(date.year), scraping_time, date=date)
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {url}", extra={
@@ -529,7 +520,12 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
-
+            result = {
+                "file_url": url,
+                "date_published": date,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -569,24 +565,18 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=year)
+                main_metadata = MainMetadata(
+                    url=url,
+                    scraping_time=str(scraping_time),
+                    date_published_str=date_txt,
+                )
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(url, year)
-                result = {
-                    "file_url": url,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(url, year, scraping_time, date_txt=date_txt)
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {url}", extra={
@@ -595,7 +585,12 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
-
+            result = {
+                "file_url": url,
+                "date_published": date,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": url, "category_name": Categories.MONETARY_POLICY.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -653,10 +648,11 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
             year = date_txt.split(" ")[1]
-            main_id, _ = self.read_html(url, year, parse_links=False)
+            scraping_time = pd.Timestamp.now()
+            main_id, _ = self.read_html(url, year, scraping_time, date_txt=date_txt, parse_links=False)
             total_links = []
             if url in links_to_process:
-                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                processed_links = self.process_links(main_id, lambda: links_to_process[url], year=year)
                 total_links = [
                     {
                         "file_url": url,
@@ -670,7 +666,7 @@ class FEDBankScrapper(BaseBankScraper):
                 "file_url": url,
                 "date_published_str": date_txt,
                 "date_published": None,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             self.add_all_atomic([result], total_categories, total_links)
@@ -716,10 +712,11 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
             year = date_txt.split(" ")[1]
-            main_id, _ = self.read_html(url, year, parse_links=False)
+            scraping_time = pd.Timestamp.now()
+            main_id, _ = self.read_html(url, year, scraping_time, date_txt=date_txt, parse_links=False)
             total_links = []
             if url in links_to_process:
-                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                processed_links = self.process_links(main_id, lambda: links_to_process[url], year=year)
                 total_links = [
                     {
                         "file_url": url,
@@ -733,7 +730,7 @@ class FEDBankScrapper(BaseBankScraper):
                 "file_url": url,
                 "date_published_str": date_txt,
                 "date_published": None,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             self.add_all_atomic([result], total_categories, total_links)
@@ -789,20 +786,19 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=year)
+                main_metadata = MainMetadata(
+                    url=url,
+                    scraping_time=str(scraping_time),
+                    date_published_str=date_txt,
+                )
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": url,
-                    "date_published": None,
-                    "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, _ = self.read_html(url, year, parse_links=False)
-                processed_links = self.process_links(lambda: links_to_process[url], year=year)
+                main_id, _ = self.read_html(url, year, scraping_time, date_txt=date_txt, parse_links=False)
+                processed_links = self.process_links(main_id, lambda: links_to_process[url], year=year)
                 total_links = [
                     {
                         "file_url": url,
@@ -811,13 +807,6 @@ class FEDBankScrapper(BaseBankScraper):
                         "file_id": link_id,
                     } for (link, link_text, link_id) in processed_links
                 ]
-                result = {
-                    "file_url": url,
-                    "date_published": None,
-                    "date_published_str": date_txt,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {url}", extra={
@@ -826,7 +815,13 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
-
+            result = {
+                "file_url": url,
+                "date_published": None,
+                "date_published_str": date_txt,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": url, "category_name": Categories.MARKET_OPERATIONS_AND_PAYMENT_SYSTEMS.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
@@ -869,7 +864,8 @@ class FEDBankScrapper(BaseBankScraper):
             for url, date_txt in to_process:
                 year = date_txt.split(" ")[1]
                 logger.info(f"Processing: {url}")
-                main_id, total_links = self.read_html(url, year)
+                scraping_time = pd.Timestamp.now()
+                main_id, total_links = self.read_html(url, year,scraping_time, date_txt=date_txt)
                 
                 total_categories = [
                     {
@@ -882,7 +878,7 @@ class FEDBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "date_published_str": date_txt,
                     "date_published": None,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 self.add_all_atomic([result], total_categories, total_links)
@@ -917,11 +913,12 @@ class FEDBankScrapper(BaseBankScraper):
                     if len(total_categories) > 0:
                         self.add_to_categories(total_categories)
                     continue
-                to_process.append((href, date))
+                to_process.append((href, date, year))
 
-            for url, date in to_process:
+            for url, date, year in to_process:
                 logger.info(f"Processing: {url}")
-                text, total_links = self.read_html(url, str(date.year))
+                scraping_time = pd.Timestamp.now()
+                text, total_links = self.read_html(url, str(year), scraping_time, date=date)
                 
                 total_categories = [
                     {
@@ -932,7 +929,7 @@ class FEDBankScrapper(BaseBankScraper):
                 result.append({
                     "file_url": url,
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "full_extracted_text": text,
                 })
             self.add_all_atomic(result, total_categories, total_links)
@@ -972,7 +969,8 @@ class FEDBankScrapper(BaseBankScraper):
             for url, date in to_process:
                 year = str(date.year)
                 logger.info(f"Processing: {url}")
-                main_id, total_links = self.read_html(url, year)
+                scraping_time = pd.Timestamp.now()
+                main_id, total_links = self.read_html(url, year, scraping_time, date=date)
                 
                 total_categories = [
                     {
@@ -983,7 +981,7 @@ class FEDBankScrapper(BaseBankScraper):
                 result = {
                     "file_url": url,
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 self.add_all_atomic([result], total_categories, total_links)
@@ -1040,13 +1038,13 @@ class FEDBankScrapper(BaseBankScraper):
                 if '\n' in date_txt:
                     date_txt = date_txt.split('\n')[0]
                 date = pd.to_datetime(date_txt)
-
-                main_id, total_links = self.read_html(href, str(year), load_page=False)
+                scraping_time = pd.Timestamp.now()
+                main_id, total_links = self.read_html(href, str(year), scraping_time, date=date, load_page=False)
                 total_categories = [{"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
                 result = {
                     "file_url": href,
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 self.add_all_atomic([result], total_categories, total_links)
@@ -1078,24 +1076,19 @@ class FEDBankScrapper(BaseBankScraper):
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
+            scraping_time = pd.Timestamp.now()
+            year = str(row["Effective Date"].year)
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(href, extension)
+                main_metadata = MainMetadata(
+                    url=href,
+                    scraping_time=str(scraping_time),
+                    date_published=str(row["Effective Date"]),
+                )
+                main_id = self.download_and_upload_file(href, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
-                result = {
-                    "file_url": href,
-                    "date_published": row["Effective Date"],
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": main_id,
-                }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, total_links = self.read_html(href, str(row["Effective Date"].year))
-                result = {
-                    "file_url": href,
-                    "date_published": row["Effective Date"],
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                main_id, total_links = self.read_html(href, year, scraping_time, date=row["Effective Date"])
             else:
                 if allowed_outside or urlparse(href).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {href}", extra={
@@ -1104,11 +1097,17 @@ class FEDBankScrapper(BaseBankScraper):
                         "extension_type": extension
                     })
                 continue
+            result = {
+                "file_url": href,
+                "date_published": row["Effective Date"],
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
             total_categories = [{"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value}]
             self.add_all_atomic([result], total_categories, total_links)
 
         
-    def read_html(self, url: str, year:str, load_page=True, parse_links=True):
+    def read_html(self, url: str, year, scraping_time, date = None, date_txt = None, load_page=True, parse_links=True):
         if load_page:
             self.get(url)
         
@@ -1119,8 +1118,13 @@ class FEDBankScrapper(BaseBankScraper):
         if len(elements) == 0:
             raise ValueError(f"No content found in HTML file, {url}")
         element = elements[0]
-        
-        main_id = self.process_html_page(year)
+        main_metadata = MainMetadata(
+            url=url,
+            scraping_time=str(scraping_time),
+            date_published=str(date) if date is not None else None,
+            date_published_str=date_txt if date_txt is not None else None,
+        )
+        main_id = self.process_html_page(main_metadata, year)
         if not parse_links:
             return main_id, []
         # find all links and download them
@@ -1136,7 +1140,7 @@ class FEDBankScrapper(BaseBankScraper):
                                 continue
                 links.append((link_text, link_url))
             return links
-        processed_links = self.process_links(f_get_links, year=year)
+        processed_links = self.process_links(main_id, f_get_links, year=year)
         total_links = [
                     {
                         "file_url": url,

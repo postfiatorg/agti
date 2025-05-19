@@ -6,7 +6,6 @@ import requests
 import hashlib
 import time
 import enum
-import re
 import json
 
 from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
@@ -31,9 +30,6 @@ def get_hash_for_url(url):
     Get the hash for a given URL.
     """
     return hashlib.sha1(url.encode()).hexdigest()
-
-def download_and_read_pdf(url, save_dir, base_scraper, evaluate_tolerances=None):
-    raise NotImplementedError("This function is not supported in this version.")
 
 def classify_extension(ext):
     """

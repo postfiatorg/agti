@@ -2,14 +2,14 @@ import pandas as pd
 import selenium
 from selenium.webdriver.common.by import By
 import logging
-from agti.agti.central_banks.types import ExtensionType
+from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import classify_extension, download_and_read_pdf
+from ..utils import classify_extension
 from ..utils import Categories
 from urllib.parse import urlparse
 
@@ -613,7 +613,7 @@ class JapanBankScrapper(BaseBankScraper):
                     if href in all_urls:
                         logger.debug(f"Href is already in db: {href}")
                         continue
-                    to_process.append((None, href))
+                    to_process.append((None, href, year))
 
             self.extract_data_update_tables(to_process, [Categories.RESEARCH_AND_DATA.value])
 
@@ -709,8 +709,10 @@ class JapanBankScrapper(BaseBankScraper):
     ##########################
     # Helper function
     ########################## 
-    def parse_html(self, url: str, year):
+    def parse_html(self, url: str, date, year:str = None):
         self.get(url)
+        if year is None:
+            year = str(date.year)
         if "www.imes.boj.or.jp" in urlparse(url):
             # find the iframe and switch to it
             try:
@@ -722,8 +724,22 @@ class JapanBankScrapper(BaseBankScraper):
             main = self.driver_manager.driver.find_element(By.XPATH, "//*[@id='content' or @id='contents' or @id='app' or @id='container'] | //main")
         except selenium.common.exceptions.NoSuchElementException:
             logger.warning(f"No content found in {url}")
-            return None
-        file_id = self.process_html_page(year)
+            return None, []
+        scraping_time = pd.Timestamp.now()
+        main_metadata = MainMetadata(
+            url=url,
+            date_published=str(date) if date is not None else None,
+            date_published_str=year if date is None else None,
+            scraping_time=str(scraping_time),
+        )
+        file_id = self.process_html_page(main_metadata, year)
+        result = {
+            "file_url": url,
+            "date_published": date if date is not None else None,
+            "date_published_str": year if date is None else None,
+            "scraping_time": scraping_time,
+            "file_id": file_id,
+        }
         def f_get_links():
             links = []
             for link in main.find_elements(By.XPATH, ".//a"):
@@ -736,34 +752,47 @@ class JapanBankScrapper(BaseBankScraper):
                                 continue
                 links.append((link_text, link_url))
             return links
-        processed_links = self.process_links(f_get_links, year=year)
-        return file_id, processed_links
+        processed_links = self.process_links(file_id, f_get_links, year=year)
+        return result, processed_links
     
     def extract_data_update_tables(self, to_process, tags):
-        for date, href in to_process:
+        if len(to_process) == 0:
+            return
+        for item_to_process in to_process:
+            if len(item_to_process) == 2:
+                date, href = item_to_process
+                year = str(date.year)
+            elif len(item_to_process) == 3:
+                # this case date == None
+                date, href, year = item_to_process
+                if not isinstance(year, str):
+                    year = str(year)
             logger.info(f"Processing: {href}")
             urlType, extension = self.clasify_url(href)
             total_links = []
             allowed_outside = False
             extType = classify_extension(extension)
+            scraping_time = pd.Timestamp.now()
+            main_metadata = MainMetadata(
+                url=href,
+                date_published=str(date) if date is not None else None,
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(href, extension, year=str(date.year))
+                main_id = self.download_and_upload_file(href, extension, main_metadata, year=year)
                 if main_id is None:
                     continue
                 result = {
                     "file_url": href,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "date_published": date if date is not None else None,
+                    "date_published_str": year if date is None else None,
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
             elif extType == ExtensionType.WEBPAGE:
-                file_id, links_output = self.parse_html(href, str(date.year))
-                result = {
-                    "file_url": href,
-                    "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
-                    "file_id": file_id,
-                }
+                result, links_output = self.parse_html(href, date, year=year)
+                if result is None:
+                    continue
                 total_links = [
                     {
                         "file_url": href,

@@ -4,14 +4,14 @@ import pandas as pd
 import logging
 from selenium.webdriver.common.by import By
 import selenium
-from agti.agti.central_banks.types import ExtensionType
+from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from agti.utilities.settings import CredentialManager
 from agti.utilities.settings import PasswordMapLoader
 from agti.utilities.db_manager import DBConnectionManager
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 
 logger = logging.getLogger(__name__)
 __all__ = ["SwitzerlandBankScrapper"]
@@ -20,6 +20,8 @@ class SwitzerlandBankScrapper(BaseBankScraper):
     IGNORED_PATHS = [
         "/contact",
         "/career",
+        "/claims/rss",
+        "/rss/claims"
     ]
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
@@ -82,6 +84,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
 
         for href in to_process:
+            scraping_time = pd.Timestamp.now()
             self.get(href)
             if href == "https://www.snb.ch/en/news-publications/annual-report/annual-report-1996-2017":
                 def f_url(page: int) -> str:
@@ -105,10 +108,16 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                             self.add_to_categories(total_categories)
                         continue
                     logger.info(f"Processing: {href}")
-                    file_id = self.download_and_upload_file(href, "pdf", year=None)
+                    main_metadata = MainMetadata(
+                        url=href,
+                        date_published_str="1995-1997",
+                        scraping_time=str(scraping_time),
+                    )
+                    file_id = self.download_and_upload_file(href, "pdf", main_metadata, year=None)
                     result = {
                         "date_published": None,
-                        "scraping_time": pd.Timestamp.now(),
+                        "date_published_str": "1995-1997",
+                        "scraping_time": scraping_time,
                         "file_url": href,
                         "file_id": file_id,
                     }
@@ -130,14 +139,14 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                         self.add_to_categories(total_categories)
                     continue
                 logger.info(f"Processing: {href2}")
-                file_id, date, total_links = self.extract_date_text_or_pdf(href2)
+                file_id, date, total_links = self.extract_date_text_or_pdf(href2, scraping_time)
                 total_categories = [{
                     "file_url": href2,
                     "category_name": Categories.INSTITUTIONAL_AND_GOVERNANCE.value,
                 }]
                 result = {
                     "date_published": date,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_url": href2,
                     "file_id": file_id,
                 }
@@ -183,15 +192,17 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             
         for url in to_process:
             logger.info(f"Processing: {url}")
-            main_id, date, total_links = self.extract_date_text_or_pdf(url)
+            scraping_time = pd.Timestamp.now()
+            main_id, date, total_links = self.extract_date_text_or_pdf(url, scraping_time)
             year = str(date.year) if date is not None else None
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }
-            processed_links = links_output = self.process_links(
+            links_output = self.process_links(
+                main_id,
                 lambda: links_to_process[url],
                 year=str(year),
             )
@@ -283,7 +294,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
     
 
-    def extract_date_text_or_pdf(self, url: str) -> tuple:
+    def extract_date_text_or_pdf(self, url: str, scraping_time) -> tuple:
         # main_id, date, links_output
         self.get(url)
         try:
@@ -294,13 +305,18 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         except:
             date = None
         year = str(date.year) if date is not None else None
+        main_metadata = MainMetadata(
+            url=url,
+            date_published=str(date) if date is not None else None,
+            scraping_time=str(scraping_time),
+        )
 
         download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='Download']]")
         if len(download_buttons) > 1:
             raise ValueError("More than one download button found")
         if len(download_buttons) == 1:
             pdf_href = download_buttons[0].get_attribute("href")
-            file_id = self.download_and_upload_file(pdf_href, "pdf", year=year)
+            file_id = self.download_and_upload_file(pdf_href, "pdf", main_metadata, year=year)
             return file_id, date, []
         
         # try to find german or french
@@ -309,9 +325,9 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             raise ValueError("More than two download button found for german or french")
         if len(download_buttons) > 0:
             pdf_href = download_buttons[0].get_attribute("href")
-            file_id = self.download_and_upload_file(pdf_href, "pdf", year=year)
+            file_id = self.download_and_upload_file(pdf_href, "pdf", main_metadata, year=year)
             return file_id, date, []
-        main_id = self.process_html_page(year)
+        main_id = self.process_html_page(main_metadata, year)
         def get_links():
             links_data = []
             for temp_link in self.driver_manager.driver.find_elements(By.XPATH, "//main//article//a"):
@@ -329,6 +345,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             return links_data
 
         links_output = self.process_links(
+                main_id,
                 get_links,
                 year=year,
             )
@@ -393,18 +410,25 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             raise ValueError("No data found")
         
         for url in to_process:
+            if any([ignored_path in url for ignored_path in self.IGNORED_PATHS]):
+                continue
             logger.info(f"Processing: {url}")
             allowed_outside = False
             urlType, extension = self.clasify_url(url)
             extType = classify_extension(extension)
             date = None
             total_links = []
+            scraping_time = pd.Timestamp.now()
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(url, extension, year=None)
+                main_metadata = MainMetadata(
+                    url=url,
+                    scraping_time=str(scraping_time),
+                )
+                main_id = self.download_and_upload_file(url, extension, main_metadata, year=None)
                 if main_id is None:
                     raise ValueError(f"Could not download file: {url}")
             elif extType == ExtensionType.WEBPAGE:
-                main_id, date, total_links = self.extract_date_text_or_pdf(url)
+                main_id, date, total_links = self.extract_date_text_or_pdf(url, scraping_time)
             else:
                 if allowed_outside or urlparse(url).netloc == self.bank_config.NETLOC:
                     logger.error(f"Unknown file type: {url}", extra={
@@ -416,7 +440,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
 
             result = {
                 "date_published": date,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_url": url,
                 "file_id": main_id,
             }

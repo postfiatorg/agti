@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from functools import cache
 from enum import Enum
-from typing import NewType
-
+from typing import Optional
+import unicodedata
+from urllib.parse import quote
+from agti.agti.central_banks.common import clean_text
 from agti.agti.utilities.db_manager import DBConnectionManager
 
 
@@ -45,6 +47,32 @@ class URLType(Enum):
     EXTERNAL = "external"
 
 
+@dataclass
+class Metadata:
+    url: str
+        
+    def _normalize(self):
+        self.url = quote(self.url)
+
+    def to_dict(self) -> dict:
+        self._normalize()
+        return {k: v for k, v in asdict(self).items() if v is not None}
+
+@dataclass
+class MainMetadata(Metadata):
+    scraping_time: str
+    date_published: Optional[str] = None
+    date_published_str: Optional[str] = None
+
+@dataclass
+class LinkMetadata(Metadata):
+    link_name: str
+    main_file_id: str
+
+    def _normalize(self):
+        super()._normalize()
+        self.link_name = clean_text(self.link_name)
+        self.link_name = unicodedata.normalize("NFKD", self.link_name).encode("ascii", "ignore").decode("ascii")
 @dataclass
 class BotoS3Config:
     REGION_NAME: str

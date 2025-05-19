@@ -1,5 +1,5 @@
 import os
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 import logging
 import pandas as pd
 from selenium import webdriver
@@ -7,9 +7,9 @@ import selenium
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
-from agti.agti.central_banks.types import ExtensionType
+from agti.agti.central_banks.types import ExtensionType, MainMetadata
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf, pageBottom
+from ..utils import Categories, classify_extension
 
 
 
@@ -99,19 +99,25 @@ const callback = arguments[0];
         return self.driver_manager.driver.execute_async_script(self.SCRIPT_FETCHER)
 
 
-    def process_url(self, url: str, year:str):
+    def process_url(self, url: str, timestamp: pd.Timestamp, scraping_time: pd.Timestamp):
+        year = timestamp.year
         allowed_outside = False
         urlType, extension = self.clasify_url(url)
         extType = classify_extension(extension)
+        main_metadata = MainMetadata(
+            url=url,
+            date_published=str(timestamp),
+            scraping_time=str(scraping_time),
+        )
         if extType == ExtensionType.FILE:
-            main_id = self.download_and_upload_file(url, extension, year=str(year))
+            main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(year))
             if main_id is None:
                 return None
             return main_id, []
         elif extType == ExtensionType.WEBPAGE:
             self.get(url)
             main = self.driver_manager.driver.find_element(By.XPATH, "//main")
-            main_id = self.process_html_page(year)
+            main_id = self.process_html_page(main_metadata, year)
             def get_links():
                 links_data = []
                 for temp_link in main.find_elements(By.XPATH, ".//a"):
@@ -128,6 +134,7 @@ const callback = arguments[0];
                     links_data.append((link_name, link_href))
                 return links_data
             links_output = self.process_links(
+                main_id,
                 get_links,
                 year=str(year),
             )
@@ -172,7 +179,8 @@ const callback = arguments[0];
                 logger.debug(f"Href is already in db: {temp_url}")
                 continue
             logger.info(f"Processing {temp_url}")
-            ret = self.process_url(temp_url, year=str(timestamp.year))
+            scraping_time = pd.Timestamp.now()
+            ret = self.process_url(temp_url, timestamp, scraping_time)
             if ret is None:
                 continue
             main_id, links_output = ret
@@ -187,7 +195,7 @@ const callback = arguments[0];
             result = {
                 "file_url": temp_url,
                 "date_published": timestamp,
-                "scraping_time": pd.Timestamp.now(),
+                "scraping_time": scraping_time,
                 "file_id": main_id,
             }
             total_categories = [

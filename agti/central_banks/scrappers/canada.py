@@ -8,9 +8,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from agti.agti.central_banks.types import ExtensionType, URLType
+from agti.agti.central_banks.types import ExtensionType, MainMetadata, URLType
 from ..base_scrapper import BaseBankScraper
-from ..utils import Categories, classify_extension, download_and_read_pdf
+from ..utils import Categories, classify_extension
 
 __all__ = ["CanadaBankScrapper"]
 
@@ -132,6 +132,7 @@ class CanadaBankScrapper(BaseBankScraper):
     def process_to_process(self, to_process):
         wait = WebDriverWait(self.driver_manager.driver, 30)
         for date, date_str, file_url, article_categories in to_process:
+            scraping_time = pd.Timestamp.now()
             year = str(date.year) if date is not None else None
             # if year is none we will use date str
             if year is None and date_str is not None:
@@ -146,15 +147,21 @@ class CanadaBankScrapper(BaseBankScraper):
             ]
             urlType, extension = self.clasify_url(file_url)
             extType = classify_extension(extension)
+            main_metadata = MainMetadata(
+                url=file_url,
+                date_published=str(date) if date is not None else None,
+                date_published_str=str(date_str) if date_str is not None else None,
+                scraping_time=str(scraping_time),
+            )
             if extType == ExtensionType.FILE:
-                main_id = self.download_and_upload_file(file_url, extension, year=str(year))
+                main_id = self.download_and_upload_file(file_url, extension, main_metadata, year=str(year))
                 if main_id is None:
                     continue
                 result = {
                     "file_url": file_url,
                     "date_published": date,
                     "date_published_str": date_str,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
                 total_links = []
@@ -162,12 +169,12 @@ class CanadaBankScrapper(BaseBankScraper):
                 continue
             elif extType == ExtensionType.WEBPAGE and urlType == URLType.INTERNAL:
                 self.get(file_url)
-                main_id = self.process_html_page(year)
+                main_id = self.process_html_page(main_metadata, year)
                 result = {
                     "file_url": file_url,
                     "date_published": date,
                     "date_published_str": date_str,
-                    "scraping_time": pd.Timestamp.now(),
+                    "scraping_time": scraping_time,
                     "file_id": main_id,
                 }
 
@@ -193,6 +200,7 @@ class CanadaBankScrapper(BaseBankScraper):
                             pass
                     return links
                 links_output = self.process_links(
+                    main_id,
                     get_links,
                     year=str(year),
                 )
