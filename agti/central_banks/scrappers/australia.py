@@ -1691,11 +1691,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date_published=str(date),
                 scraping_time=str(scraping_time),
             )
-            main_id, links_output = self.parse_html(
+            if date > pd.Timestamp.now():
+                logger.warning(f"Date is in the future: {date}")
+                continue
+            parsed_html_data = self.parse_html(
                 href,
                 str(date.year),
                 main_metadata,
             )
+            if parsed_html_data is None:
+                continue
+            main_id, links_output = parsed_html_data
             result = {
                 "date_published": date,
                 "scraping_time": scraping_time,
