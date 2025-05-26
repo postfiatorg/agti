@@ -744,7 +744,7 @@ class BaseBankScraper:
         result = []
         processed_paths = [urlparse(self.driver_manager.driver.current_url).path]
         for link_text, link in all_links:
-            if link.startswith("tel:") or link.startswith("mailto:"):
+            if link.startswith("tel:") or link.startswith("mailto:") or link.startswith("javascript:"):
                 continue
             if link.endswith("#"):
                 logger.debug(f"Link ends with #: {link}", extra={
