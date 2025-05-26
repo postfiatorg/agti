@@ -918,7 +918,7 @@ class FEDBankScrapper(BaseBankScraper):
             for url, date, year in to_process:
                 logger.info(f"Processing: {url}")
                 scraping_time = pd.Timestamp.now()
-                text, total_links = self.read_html(url, str(year), scraping_time, date=date)
+                main_id, total_links = self.read_html(url, str(year), scraping_time, date=date)
                 
                 total_categories = [
                     {
@@ -926,12 +926,12 @@ class FEDBankScrapper(BaseBankScraper):
                         "category_name": category
                     } for category in cat
                 ]
-                result = [{
+                result = {
                     "file_url": url,
                     "date_published": date,
                     "scraping_time": scraping_time,
-                    "full_extracted_text": text,
-                }]
+                    "file_id": main_id,
+                }
                 self.add_all_atomic([result], total_categories, total_links)
 
         
