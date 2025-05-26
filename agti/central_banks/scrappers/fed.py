@@ -926,13 +926,13 @@ class FEDBankScrapper(BaseBankScraper):
                         "category_name": category
                     } for category in cat
                 ]
-                result.append({
+                result = [{
                     "file_url": url,
                     "date_published": date,
                     "scraping_time": scraping_time,
                     "full_extracted_text": text,
-                })
-            self.add_all_atomic(result, total_categories, total_links)
+                }]
+                self.add_all_atomic([result], total_categories, total_links)
 
         
         #International Finance Discussion Papers (IFDP)
