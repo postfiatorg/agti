@@ -102,7 +102,7 @@ const callback = arguments[0];
     def process_url(self, url: str, timestamp: pd.Timestamp, scraping_time: pd.Timestamp):
         year = timestamp.year
         allowed_outside = False
-        urlType, extension = self.clasify_url(url)
+        urlType, extension = self.classify_url(url)
         extType = classify_extension(extension)
         main_metadata = MainMetadata(
             url=url,

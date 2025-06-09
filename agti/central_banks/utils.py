@@ -7,6 +7,7 @@ import hashlib
 import time
 import enum
 import json
+import re
 
 from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
 

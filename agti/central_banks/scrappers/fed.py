@@ -237,7 +237,7 @@ class FEDBankScrapper(BaseBankScraper):
             # if url does not start with https://www.federalreserve.gov, we add it
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
-            urlType, extension = self.clasify_url(total_url)
+            urlType, extension = self.classify_url(total_url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -321,7 +321,7 @@ class FEDBankScrapper(BaseBankScraper):
             total_url = urljoin("https://www.federalreserve.gov", url)
             logger.info(f"Processing: {total_url}")
 
-            urlType, extension = self.clasify_url(total_url)
+            urlType, extension = self.classify_url(total_url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -415,7 +415,7 @@ class FEDBankScrapper(BaseBankScraper):
         for url, date_txt in to_process:
             logger.info(f"Processing: {url}")
             year = date_txt.split(" ")[-1]
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -496,7 +496,7 @@ class FEDBankScrapper(BaseBankScraper):
 
         for url, date in to_process:
             logger.info(f"Processing: {url}")
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -561,7 +561,7 @@ class FEDBankScrapper(BaseBankScraper):
 
         for url, date_txt in to_process:
             year = date_txt.split(" ")[1]
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -782,7 +782,7 @@ class FEDBankScrapper(BaseBankScraper):
 
         for url, date_txt in to_process:
             year = date_txt.split(" ")[1]
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []
@@ -901,6 +901,10 @@ class FEDBankScrapper(BaseBankScraper):
                 if len(tag_times) == 0:
                     continue
                 date = tag_times[0].get_attribute("datetime")
+                if not date:
+                    # read the inside text
+                    date = tag_times[0].text.strip()
+                date = pd.to_datetime(date)
                 href = paper.find_element(By.XPATH, ".//h5/a").get_attribute("href")
                 if href in all_urls:
                     logger.debug(f"Url is already in db: {href}")
@@ -1072,7 +1076,7 @@ class FEDBankScrapper(BaseBankScraper):
                 ])
                 continue
             logger.info(f"Processing: {href}")
-            urlType, extension = self.clasify_url(href)
+            urlType, extension = self.classify_url(href)
             allowed_outside = False
             extType = classify_extension(extension)
             total_links = []

@@ -414,7 +414,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 continue
             logger.info(f"Processing: {url}")
             allowed_outside = False
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             extType = classify_extension(extension)
             date = None
             total_links = []

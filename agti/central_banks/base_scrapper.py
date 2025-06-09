@@ -707,7 +707,7 @@ class BaseBankScraper:
         return ctype_extension.lstrip(".").lower()
     
 
-    def clasify_url(self, link, allow_outside=False):
+    def classify_url(self, link, allow_outside=False):
         parsed_link = urlparse(link)
         ext = os.path.splitext(parsed_link.path)[1].lstrip(".").lower()
         output = [None, None]
@@ -768,7 +768,7 @@ class BaseBankScraper:
                     })
                     continue
             processed_paths.append(link_parsed.path)
-            urlType, extension = self.clasify_url(link, allow_outside=allow_outside)
+            urlType, extension = self.classify_url(link, allow_outside=allow_outside)
             if extension is None:
                 if (urlType == URLType.EXTERNAL and allow_outside) or urlType == URLType.INTERNAL:
                     logger.error(f"Unknown file type for {link}", extra={

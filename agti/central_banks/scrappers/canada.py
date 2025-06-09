@@ -145,7 +145,7 @@ class CanadaBankScrapper(BaseBankScraper):
                 {"file_url": file_url, "category_name": category.value}
                 for category in article_categories
             ]
-            urlType, extension = self.clasify_url(file_url)
+            urlType, extension = self.classify_url(file_url)
             extType = classify_extension(extension)
             main_metadata = MainMetadata(
                 url=file_url,
@@ -228,13 +228,13 @@ class CanadaBankScrapper(BaseBankScraper):
     def get_categories(self, content_types: list[str], topics: list[str]) -> Set[Categories]:
         output = set()
         # content type mapping
-        for content_typpe in content_types:
+        for content_type in content_types:
             for content_type_list, categories in CONTENT_TYPE_CATEGORY_MAPPING:
-                if content_typpe in content_type_list:
+                if content_type in content_type_list:
                     output.update(categories)
         # topic mapping
         for topic in topics:
-            for topic_list, categories in TOPIC_CATEGOTY_MAPPING:
+            for topic_list, categories in TOPIC_CATEGORY_MAPPING:
                 if topic in topic_list:
                     output.update(categories)
         return output
@@ -260,7 +260,7 @@ CONTENT_TYPE_CATEGORY_MAPPING: list[tuple[tuple[str, ...], set[Categories]]] = [
 
 
 # List of tuples: (tuple of topic strings, set of Categories)
-TOPIC_CATEGOTY_MAPPING: list[tuple[tuple[str, ...], Set[Categories]]] = [
+TOPIC_CATEGORY_MAPPING: list[tuple[tuple[str, ...], Set[Categories]]] = [
     (("Credibility", "Fiscal policy", "Registration", "Financial services", "Reporting"), {Categories.INSTITUTIONAL_AND_GOVERNANCE}),
     (("Debt management", "Exchange rate regimes", "Monetary aggregates", "Monetary conditions index", "Monetary policy", "Monetary policy and uncertainty",
       "Monetary policy communications", "Monetary policy framework", "Monetary policy implementation", "Monetary policy transmission", "Price stability",

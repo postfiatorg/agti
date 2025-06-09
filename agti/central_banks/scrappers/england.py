@@ -55,7 +55,7 @@ class EnglandBankScrapper(BaseBankScraper):
         wait = WebDriverWait(self.driver_manager.driver, 10,0.2)
     
         def iterate_over_labels(div_element_xpath, filters_list):
-            wait.until(EC.visibility_of_all_elements_located((By.XPATH, xpath)))
+            wait.until(EC.visibility_of_all_elements_located((By.XPATH, div_element_xpath)))
             filter_div = wait.until(EC.visibility_of_element_located((By.XPATH, div_element_xpath)))
             filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
             for label in filter_labels:

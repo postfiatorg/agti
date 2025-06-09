@@ -768,7 +768,7 @@ class JapanBankScrapper(BaseBankScraper):
                 if not isinstance(year, str):
                     year = str(year)
             logger.info(f"Processing: {href}")
-            urlType, extension = self.clasify_url(href)
+            urlType, extension = self.classify_url(href)
             total_links = []
             allowed_outside = False
             extType = classify_extension(extension)
