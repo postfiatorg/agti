@@ -262,9 +262,9 @@ class SwedenBankScrapper(BaseBankScraper):
             main_filters = [
                     x for x in pdf_only if 
                         (
-                            "chart" not in x[1].lower() and 
-                            "slides" not in x[1].lower() and
-                            "report" in x[1].lower()
+                            "chart" not in x[0].lower() and
+                            "slides" not in x[0].lower() and
+                            "report" in x[0].lower()
                         )
                 ]
             if len(main_filters)  == 1:
@@ -685,7 +685,7 @@ class SwedenBankScrapper(BaseBankScraper):
             logger.info(f"Processing {href}")
             year = str(date.year)
             # check if href is in all_urls
-            urlType, extension = self.clasify_url(href)
+            urlType, extension = self.classify_url(href)
             allowed_outside = False
             extType = classify_extension(extension)
             processed_links = []

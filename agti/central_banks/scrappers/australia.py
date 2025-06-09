@@ -212,7 +212,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 # we are missing the day, so we can not use it as date
                 year = pd.to_datetime(date_txt).year
             allowed_outside = False
-            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            urlType, extension = self.classify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             scraping_time = pd.Timestamp.now()
             main_metadata = MainMetadata(
@@ -373,7 +373,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 if url == main_link:
                     continue
                 allowed_outside = False
-                urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                urlType, extension = self.classify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 link_metadata = LinkMetadata(
                     url=main_link,
@@ -451,7 +451,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 # we are missing the day, so we can not use it as date
                 year = str(pd.to_datetime(date_txt).year)
             allowed_outside = False
-            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            urlType, extension = self.classify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             scraping_time = pd.Timestamp.now()
             main_metadata = MainMetadata(
@@ -557,7 +557,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             url_parsed = urlparse(url)
             
             allowed_outside = False
-            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            urlType, extension = self.classify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             scraping_time = pd.Timestamp.now()
             main_metadata = MainMetadata(
@@ -661,7 +661,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 if url == main_link:
                     continue
                 allowed_outside = False
-                urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                urlType, extension = self.classify_url(main_link, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 link_metadata = LinkMetadata(
                     url=main_link,
@@ -731,7 +731,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             for date, article_url in to_process:
                 logger.info(f"Processing: {article_url}")
                 allowed_outside = False
-                urlType, extension = self.clasify_url(article_url, allow_outside=allowed_outside)
+                urlType, extension = self.classify_url(article_url, allow_outside=allowed_outside)
                 extType = classify_extension(extension)
                 scraping_time = pd.Timestamp.now()
                 main_metadata = MainMetadata(
@@ -835,7 +835,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     if url == main_link:
                         continue
                     allowed_outside = False
-                    urlType, extension = self.clasify_url(main_link, allow_outside=allowed_outside)
+                    urlType, extension = self.classify_url(main_link, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
                     link_metadata = LinkMetadata(
                         url=main_link,
@@ -1288,7 +1288,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             logger.info(f"Processing: {url}")
             year = str(date.year)
             allowed_outside = False
-            urlType, extension = self.clasify_url(url, allow_outside=allowed_outside)
+            urlType, extension = self.classify_url(url, allow_outside=allowed_outside)
             extType = classify_extension(extension)
             scraping_time = pd.Timestamp.now()
             main_metadata = MainMetadata(
@@ -1327,7 +1327,7 @@ class AustraliaBankScrapper(BaseBankScraper):
             }
             if url in to_process_links:
                 for link_url, link_text in to_process_links[url]:
-                    urlType, extension = self.clasify_url(link_url, allow_outside=allowed_outside)
+                    urlType, extension = self.classify_url(link_url, allow_outside=allowed_outside)
                     extType = classify_extension(extension)
                     link_metadata = LinkMetadata(
                         url=link_url,
@@ -1391,7 +1391,7 @@ class AustraliaBankScrapper(BaseBankScraper):
 
         for date, url in to_process:
             logger.info(f"Processing: {url}")
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             extType = classify_extension(extension)
             allowed_outside = False
             scraping_time = pd.Timestamp.now()
@@ -1464,7 +1464,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                     logger.debug(f"Href is already in db: {url}")
                     continue
                 logger.info(f"Processing: {url}")
-                urlType, extension = self.clasify_url(url)
+                urlType, extension = self.classify_url(url)
                 extType = classify_extension(extension)
                 if extType == ExtensionType.FILE:
                     main_id = self.download_and_upload_file(url, extension, main_metadata, year=str(year))
@@ -1522,7 +1522,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 allowed_outside = False
                 for a_tag in ul.find_elements(By.XPATH, ".//a"):
                     a_url = a_tag.get_attribute("href")
-                    a_urlType, a_extension = self.clasify_url(a_url)
+                    a_urlType, a_extension = self.classify_url(a_url)
                     a_extType = classify_extension(a_extension)
                     link_metadata = LinkMetadata(
                         url=a_url,
@@ -1576,7 +1576,7 @@ class AustraliaBankScrapper(BaseBankScraper):
                 logger.debug(f"Href is already in db: {url}")
                 continue
             logger.info(f"Processing: {url}")
-            urlType, extension = self.clasify_url(url)
+            urlType, extension = self.classify_url(url)
             extType = classify_extension(extension)
             total_links = []
             scraping_time = pd.Timestamp.now()
@@ -1691,11 +1691,17 @@ class AustraliaBankScrapper(BaseBankScraper):
                 date_published=str(date),
                 scraping_time=str(scraping_time),
             )
-            main_id, links_output = self.parse_html(
+            if date > pd.Timestamp.now():
+                logger.warning(f"Date is in the future: {date}")
+                continue
+            parsed_html_data = self.parse_html(
                 href,
                 str(date.year),
                 main_metadata,
             )
+            if parsed_html_data is None:
+                continue
+            main_id, links_output = parsed_html_data
             result = {
                 "date_published": date,
                 "scraping_time": scraping_time,
