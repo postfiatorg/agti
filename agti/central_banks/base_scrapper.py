@@ -46,21 +46,21 @@ def create_bank_scraper(
     Returns:
         BaseBankScraper: An instance of the appropriate bank scraper
     """
-    from agti.agti.central_banks.scrappers.australia import AustraliaBankScrapper
-    from agti.agti.central_banks.scrappers.canada import CanadaBankScrapper
-    from agti.agti.central_banks.scrappers.ecb import ECBBankScrapper
-    from agti.agti.central_banks.scrappers.england import EnglandBankScrapper
-    from agti.agti.central_banks.scrappers.fed import FEDBankScrapper
-    from agti.agti.central_banks.scrappers.japan import JapanBankScrapper
-    from agti.agti.central_banks.scrappers.norges import NorgesBankScrapper
-    from agti.agti.central_banks.scrappers.sweden import SwedenBankScrapper
-    from agti.agti.central_banks.scrappers.switzerland import SwitzerlandBankScrapper
+    from agti.agti.central_banks.scrapers.australia import AustraliaBankScrapper
+    from agti.agti.central_banks.scrapers.canada import CanadaBankScrapper
+    from agti.agti.central_banks.scrapers.ecb import ECBBankScrapper
+    from agti.agti.central_banks.scrapers.england import EnglandBankScraper
+    from agti.agti.central_banks.scrapers.fed import FEDBankScrapper
+    from agti.agti.central_banks.scrapers.japan import JapanBankScrapper
+    from agti.agti.central_banks.scrapers.norges import NorgesBankScrapper
+    from agti.agti.central_banks.scrapers.sweden import SwedenBankScrapper
+    from agti.agti.central_banks.scrapers.switzerland import SwitzerlandBankScrapper
     
     scraper_map = {
         SupportedScrapers.AUSTRALIA: AustraliaBankScrapper,
         SupportedScrapers.CANADA: CanadaBankScrapper,
         SupportedScrapers.EUROPE: ECBBankScrapper,
-        SupportedScrapers.ENGLAND: EnglandBankScrapper,
+        SupportedScrapers.ENGLAND: EnglandBankScraper,
         SupportedScrapers.USA: FEDBankScrapper,
         SupportedScrapers.JAPAN: JapanBankScrapper,
         SupportedScrapers.NORGE: NorgesBankScrapper,

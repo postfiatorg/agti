@@ -18,9 +18,9 @@ from ..utils import Categories
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["EnglandBankScrapper"]
+__all__ = ["EnglandBankScraper"]
 
-class EnglandBankScrapper(BaseBankScraper):
+class EnglandBankScraper(BaseBankScraper):
     MAX_OLD_YEAR = 2000
     IGNORED_PATHS = [
         "/subscribe-to-emails",

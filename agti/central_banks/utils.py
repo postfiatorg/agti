@@ -9,7 +9,7 @@ import enum
 import json
 import re
 
-from agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
+from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
 
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
@@ -67,14 +67,14 @@ def get_cookies_headers(driver):
 
 def scroll_to_page_bottom(driver):
     bottom=False
-    a=0
+    scroll_position=0
     while not bottom:
         new_height = driver.execute_script("return document.body.scrollHeight")
-        driver.execute_script(f"window.scrollTo(0, {a});")
-        if a > new_height:
+        driver.execute_script(f"window.scrollTo(0, {scroll_position});")
+        if scroll_position > new_height:
             bottom=True
         time.sleep(0.001)
-        a+=5
+        scroll_position+=5
 
 def get_status(logs, target_url):
     parsed_target_url = urlparse(target_url)
