@@ -165,7 +165,7 @@ class SupportedScrapers(Enum):
         language_path="en"
     )
     
-    NORGES = CountryCB(
+    NORGE = CountryCB(
         COUNTRY_CODE_ALPHA_3="NOR",
         COUNTRY_NAME="Norway",
         NETLOC="www.norges-bank.no",

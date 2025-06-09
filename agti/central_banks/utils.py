@@ -9,7 +9,7 @@ import enum
 import json
 import re
 
-from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
+from agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, STATIC_PAGE_EXTENSIONS, ExtensionType
 
 class Categories(enum.Enum):
     INSTITUTIONAL_AND_GOVERNANCE = "Institutional & Governance"
@@ -65,7 +65,7 @@ def get_cookies_headers(driver):
     headers = dict([re.split(": +", header, maxsplit=1) for header in headers])
     return cookies, headers
 
-def pageBottom(driver):
+def scroll_to_page_bottom(driver):
     bottom=False
     a=0
     while not bottom:

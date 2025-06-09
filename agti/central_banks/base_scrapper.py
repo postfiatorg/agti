@@ -63,7 +63,7 @@ def create_bank_scraper(
         SupportedScrapers.ENGLAND: EnglandBankScrapper,
         SupportedScrapers.USA: FEDBankScrapper,
         SupportedScrapers.JAPAN: JapanBankScrapper,
-        SupportedScrapers.NORGES: NorgesBankScrapper,
+        SupportedScrapers.NORGE: NorgesBankScrapper,
         SupportedScrapers.SWEDEN: SwedenBankScrapper,
         SupportedScrapers.SWITZERLAND: SwitzerlandBankScrapper
     }
