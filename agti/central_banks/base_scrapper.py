@@ -20,7 +20,7 @@ from agti.utilities.settings import CredentialManager
 from botocore.exceptions import ClientError
 from agti.agti.central_banks.types import DYNAMIC_PAGE_EXTENSIONS, SCRAPERCONFIG, SQLDBCONFIG, STATIC_PAGE_EXTENSIONS, BotoS3Config, CountryCB, ExtensionType, LinkMetadata, MainMetadata, SupportedScrapers, URLType
 from selenium.webdriver.common.by import By
-
+from selenium.common.exceptions import NoSuchElementException
 
 __all__ = ["create_bank_scraper"]
 
@@ -726,7 +726,7 @@ class BaseBankScraper:
         
 
 
-    def process_links(self, main_file_id, f_get_links, year = None, allow_outside=False):
+    def process_links(self, main_file_id, f_get_links, year = None, allow_outside=False, download_a_tag_xpath=None):
         """
         Args:
             f_get_links (function): Function to get links from the page
@@ -800,7 +800,39 @@ class BaseBankScraper:
                     })
                     continue
                 # save it as pdf
-                filepath = self.save_page_as_pdf()
+                if download_a_tag_xpath is not None:
+                    try:
+                        download_button = self.driver_manager.driver.find_element(By.XPATH, download_a_tag_xpath)
+                        new_link = download_button.get_attribute("href")
+                        new_link_text = download_button.text
+                        # we need to classify the link again
+                        _, download_extension = self.classify_url(new_link, allow_outside=allow_outside)
+                        assert classify_extension(download_extension) == ExtensionType.FILE
+                        # we replace the link and link_text with the new ones
+                        extension = download_extension
+                        link = new_link
+                        link_text = new_link_text
+                        filepath = self.download_file(
+                            link,
+                            extension
+                        )
+                    except NoSuchElementException:
+                        pass
+                    except AssertionError:
+                        logger.error(f"Download new_link {new_link} has unsupported extension: {download_extension}", extra={
+                            "new_link": new_link,
+                            "new_link_text": new_link_text,
+                            "old_link": link,
+                            "old_link_text": link_text,
+                            "old_urlType": urlType,
+                            "extension_type": download_extension
+                        })
+                    finally:
+                        if filepath is None:
+                            # we save the page as pdf
+                            filepath = self.save_page_as_pdf()
+                else:
+                    filepath = self.save_page_as_pdf()
             else:
                 # we ignore external links
                 pass

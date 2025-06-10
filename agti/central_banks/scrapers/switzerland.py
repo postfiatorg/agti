@@ -23,6 +23,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         "/claims/rss",
         "/rss/claims"
     ]
+    DOWNLOAD_A_XPATH = "(//a[.//span[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='download']]) | (//a[.//span[normalize-space(text())='german' or normalize-space(text())='french']])"
     def initialize_cookies(self, go_to_url=False):
         if go_to_url:
             self.driver_manager.driver.get(self.bank_config.URL)
@@ -205,6 +206,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                 main_id,
                 lambda: links_to_process[url],
                 year=str(year),
+                download_a_tag_xpath=self.DOWNLOAD_A_XPATH,
             )
             total_links.extend([
                 {
@@ -311,7 +313,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             scraping_time=str(scraping_time),
         )
 
-        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='Download']]")
+        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[.//span[translate(normalize-space(.), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz')='download']]")
         if len(download_buttons) > 1:
             raise ValueError("More than one download button found")
         if len(download_buttons) == 1:
@@ -320,7 +322,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
             return file_id, date, []
         
         # try to find german or french
-        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[span[normalize-space(text())='german' or normalize-space(text())='french']]")
+        download_buttons = self.driver_manager.driver.find_elements(By.XPATH, "//a[.//span[normalize-space(text())='german' or normalize-space(text())='french']]")
         if len(download_buttons) > 2:
             raise ValueError("More than two download button found for german or french")
         if len(download_buttons) > 0:
@@ -330,7 +332,7 @@ class SwitzerlandBankScrapper(BaseBankScraper):
         main_id = self.process_html_page(main_metadata, year)
         def get_links():
             links_data = []
-            for temp_link in self.driver_manager.driver.find_elements(By.XPATH, "//main//article//a"):
+            for temp_link in self.driver_manager.driver.find_elements(By.XPATH, "//main//a"):
                 try:
                     link_href = temp_link.get_attribute("href")
                     if link_href is None:
@@ -343,11 +345,12 @@ class SwitzerlandBankScrapper(BaseBankScraper):
                     continue
                 links_data.append((link_name, link_href))
             return links_data
-
+        
         links_output = self.process_links(
                 main_id,
                 get_links,
                 year=year,
+                download_a_tag_xpath=self.DOWNLOAD_A_XPATH,
             )
         total_links = [
                 {
