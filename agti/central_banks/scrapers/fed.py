@@ -1066,6 +1066,8 @@ class FEDBankScrapper(BaseBankScraper):
         df = df.dropna(subset=["URL"])
         # filter ignore paths from URLs
         df = df[~df["URL"].str.contains('|'.join(self.IGNORED_PATHS))]
+        # drop URL values = DNE
+        df = df[df["URL"] != "DNE"]
         # filter out empty URLs
         df = df[df["URL"].str.strip() != ""]
 
