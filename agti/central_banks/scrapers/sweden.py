@@ -544,7 +544,7 @@ class SwedenBankScrapper(BaseBankScraper):
                         "category_name": Categories.RESEARCH_AND_DATA.value
                     }
                 ]
-            self.add_all_atomic([result], total_categories, [])
+                self.add_all_atomic([result], total_categories, [])
         
 
         # Payments Report
