@@ -661,7 +661,19 @@ class BaseBankScraper:
         for i in range(3):
             try:
                 resp = requests.head(url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60)
+                # Sometime servers returns 500, even tough the headers are present
+                # we shall try to use get instead of head
+                if resp.status_code == 500:
+                    logger.warning(f"500 status code for {url}, trying GET request", extra={
+                        "url": url,
+                        "headers": headers,
+                        "cookies": cookies,
+                        "proxies": proxies,
+                    })
+                    resp = requests.get(url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60) 
                 resp.raise_for_status()
+                if resp.ok:
+                    break
             except requests.exceptions.HTTPError:
                 logger.exception(f"HTTPError getting filetype for {url}", extra={
                     "url": url,
@@ -685,6 +697,7 @@ class BaseBankScraper:
                     "proxies": proxies,
                 })
                 break
+        # end of loop
         if resp.status_code != 200:
             logger.exception(f"Failed to get file type for {url}, status code: {resp.status_code}", extra={
                 "url": url,
