@@ -33,6 +33,7 @@ class FEDBankScrapper(BaseBankScraper):
         "/newsevents.htm",
         "/default.htm",
         "/monetarypolicy.htm",
+        "/DNE"
     ]
 
     def process_news_events(self):
@@ -1063,6 +1064,11 @@ class FEDBankScrapper(BaseBankScraper):
         df["Effective Date"] = pd.to_datetime(df["Effective Date"])
         # drop NaN urls
         df = df.dropna(subset=["URL"])
+        # filter ignore paths from URLs
+        df = df[~df["URL"].str.contains('|'.join(self.IGNORED_PATHS))]
+        # filter out empty URLs
+        df = df[df["URL"].str.strip() != ""]
+
         result = []
         total_links = []
         total_categories = []
