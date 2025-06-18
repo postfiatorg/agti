@@ -13,7 +13,9 @@ setup(
         'requests',
         'toml',
         'nest_asyncio','brotli','sec-cik-mapper','psycopg2-binary','quandl','schedule','openai','lxml',
-        'gspread_dataframe','gspread','oauth2client'
+        'gspread_dataframe','gspread','oauth2client',
+        'selenium','selenium-wire','boto3',
+        'ua_generator',
     ],
     author='Alex Good',
     author_email='alex@agti.net',
