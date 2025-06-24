@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agti"
+version = "0.1.0"
+authors = [
+  { name="Alex Good", email="alex@agti.net" },
+]
+description = "Post Fiat Finance focused node"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "sqlalchemy",
+    "cryptography",
+    "xrpl-py",
+    "requests",
+    "toml",
+    "nest_asyncio",
+    "brotli",
+    "sec-cik-mapper",
+    "psycopg2-binary",
+    "quandl",
+    "schedule",
+    "openai",
+    "lxml",
+    "gspread_dataframe",
+    "gspread",
+    "oauth2client",
+    "selenium",
+    "selenium-wire",
+    "boto3",
+    "ua_generator",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/postfiatorg/pftpyclient"
+"Bug Tracker" = "https://github.com/postfiatorg/pftpyclient/issues" 
