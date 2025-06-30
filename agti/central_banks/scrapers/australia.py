@@ -1519,37 +1519,6 @@ class AustraliaBankScrapper(BaseBankScraper):
                     "file_url": url,
                     "file_id": main_id,
                 }
-                allowed_outside = False
-                for a_tag in ul.find_elements(By.XPATH, ".//a"):
-                    a_url = a_tag.get_attribute("href")
-                    a_urlType, a_extension = self.classify_url(a_url)
-                    a_extType = classify_extension(a_extension)
-                    link_metadata = LinkMetadata(
-                        url=a_url,
-                        link_name=a_tag.text,
-                        main_file_id=main_id,
-                    )
-                    if a_extType == ExtensionType.FILE:
-                        link_id = self.download_and_upload_file(a_url, a_extension, link_metadata, year=str(year))
-                        if link_id is None:
-                            continue
-                    elif a_extType == ExtensionType.WEBPAGE:
-                        link_id, _ = self.parse_html(a_url, str(year), link_metadata, parse_links=False)
-                        total_links.append({
-                            "file_url": url,
-                            "link_url": a_url,
-                            "link_name": a_tag.text,
-                            "file_id": link_id,
-                        })
-                    else:
-                        if allowed_outside or urlparse(a_url).netloc == self.bank_config.NETLOC:
-                            logger.error(f"Unknown file type: {a_url}", extra={
-                                "url": url,
-                                "link_url": a_url,
-                                "urlType": a_urlType,
-                                "extension_type": a_extension
-                            })
-                        continue
             total_categories = [{
                     "file_url": url,
                     "category_name": Categories.RESEARCH_AND_DATA.value
@@ -1637,7 +1606,8 @@ class AustraliaBankScrapper(BaseBankScraper):
             self, url: str,
             year: str,
             metadata: MainMetadata | LinkMetadata,
-            parse_links: bool = True):
+            parse_links: bool = True,
+            ):
         self.get(url)
         xpath = "//main[@id='content' or @id='main'] | //div[@id='content' or @id='main']"
         try:
