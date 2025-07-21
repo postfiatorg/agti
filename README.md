@@ -17,7 +17,7 @@ This Node is dedicated to Capital Markets based tooling for the AGTI Inc Node
    git clone https://github.com/postfiatorg/agti
    cd agti
    ```
-2. **Create the virtual environment & install depende
+2. **Create the virtual environment & install depende**
     ```bash
     poetry install
     ```
