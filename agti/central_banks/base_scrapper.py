@@ -737,7 +737,17 @@ class BaseBankScraper:
         #else:
         #    output[1] = None
         return output
-        
+
+
+    @staticmethod
+    def repair_url(url):
+        """
+        Repair the URL if it is missing the protocol.
+        This is a simple heuristic to fix common mistakes.
+        """
+        if url.startswith("ttp://") or url.startswith("ttps://"):
+            return 'h' + url
+        return url
 
 
     def process_links(self, main_file_id, f_get_links, year = None, allow_outside=False, download_a_tag_xpath=None):
@@ -752,7 +762,7 @@ class BaseBankScraper:
         """
         # get all links from the main page
         all_links = [
-            (link_text, link) for link_text, link in f_get_links() if link is not None and link_text != ""
+            (link_text, self.repair_url(link)) for link_text, link in f_get_links() if link is not None and link_text != ""
         ]
         
         result = []
