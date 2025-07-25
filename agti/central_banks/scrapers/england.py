@@ -52,59 +52,67 @@ class EnglandBankScraper(BaseBankScraper):
     def initialize_my_js(self):
         # https://www.bankofengland.co.uk/scripts/news.js additional scripts
         INITIALIZE_JS_SCRIPT = """
-window.initAjaxCall = function (obj, reload) {
-    //console.info("AJAX request for search results");
+window.agti_initAjaxCall = async function initAjaxCall(obj, reload, callback) {
+
+    /* ---------- 1. normalise paging ---------- */
     if (reload) {
         obj.Page = 1;
         CP.NEWS.Page = 1;
     }
 
-    var loadResults = (reload || obj.Page === 1) ? $("#SearchResults") :
-        (CP.BOE.InfiniteScrolling) ? $("#LoadMore") : $("#SearchResults");
+    /* ---------- 2. pick the target container ---------- */
+    const $loadResults = (reload || obj.Page === 1)
+        ? $('#SearchResults')
+        : (CP.BOE.InfiniteScrolling ? $('#LoadMore') : $('#SearchResults'));
 
-    loadResults.css('display', 'none');
-    $('.loading').css('display', 'block');
-    $('.loading').html('<img src="/assets/img/loader.svg" role="progressbar" aria-busy="true" alt="" /><p class="loading-text">Content loading</p>');
+    /* ---------- 3. show the loader, hide results ---------- */
+    $loadResults.hide();
+    $('.loading')
+        .show()
+        .html('<img src="/assets/img/loader.svg" role="progressbar" aria-busy="true" alt="" />' +
+              '<p class="loading-text">Content loading</p>');
 
-    $.ajax({
-        url: "/_api/News/RefreshPagedNewsList",
-        type: "post",
-        data: obj
-    })
-        .done(function (result) {
-            if (CP.BOE.InfiniteScrolling && obj.Page > 1) {
-                loadResults.replaceWith(result.Results).fadeIn(600, function () {
-                    $('.loading').empty();
-                    $('.loading').css('display', 'none');
-                });
-            }
-            else {
-                loadResults.hide().html(result.Results).fadeIn(600);
-
-                var textCount = $('#resultCount').html();
-                $('#resultCountAnnounce').html('');
-                setTimeout(function () {
-                    $('#resultCountAnnounce').html(textCount);
-                }, 500);
-
-            }
-            $('.sidebar-filters.taxonomy-filters').hide().html(result.Refiners).fadeIn(600);
-            $('.loading').css('display', 'none');
-            if ($('.no-results').length) {
-                $('.no-results').css('display', 'block');
-            }
-            else
-                loading = false;
-
-            window.IEimages();
-        })
-        .fail(function (e) {
-            $('.loading').replaceWith("<p>An error happened. Please, try again later.</p>");
+    try {
+        /* ---------- 4. synchronous‑looking AJAX call ---------- */
+        const result = await $.ajax({
+            url: '/_api/News/RefreshPagedNewsList',
+            method: 'POST',
+            data: obj,
+            dataType: 'json'          // server returns { Results, Refiners, … }
         });
 
-    if (!reload) {
-        window.setState(obj);
+        /* ---------- 5. update the DOM (no animations) ---------- */
+        if (CP.BOE.InfiniteScrolling && obj.Page > 1) {
+            // append for infinite scroll
+            $loadResults.replaceWith(result.Results);
+        } else {
+            // first page or classic paging
+            $loadResults.html(result.Results).show();
+            // live‑region count for screen readers
+            const textCount = $('#resultCount').text();
+            $('#resultCountAnnounce').text(textCount);
+        }
+
+        $('.sidebar-filters.taxonomy-filters').html(result.Refiners).show();
+        $('.loading').empty().hide();
+
+        if ($('.no-results').length) {
+            $('.no-results').show();
+        } else {
+            window.loading = false;   // keeps your old flag logic intact
+        }
+
+        window.IEimages();            
+
+        /* ---------- 6. reflect state in URL/history ---------- */
+        if (!reload) {
+            window.setState(obj);
+        }
+
+    } catch (xhr) {
+        callback(false);
     }
+    callback(true);
 }
 
 window.setState = function (obj) {
@@ -128,11 +136,8 @@ window.IEimages = function() {
 }
 var callback = arguments[0];
 $(document).ready(function(){
-    $.ajaxSetup({
-        async: false,
-    });
     window.agti_obj = null;
-    callback();
+    callback(); // this garantees that document is ready before executing other scripts
 });
         """
         self.driver_manager.driver.execute_async_script(INITIALIZE_JS_SCRIPT)
@@ -144,13 +149,12 @@ $(document).ready(function(){
 
         # initialize js
         self.initialize_my_js()
-        wait = WebDriverWait(self.driver_manager.driver, 10, 0.2)
 
         topics = ["Research blog", "Event", "News", "Publication", "Speech", "Statistics"]
         SET_TOPICS_SCRIPT = """
 var topics_to_set = arguments[0];
 var callback = arguments[1];
-$(document).ready(function(){
+(async function(){
     
     typeValues = $('.sidebar-filters.type-filters').find('input[type="checkbox"]').toArray();
     typeValues.forEach((el) => {
@@ -169,9 +173,10 @@ $(document).ready(function(){
         }
     });
     // check if all topics are set
+    var obj = CP.NEWS.initGetFilters();
+    await window.agti_initAjaxCall(obj, true, (x) => {});
     callback(topics_to_set);
-    CP.NEWS.initFilters();
-});   
+})();   
         """
         not_setted = self.driver_manager.driver.execute_async_script(SET_TOPICS_SCRIPT, topics)
         if len(not_setted) > 0:
@@ -182,7 +187,7 @@ $(document).ready(function(){
         SET_TAXONOMY_SCRIPT = """
 const taxonomy_to_set =  arguments[0];
 const callback = arguments[1];
-$(document).ready(function(){
+(async function(){
     var taxonomy_set = false;
     taxonomyValues = $('.sidebar-filters.taxonomy-filters').find('input[type="checkbox"]').toArray();
     taxonomyValues.forEach((el) => {
@@ -199,10 +204,9 @@ $(document).ready(function(){
         callback(false);
         return;
     }
-    window.my_obj_agti = CP.NEWS.initGetFilters();
-    window.initAjaxCall(window.my_obj_agti, true);
-    callback(true);
-});
+    window.agti_obj = CP.NEWS.initGetFilters();
+    await window.agti_initAjaxCall(window.agti_obj, true, callback);
+})();
         """
         taxonomy_success = self.driver_manager.driver.execute_async_script(SET_TAXONOMY_SCRIPT, topic)
         if not taxonomy_success:
@@ -231,11 +235,17 @@ $(document).ready(function(){
 
         NEXT_PAGE_SCRIPT = """
 const callback = arguments[0];
-$(document).ready(function(){
-    window.my_obj_agti.Page += 1;
-    window.initAjaxCall(my_obj_agti, false);
-    callback(window.my_obj_agti.Page);
-});
+( async function(){
+    window.agti_obj.Page += 1;
+    var callSuccesful = true;
+    await window.agti_initAjaxCall(window.agti_obj, false, (x) => {
+        callSuccesful = x;
+    });
+    if (!callSuccesful) {
+        callback(-1);
+    }
+    callback(window.agti_obj.Page);
+})();
         """
 
         current_page = self.driver_manager.driver.execute_async_script(NEXT_PAGE_SCRIPT)
