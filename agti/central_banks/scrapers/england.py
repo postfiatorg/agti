@@ -319,12 +319,11 @@ $(document).ready(function(){
                     date = pd.to_datetime(time_tag.get_attribute("datetime"))
                     to_process.append((tag, href, date))
                     year = min(year, date.year)
-                if current_page < num_pages:
-                    current_page = self.next_page()
-                else:
+                if current_page == num_pages:
                     logger.info(f"Reached the last page for topic: {topic} in year: {year}")
                     break
-
+                current_page = self.next_page()
+                    
             for tag, href, date in to_process:
                 total_categories = [
                     {"file_url": href, "category_name": category.value}
