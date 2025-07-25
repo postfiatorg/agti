@@ -658,6 +658,7 @@ class BaseBankScraper:
         headers = self.get_headers()
         cookies = self.get_cookies_for_request()
         proxies = self.get_proxies()
+        resp = None
         for i in range(3):
             try:
                 resp = requests.head(url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60)
@@ -698,7 +699,7 @@ class BaseBankScraper:
                 })
                 break
         # end of loop
-        if resp.status_code != 200:
+        if resp is None or resp.status_code != 200:
             logger.exception(f"Failed to get file type for {url}, status code: {resp.status_code}", extra={
                 "url": url,
                 "headers": headers,
