@@ -321,6 +321,9 @@ $(document).ready(function(){
                     year = min(year, date.year)
                 if current_page < num_pages:
                     current_page = self.next_page()
+                else:
+                    logger.info(f"Reached the last page for topic: {topic} in year: {year}")
+                    break
 
             for tag, href, date in to_process:
                 total_categories = [
