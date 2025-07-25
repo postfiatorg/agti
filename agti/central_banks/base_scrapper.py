@@ -690,6 +690,14 @@ class BaseBankScraper:
                         "http": new_proxies,
                         "https": new_proxies
                     }
+            except requests.exceptions.InvalidSchema as e:
+                logger.exception(f"InvalidSchema getting filetype for {url}", extra={
+                    "url": url,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                break
             except Exception as e:
                 logger.exception(f"General getting filetype from {url}", extra={
                     "url": url,
