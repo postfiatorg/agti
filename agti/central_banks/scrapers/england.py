@@ -136,8 +136,20 @@ window.IEimages = function() {
 }
 var callback = arguments[0];
 $(document).ready(function(){
-    window.agti_obj = null;
-    callback(); // this garantees that document is ready before executing other scripts
+    (async () => {
+        window.agti_obj = null;
+        // clean all topics
+        $('.sidebar-filters.type-filters').find('input[type="checkbox"]').toArray().forEach((el) => {
+            $(el).prop('checked', false);
+        });
+        // clean all taxonomies
+        $('.sidebar-filters.taxonomy-filters').find('input[type="checkbox"]').toArray().forEach((el) => {
+            $(el).prop('checked', false);
+        });
+        var obj = CP.NEWS.initGetFilters();
+        await window.agti_initAjaxCall(obj, true, (x) => {});
+        callback(); // this garantees that document is ready before executing other scripts
+        })();
 });
         """
         self.driver_manager.driver.execute_async_script(INITIALIZE_JS_SCRIPT)
@@ -202,7 +214,6 @@ const callback = arguments[1];
     });
     if (!taxonomy_set) {
         callback(false);
-        return;
     }
     window.agti_obj = CP.NEWS.initGetFilters();
     await window.agti_initAjaxCall(window.agti_obj, true, callback);
