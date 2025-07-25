@@ -658,6 +658,7 @@ class BaseBankScraper:
         headers = self.get_headers()
         cookies = self.get_cookies_for_request()
         proxies = self.get_proxies()
+        resp = None
         for i in range(3):
             try:
                 resp = requests.head(url, headers=headers, cookies=cookies, proxies=proxies, allow_redirects=True, timeout=60)
@@ -689,6 +690,14 @@ class BaseBankScraper:
                         "http": new_proxies,
                         "https": new_proxies
                     }
+            except requests.exceptions.InvalidSchema as e:
+                logger.exception(f"InvalidSchema getting filetype for {url}", extra={
+                    "url": url,
+                    "headers": headers,
+                    "cookies": cookies,
+                    "proxies": proxies,
+                })
+                break
             except Exception as e:
                 logger.exception(f"General getting filetype from {url}", extra={
                     "url": url,
@@ -698,7 +707,7 @@ class BaseBankScraper:
                 })
                 break
         # end of loop
-        if resp.status_code != 200:
+        if resp is None or resp.status_code != 200:
             logger.exception(f"Failed to get file type for {url}, status code: {resp.status_code}", extra={
                 "url": url,
                 "headers": headers,
@@ -736,7 +745,17 @@ class BaseBankScraper:
         #else:
         #    output[1] = None
         return output
-        
+
+
+    @staticmethod
+    def repair_url(url):
+        """
+        Repair the URL if it is missing the protocol.
+        This is a simple heuristic to fix common mistakes.
+        """
+        if url.startswith("ttp://") or url.startswith("ttps://"):
+            return 'h' + url
+        return url
 
 
     def process_links(self, main_file_id, f_get_links, year = None, allow_outside=False, download_a_tag_xpath=None):
@@ -751,7 +770,7 @@ class BaseBankScraper:
         """
         # get all links from the main page
         all_links = [
-            (link_text, link) for link_text, link in f_get_links() if link is not None and link_text != ""
+            (link_text, self.repair_url(link)) for link_text, link in f_get_links() if link is not None and link_text != ""
         ]
         
         result = []
