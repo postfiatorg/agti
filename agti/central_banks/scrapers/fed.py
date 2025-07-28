@@ -390,7 +390,7 @@ class FEDBankScrapper(BaseBankScraper):
             html_p = p.get_attribute("innerHTML")
             for line in html_p.split("<br>"):
                 month_word = line.split(':')[0].strip()
-                a_tags = dict([(name, href) for (href, name) in re.findall(A_REGEX, line)])
+                a_tags = dict([(name.strip(), href) for (href, name) in re.findall(A_REGEX, line)])
                 date_txt = f"{month_word} {year}"
                 url = a_tags.get("HTML",a_tags.get("Testimony"))
                 total_url = urljoin("https://www.federalreserve.gov", url)
@@ -466,13 +466,13 @@ class FEDBankScrapper(BaseBankScraper):
             for tr in table.find_elements(By.XPATH, ".//tr"):
                 tds = tr.find_elements(By.XPATH, ".//td")
                 if len(tds) == 1:
-                    a_tags = dict([(tag.text, tag.get_attribute("href")) for tag in tds[0].find_elements(By.XPATH, ".//a")])
+                    a_tags = dict([(tag.text.strip(), tag.get_attribute("href")) for tag in tds[0].find_elements(By.XPATH, ".//a")])
                     if len(a_tags) == 0:
                         continue
                     date_txt  = tds[0].text.split(":")[0].strip()
                 elif len(tds) == 2:
                     date_txt = tds[0].text
-                    a_tags = dict([(tag.text, tag.get_attribute("href")) for tag in tds[1].find_elements(By.XPATH, ".//a")])
+                    a_tags = dict([(tag.text.strip(), tag.get_attribute("href")) for tag in tds[1].find_elements(By.XPATH, ".//a")])
                     if len(a_tags) == 0:
                         continue
                 else:
@@ -539,7 +539,7 @@ class FEDBankScrapper(BaseBankScraper):
         for tr in table.find_elements(By.XPATH, ".//tr"):
             tds = tr.find_elements(By.XPATH, ".//td")
             date_txt = tds[0].text
-            a_tags = dict([(tag.text, tag.get_attribute("href")) for tag in tds[1].find_elements(By.XPATH, ".//a")])
+            a_tags = dict([(tag.text.strip(), tag.get_attribute("href")) for tag in tds[1].find_elements(By.XPATH, ".//a")])
             if len(a_tags) == 0:
                 continue
             url = a_tags.get("HTML", a_tags[list(a_tags.keys())[0]])
@@ -620,7 +620,7 @@ class FEDBankScrapper(BaseBankScraper):
                 name1 = lines[1].split(':')[0].strip()
                 a_tags = [(a.text,a.get_attribute("href")) for a in element.find_elements(By.XPATH, ".//a")]
                 parsed_links = {
-                    name1: dict(a_tags[:links_count]),
+                    name1.strip(): dict(a_tags[:links_count]),
                 }
                 if len(lines) > 2:
                     name2 = lines[2].split(':')[0].strip()
