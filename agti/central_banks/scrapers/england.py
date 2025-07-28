@@ -49,50 +49,220 @@ class EnglandBankScraper(BaseBankScraper):
                     raise e
         self.cookies = self.driver_manager.driver.get_cookies()
 
+    def initialize_my_js(self):
+        # https://www.bankofengland.co.uk/scripts/news.js additional scripts
+        INITIALIZE_JS_SCRIPT = """
+window.agti_initAjaxCall = async function initAjaxCall(obj, reload, callback) {
+
+    /* ---------- 1. normalise paging ---------- */
+    if (reload) {
+        obj.Page = 1;
+        CP.NEWS.Page = 1;
+    }
+
+    /* ---------- 2. pick the target container ---------- */
+    const $loadResults = (reload || obj.Page === 1)
+        ? $('#SearchResults')
+        : (CP.BOE.InfiniteScrolling ? $('#LoadMore') : $('#SearchResults'));
+
+    /* ---------- 3. show the loader, hide results ---------- */
+    $loadResults.hide();
+    $('.loading')
+        .show()
+        .html('<img src="/assets/img/loader.svg" role="progressbar" aria-busy="true" alt="" />' +
+              '<p class="loading-text">Content loading</p>');
+
+    try {
+        /* ---------- 4. synchronous‑looking AJAX call ---------- */
+        const result = await $.ajax({
+            url: '/_api/News/RefreshPagedNewsList',
+            method: 'POST',
+            data: obj,
+            dataType: 'json'          // server returns { Results, Refiners, … }
+        });
+
+        /* ---------- 5. update the DOM (no animations) ---------- */
+        if (CP.BOE.InfiniteScrolling && obj.Page > 1) {
+            // append for infinite scroll
+            $loadResults.replaceWith(result.Results);
+        } else {
+            // first page or classic paging
+            $loadResults.html(result.Results).show();
+            // live‑region count for screen readers
+            const textCount = $('#resultCount').text();
+            $('#resultCountAnnounce').text(textCount);
+        }
+
+        $('.sidebar-filters.taxonomy-filters').html(result.Refiners).show();
+        $('.loading').empty().hide();
+
+        if ($('.no-results').length) {
+            $('.no-results').show();
+        } else {
+            window.loading = false;   // keeps your old flag logic intact
+        }
+
+        window.IEimages();            
+
+        /* ---------- 6. reflect state in URL/history ---------- */
+        if (!reload) {
+            window.setState(obj);
+        }
+
+    } catch (xhr) {
+        callback(false);
+    }
+    callback(true);
+}
+
+window.setState = function (obj) {
+    if (!CP.BOE.InfiniteScrolling) {
+        history.pushState(obj, null, null);
+        //console.info("SetState Done");
+    }
+}
+window.IEimages = function() {
+    if (!Modernizr.objectfit) {
+        $('.release').each(function () {
+            var $imageContainer = $(this).find('.release-img'),
+                imgUrl = $imageContainer.find('img').prop('src');
+            if (imgUrl) {
+                $imageContainer
+                    .css("background-image", "url('" + imgUrl + "')")
+                    .addClass('object-fit');
+            }
+        });
+    }
+}
+var callback = arguments[0];
+$(document).ready(function(){
+    (async () => {
+        window.agti_obj = null;
+        // clean all topics
+        $('.sidebar-filters.type-filters').find('input[type="checkbox"]').toArray().forEach((el) => {
+            $(el).prop('checked', false);
+        });
+        // clean all taxonomies
+        $('.sidebar-filters.taxonomy-filters').find('input[type="checkbox"]').toArray().forEach((el) => {
+            $(el).prop('checked', false);
+        });
+        var obj = CP.NEWS.initGetFilters();
+        await window.agti_initAjaxCall(obj, true, (x) => {});
+        callback(); // this garantees that document is ready before executing other scripts
+        })();
+});
+        """
+        self.driver_manager.driver.execute_async_script(INITIALIZE_JS_SCRIPT)
+
+
 
     def init_filter(self, topic):
         self.get(self.get_base_url())
-        wait = WebDriverWait(self.driver_manager.driver, 10,0.2)
-    
-        def iterate_over_labels(div_element_xpath, filters_list):
-            wait.until(EC.visibility_of_all_elements_located((By.XPATH, div_element_xpath)))
-            filter_div = wait.until(EC.visibility_of_element_located((By.XPATH, div_element_xpath)))
-            filter_labels = filter_div.find_elements(By.TAG_NAME, "label")
-            for label in filter_labels:
-                name = label.text.strip()
-                if name in filters_list:
-                    #self.driver_manager.driver.execute_script("arguments[0].scrollIntoView(false);", label)
-                    label = wait.until(EC.element_to_be_clickable(label))
-                    label.click()
-                    filters_list.remove(name)
-                    return True
-            logger.warning(f"Could not find any of {filters_list} in {[x.text for x in filter_labels]}")
-            return False
-        wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
 
-        type_filters_to_check = set(["Research blog", "Event", "News", "Publication", "Speech", "Statistics"])
-        xpath = "//div[@class='sidebar-filters type-filters']"
-        while len(type_filters_to_check) > 0:
-            iterate_over_labels(xpath, type_filters_to_check)
+        # initialize js
+        self.initialize_my_js()
+
+        topics = ["Research blog", "Event", "News", "Publication", "Speech", "Statistics"]
+        SET_TOPICS_SCRIPT = """
+var topics_to_set = arguments[0];
+var callback = arguments[1];
+(async function(){
+    
+    typeValues = $('.sidebar-filters.type-filters').find('input[type="checkbox"]').toArray();
+    typeValues.forEach((el) => {
+        const parent = el.parentElement;
+        const el_text = parent.textContent.trim();
+        if (topics_to_set.includes(el_text)) {
+            $(el).prop('checked', true);
+            // remove it from topics_to_set
+            const index = topics_to_set.indexOf(el_text);
+            if (index > -1) {
+                topics_to_set.splice(index, 1);
+            }
             
-        topics = set([topic])
-        xpath = "//div[@class='sidebar-filters taxonomy-filters']"
-        wait.until(
-            lambda driver: driver.find_element(By.ID, "SearchResults").get_dom_attribute("style") in (None, "")
-        )
-        max_repeats = 3
-        while len(topics) > 0 and max_repeats > 0:
-            if not iterate_over_labels(xpath, topics):
-                max_repeats -= 1
-        if max_repeats == 0:
-            raise ValueError(f"Could not apply filters for topic: {topic}")
+        } else {
+            $(el).prop('checked', false);
+        }
+    });
+    // check if all topics are set
+    var obj = CP.NEWS.initGetFilters();
+    await window.agti_initAjaxCall(obj, true, (x) => {});
+    callback(topics_to_set);
+})();   
+        """
+        not_setted = self.driver_manager.driver.execute_async_script(SET_TOPICS_SCRIPT, topics)
+        if len(not_setted) > 0:
+            raise ValueError(
+                f"Not all topics were set: {not_setted} for topic: {topic}."
+                "Please check the topics in the script."
+            )
+        SET_TAXONOMY_SCRIPT = """
+const taxonomy_to_set =  arguments[0];
+const callback = arguments[1];
+(async function(){
+    var taxonomy_set = false;
+    taxonomyValues = $('.sidebar-filters.taxonomy-filters').find('input[type="checkbox"]').toArray();
+    taxonomyValues.forEach((el) => {
+        const parent = el.parentElement;
+        const el_text = parent.textContent.trim();
+        if (el_text === taxonomy_to_set) {
+            $(el).prop('checked', true);
+            taxonomy_set = true;
+        } else {
+            $(el).prop('checked', false);
+        }
+    });
+    if (!taxonomy_set) {
+        callback(false);
+    }
+    window.agti_obj = CP.NEWS.initGetFilters();
+    await window.agti_initAjaxCall(window.agti_obj, true, callback);
+})();
+        """
+        taxonomy_success = self.driver_manager.driver.execute_async_script(SET_TAXONOMY_SCRIPT, topic)
+        if not taxonomy_success:
+            raise ValueError(
+                f"Could not set taxonomy: {topic}. "
+                "Please check the taxonomy in the script."
+            )
+        
 
-        wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
-        wait.until(
-            lambda driver: driver.find_element(By.ID, "SearchResults").get_dom_attribute("style") in (None, "")
-        )
-        logger.debug(f"Filters applied to topic: {topic}")
-    
+    def get_number_of_pages(self) -> int:
+        SCRIPT_GET_NUMBER_OF_PAGES = """
+const callback = arguments[0];
+$(document).ready(function(){
+    var pageCount = $(".container-list-pagination").data("pagecount");
+    callback(pageCount);
+});
+        """
+        num_pages = self.driver_manager.driver.execute_async_script(SCRIPT_GET_NUMBER_OF_PAGES)
+        if num_pages is None:
+            raise ValueError("Could not get number of pages. Please check the script.")
+        if not isinstance(num_pages, int):
+            raise ValueError(f"Number of pages is not an integer: {num_pages}. Please check the script.")
+        return num_pages
+
+    def next_page(self):
+
+        NEXT_PAGE_SCRIPT = """
+const callback = arguments[0];
+( async function(){
+    window.agti_obj.Page += 1;
+    var callSuccesful = true;
+    await window.agti_initAjaxCall(window.agti_obj, false, (x) => {
+        callSuccesful = x;
+    });
+    if (!callSuccesful) {
+        callback(-1);
+    }
+    callback(window.agti_obj.Page);
+})();
+        """
+
+        current_page = self.driver_manager.driver.execute_async_script(NEXT_PAGE_SCRIPT)
+        if not isinstance(current_page, int):
+            raise ValueError(f"Current page is not an integer: {current_page}. Please check the script.")
+        return current_page
 
     def parse_html(self, url: str, date: pd.Timestamp, scraping_time: pd.Timestamp):
         # find main with id="main-content"
@@ -151,6 +321,8 @@ class EnglandBankScraper(BaseBankScraper):
             self.init_filter(topic)
             year = pd.Timestamp.now().year
             to_process = []
+            num_pages = self.get_number_of_pages()
+            current_page = 1
             while year >= self.MAX_OLD_YEAR:
                 # get id = SearchResults div
                 search_results = self.driver_manager.driver.find_element(By.ID, "SearchResults")
@@ -168,9 +340,11 @@ class EnglandBankScraper(BaseBankScraper):
                     date = pd.to_datetime(time_tag.get_attribute("datetime"))
                     to_process.append((tag, href, date))
                     year = min(year, date.year)
-                if not self.go_to_next_page():
+                if current_page == num_pages:
+                    logger.info(f"Reached the last page for topic: {topic} in year: {year}")
                     break
-
+                current_page = self.next_page()
+                    
             for tag, href, date in to_process:
                 total_categories = [
                     {"file_url": href, "category_name": category.value}
@@ -198,46 +372,6 @@ class EnglandBankScraper(BaseBankScraper):
                     } for (link, link_text, link_id) in links_output
                 ]
                 self.add_all_atomic([result],total_categories,total_links)
-
-
-    def get_current_page_number(self):
-        wait = WebDriverWait(self.driver_manager.driver, 10)
-        # find list-pagination__link list-pagination__link--page list-pagination__link--is-current
-        xpath = "//a[@class='list-pagination__link list-pagination__link--page list-pagination__link--is-current']"
-        current_page = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
-        # get data-page-link attribute
-        return int(current_page.get_attribute("data-page-link"))
-    
-
-    def go_to_next_page(self):
-        wait = WebDriverWait(self.driver_manager.driver, 30, 0.1)
-        current_page_number = self.get_current_page_number()
-
-        current_page_xpath = f"//a[@data-page-link='{current_page_number}']"
-        next_page_xpath = f"//a[@data-page-link='{current_page_number + 1}']"
-        
-        current_page = wait.until(EC.visibility_of_element_located((By.XPATH, current_page_xpath)))
-        next_pages = self.driver_manager.driver.find_elements(By.XPATH, next_page_xpath)
-        if len(next_pages) == 0:
-            logger.debug("No more pages")
-            return False
-        next_page = next_pages[0]
-        wait.until(EC.element_to_be_clickable(next_page))
-        
-        self.driver_manager.driver.execute_script("arguments[0].click();", next_page)
-        
-        # wait for finish loading class list-pagination ul
-        #wait.until(EC.visibility_of_all_elements_located((By.ID, "SearchResults")))
-        # this is slower, but we are sure everything is loaded
-        # Phase 1: Wait until the style attribute is non-empty, indicating the change has started.
-        wait.until(
-            lambda d: d.find_element(By.ID, "SearchResults").get_dom_attribute("style") not in (None, "")
-        )
-        wait.until(
-            lambda driver: driver.find_element(By.ID, "SearchResults").get_dom_attribute("style") in (None, "")
-        )
-        logger.debug(f"Going to page: {current_page_number + 1}")
-        return True
 
 
 
