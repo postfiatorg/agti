@@ -991,8 +991,69 @@ class FEDBankScrapper(BaseBankScraper):
                 }
                 self.add_all_atomic([result], total_categories, total_links)
 
+    def process_cybersecurity_reports(self):
+        all_urls = self.get_all_db_urls()
+        all_categories = [(url, category_name) for url, category_name in self.get_all_db_categories()]
+        main_url = "https://www.federalreserve.gov/publications/cybersecurity-and-financial-system-resilience-report.htm"
 
+        xpath = "//div[@id='article']/div"
+        self.get(main_url)
+        div = self.driver_manager.driver.find_element(By.XPATH, xpath)
+        elements = div.find_elements(By.XPATH, "./*")[2:]
+        to_process = []
+        for element in elements:
+            if element.tag_name == "h4":
+                # get year
+                year = int(element.text.strip())
+                continue
+            if element.tag_name == "p":
+                date_txt = str(year)
+                a_tag = element.find_element(By.XPATH, ".//a")
+                href = a_tag.get_attribute("href")
+                if href in all_urls:
+                    logger.debug(f"Url is already in db: {href}")
+                    total_categories = [
+                        {"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value},
+                        {"file_url": href, "category_name": Categories.RESEARCH_AND_DATA.value}
+                    ]
+                    self.add_to_categories(total_categories)
+                    continue
 
+                to_process.append((href, date_txt))
+        for href, year_str in to_process:
+            logger.info(f"Processing: {href}")
+            scraping_time = pd.Timestamp.now()
+            _, extension = self.classify_url(href)
+            extType = classify_extension(extension)
+            if extension != "pdf":
+                logger.error(f"Url {href} is not a pdf, but {extType}, skipping", extra={
+                    "url": href,
+                    "extension_type": extension
+                })
+                continue
+            total_categories = [
+                {"file_url": href, "category_name": Categories.FINANCIAL_STABILITY_AND_REGULATION.value},
+                {"file_url": href, "category_name": Categories.RESEARCH_AND_DATA.value}
+            ]
+            main_metadata = MainMetadata(
+                url=href,
+                scraping_time=str(scraping_time),
+                date_published_str=date_txt,
+            )
+            # upload file
+            main_id = self.download_and_upload_file(
+                href, extension, main_metadata, year=year_str
+            )
+            if main_id is None:
+                continue
+            result = {
+                "file_url": href,
+                "date_published_str": year_str,
+                "date_published": None,
+                "scraping_time": scraping_time,
+                "file_id": main_id,
+            }
+            self.add_all_atomic([result], total_categories, [])
 
     def process_consumers_and_communities(self):
         # Consumer Affairs Letters
@@ -1162,8 +1223,10 @@ class FEDBankScrapper(BaseBankScraper):
                     } for (link, link_text, link_id) in processed_links
                 ]
         return main_id,  total_links
+
     
     def process_all_years(self):
+        self.process_cybersecurity_reports()
         self.process_FOMC()
         self.process_news_events()
         self.process_monetary_policy()
