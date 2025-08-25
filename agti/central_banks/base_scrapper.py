@@ -706,7 +706,7 @@ class BaseBankScraper:
                 "proxies": proxies,
             })
             return None
-        ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower()
+        ctype = resp.headers.get("Content-Type", "").split(";", 1)[0].lower().strip()
         # if ctype has text/html we return page, otherwise we return file
         ctype_extension = mimetypes.guess_extension(ctype)
         if ctype_extension is None:
